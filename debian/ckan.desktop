@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=CKAN
+Comment=Comprehensive Kerbal Archive Network Client
+Keywords=Kerbal Space Program;KSP;Mod;
+Icon=ckan
+Categories=Game;PackageManager;
+Exec=/usr/bin/ckan
+Terminal=false
+Type=Application
+Version=1.0
+X-GNOME-SingleWindow=true

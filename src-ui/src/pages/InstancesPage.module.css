@@ -1,0 +1,12 @@
+.page { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid var(--color-border); background: var(--color-bg-surface); }
+.title { font-size: 20px; font-weight: 600; color: var(--color-text-primary); }
+.content { flex: 1; overflow: auto; padding: 20px 24px; }
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 300px; text-align: center; }
+.emptyIcon { color: var(--color-text-secondary); opacity: 0.5; }
+.empty h2 { font-size: 18px; font-weight: 600; color: var(--color-text-primary); }
+.empty p { font-size: 14px; color: var(--color-text-secondary); }
+.addBtn { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: 8px; background: var(--color-accent-primary); color: var(--color-bg-primary); font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s ease; }
+.addBtn:hover { opacity: 0.85; }
+.addBtnLarge { display: flex; align-items: center; gap: 8px; padding: 12px 24px; border: 1px dashed var(--color-border); border-radius: 12px; background: transparent; color: var(--color-text-secondary); font-size: 14px; cursor: pointer; margin-top: 8px; transition: border-color 0.15s ease, color 0.15s ease; }
+.addBtnLarge:hover { border-color: var(--color-accent-primary); color: var(--color-accent-primary); }

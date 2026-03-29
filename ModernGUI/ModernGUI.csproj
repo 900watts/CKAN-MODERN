@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>..\assets\ckan.ico</ApplicationIcon>
+    <AssemblyName>CKAN</AssemblyName>
+    <RootNamespace>CKAN.GUI</RootNamespace>
+    <Title>CKAN</Title>
+    <Version>2.0.0</Version>
+    <Company>CKAN</Company>
+    <Product>Comprehensive Kerbal Archive Network</Product>
+    <Description>Mod manager for Kerbal Space Program</Description>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WebView2 - Microsoft's Chromium-based web browser control -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2592.51" />
+    
+    <!-- Dependency Injection -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Autofac" Version="8.0.0" />
+    
+    <!-- Logging -->
+    <PackageReference Include="log4net" Version="2.0.15" />
+    
+    <!-- JSON -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    
+    <!-- HTTP Client for downloads -->
+    <PackageReference Include="System.Net.Http.Json" Version="8.0.0" />
+    
+    <!-- Valve KeyValue for parsing Steam library files -->
+    <PackageReference Include="ValveKeyValue" Version="0.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\CKAN-core.csproj">
+      <SetTargetFramework>TargetFramework=net8.0</SetTargetFramework>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="log4net.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

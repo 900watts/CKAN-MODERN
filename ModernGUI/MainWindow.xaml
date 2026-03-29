@@ -1,0 +1,20 @@
+<Window x:Class="CKAN.GUI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="CKAN - Comprehensive Kerbal Archive Network"
+        Width="1280" Height="800"
+        MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BackgroundPrimary}">
+
+    <!--
+         The React frontend will be loaded from:
+         - Dev: http://localhost:5173 (Vite dev server)
+         - Prod: Embedded dist/ from the React build
+    -->
+    <wv2:WebView2 x:Name="WebView"
+                  Source="about:blank"
+                  DefaultBackgroundColor="#1A1A1A"/>
+
+</Window>

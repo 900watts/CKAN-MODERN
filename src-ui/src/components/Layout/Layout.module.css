@@ -1,0 +1,147 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background: var(--color-bg-primary);
+  overflow: hidden;
+}
+
+/* ─── Navigation Rail ─── */
+.navRail {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 64px;
+  min-width: 64px;
+  height: 100%;
+  background: var(--color-bg-surface);
+  border-right: 1px solid var(--color-border);
+  padding: 12px 8px;
+  transition: width 0.2s ease;
+  z-index: 10;
+}
+
+.navTop,
+.navBottom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navBottom {
+  margin-top: auto;
+}
+
+/* ─── Logo ─── */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 16px;
+  cursor: default;
+}
+
+.logoText {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-accent-primary);
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+
+.logoBadge {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--color-bg-primary);
+  background: var(--color-accent-secondary);
+  padding: 2px 4px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* ─── Nav Items ─── */
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-align: left;
+  width: 100%;
+}
+
+.navItem:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.navItemActive {
+  background: var(--color-bg-elevated);
+  color: var(--color-accent-primary);
+}
+
+.navIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.navLabel {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+}
+
+/* ─── Main Content ─── */
+.main {
+  display: flex;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  transition: all 0.25s ease;
+}
+
+.content {
+  flex: 1;
+  overflow: auto;
+  height: 100%;
+}
+
+/* ─── Status Bar ─── */
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  padding: 0 12px;
+  background: var(--color-bg-surface);
+  border-top: 1px solid var(--color-border);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.statusLeft,
+.statusRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
