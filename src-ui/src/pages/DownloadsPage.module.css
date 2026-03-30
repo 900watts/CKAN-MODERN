@@ -1,0 +1,162 @@
+.page { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.activeBadge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent-primary);
+  background: rgba(96, 205, 255, 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.clearBtn {
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.clearBtn:hover { border-color: var(--color-text-secondary); color: var(--color-text-primary); }
+
+.content { flex: 1; overflow: auto; padding: 20px 24px; }
+
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 300px; text-align: center; }
+.emptyIcon { color: var(--color-text-secondary); opacity: 0.5; }
+.empty h2 { font-size: 18px; font-weight: 600; color: var(--color-text-primary); }
+.empty p { font-size: 14px; color: var(--color-text-secondary); }
+
+/* ─── List ─── */
+.list { display: flex; flex-direction: column; gap: 8px; max-width: 680px; }
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  transition: border-color 0.15s ease;
+}
+
+.itemDone { border-color: rgba(96, 205, 88, 0.3); }
+.itemError { border-color: rgba(255, 80, 80, 0.3); }
+
+.itemIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.itemInfo { flex: 1; min-width: 0; }
+
+.itemName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.itemError2 {
+  font-size: 11px;
+  color: var(--color-error);
+  margin-bottom: 6px;
+}
+
+.progressBar {
+  height: 3px;
+  background: var(--color-border);
+  border-radius: 2px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-accent-primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.itemMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.itemStatus {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.status_done { color: var(--color-success); }
+.status_error { color: var(--color-error); }
+.status_downloading, .status_installing { color: var(--color-accent-primary); }
+
+.itemTime {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+}
+
+.iconDone { color: var(--color-success); }
+.iconError { color: var(--color-error); }
+
+.dismissBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.dismissBtn:hover { opacity: 1; background: var(--color-bg-elevated); }
+
+/* ─── Spin ─── */
+.spin { color: var(--color-accent-primary); animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

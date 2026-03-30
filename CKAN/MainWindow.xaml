@@ -1,0 +1,18 @@
+<Window x:Class="CKAN.Modern.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="CKAN — Comprehensive Kerbal Archive Network"
+        Width="1280" Height="800"
+        MinWidth="960" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="#1A1A1A"
+        Loaded="Window_Loaded">
+
+    <Grid>
+        <wv2:WebView2 x:Name="webView"
+                       DefaultBackgroundColor="#FF1A1A1A"
+                       NavigationCompleted="WebView_NavigationCompleted"
+                       CoreWebView2InitializationCompleted="WebView_CoreWebView2InitializationCompleted" />
+    </Grid>
+</Window>

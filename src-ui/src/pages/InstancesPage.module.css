@@ -1,0 +1,247 @@
+.page { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+}
+
+.title { font-size: 20px; font-weight: 600; color: var(--color-text-primary); }
+
+.content { flex: 1; overflow: auto; padding: 20px 24px; }
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 200px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 300px; text-align: center; }
+.emptyIcon { color: var(--color-text-secondary); opacity: 0.5; }
+.empty h2 { font-size: 18px; font-weight: 600; color: var(--color-text-primary); }
+.empty p { font-size: 14px; color: var(--color-text-secondary); }
+
+.addBtn { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: 8px; background: var(--color-accent-primary); color: var(--color-bg-primary); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s ease; }
+.addBtn:hover { opacity: 0.85; }
+.addBtnLarge { display: flex; align-items: center; gap: 8px; padding: 12px 24px; border: 1px dashed var(--color-border); border-radius: 12px; background: transparent; color: var(--color-text-secondary); font-size: 14px; font-family: inherit; cursor: pointer; margin-top: 8px; transition: border-color 0.15s ease, color 0.15s ease; }
+.addBtnLarge:hover { border-color: var(--color-accent-primary); color: var(--color-accent-primary); }
+
+/* ─── Instance List ─── */
+.instanceList { display: flex; flex-direction: column; gap: 12px; max-width: 720px; }
+
+.instanceCard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  transition: border-color 0.15s ease;
+}
+
+.instanceCardActive { border-color: var(--color-accent-primary); background: var(--color-bg-elevated); }
+
+.instanceIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--color-bg-primary);
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}
+
+.instanceInfo { flex: 1; min-width: 0; }
+
+.instanceName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 2px;
+}
+
+.activeBadge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent-primary);
+  background: rgba(96, 205, 255, 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.instanceVersion { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
+
+.instancePath {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.setActiveBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.setActiveBtn:hover { border-color: var(--color-accent-primary); color: var(--color-accent-primary); }
+
+/* ─── Spin ─── */
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ─── Dialog ─── */
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(2px);
+}
+
+.dialog {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  width: 480px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dialogHeader h2 { font-size: 16px; font-weight: 600; color: var(--color-text-primary); }
+
+.dialogClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.dialogClose:hover { background: var(--color-bg-elevated); }
+.dialogBody { padding: 20px 24px; display: flex; flex-direction: column; gap: 8px; }
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.fieldInput {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.fieldInput:focus { border-color: var(--color-accent-primary); }
+
+.dialogError {
+  font-size: 12px;
+  color: var(--color-error);
+  padding: 6px 10px;
+  background: rgba(255, 80, 80, 0.1);
+  border-radius: 6px;
+}
+
+.dialogFooter {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.btnPrimary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-accent-primary);
+  color: var(--color-bg-primary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.btnPrimary:hover:not(:disabled) { opacity: 0.85; }
+.btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btnSecondary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.btnSecondary:hover { border-color: var(--color-text-secondary); color: var(--color-text-primary); }
