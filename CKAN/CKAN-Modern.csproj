@@ -37,16 +37,22 @@
     <Compile Include="..\GlobalAssemblyInfo.cs" Link="Properties\GlobalAssemblyInfo.cs" />
   </ItemGroup>
 
-  <!-- Embed the React frontend build output -->
-  <ItemGroup>
-    <Content Include="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
   <!-- Build React frontend before the .NET build (Release only) -->
   <Target Name="BuildReactFrontend" BeforeTargets="BeforeBuild" Condition="'$(Configuration)' == 'Release'">
     <Message Text="Building React frontend..." Importance="high" />
     <Exec Command="npm ci" WorkingDirectory="..\src-ui" />
     <Exec Command="npm run build" WorkingDirectory="..\src-ui" />
+    <!-- Dynamically include wwwroot after Vite has generated the hashed asset files -->
+    <ItemGroup>
+      <Content Include="wwwroot\**">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
   </Target>
+
+  <!-- In Debug builds, include whatever is already in wwwroot -->
+  <ItemGroup Condition="'$(Configuration)' != 'Release'">
+    <Content Include="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>
