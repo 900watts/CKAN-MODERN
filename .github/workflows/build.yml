@@ -34,36 +34,41 @@ jobs:
         # dotnet publish in Release config automatically runs:
         #   npm ci && npm run build  (in src-ui/)
         # which outputs the React bundle to CKAN/wwwroot/
-        # then packages everything into a single self-contained EXE
+        # then packages the .NET app into a self-contained EXE.
+        # NOTE: wwwroot/ is NOT embedded in the EXE — WebView2 requires
+        # it as a real folder on disk. We zip everything together below.
         run: dotnet publish CKAN/CKAN-Modern.csproj -c Release -o dist
 
-      - name: Find EXE
-        id: find_exe
+      - name: Package release ZIP
+        id: package
         run: |
-          $exe = Get-ChildItem -Path dist -Filter "*.exe" | Select-Object -First 1
-          if ($exe) {
-            Write-Host "Found: $($exe.FullName)"
-            echo "exe_path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
-            echo "exe_name=$($exe.Name)" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "No EXE found. Contents of dist/:"
-            Get-ChildItem -Path dist
-            exit 1
-          }
+          $buildNum = "${{ github.run_number }}"
+          $zipName  = "CKAN-Modern-v2.0.0-build${buildNum}.zip"
+
+          # ZIP the entire dist/ folder so wwwroot travels with the EXE
+          Compress-Archive -Path dist\* -DestinationPath $zipName
+
+          echo "zip_name=$zipName" >> $env:GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v2.0.0-build.${{ github.run_number }}
           name: "CKAN Modern v2.0.0 Build ${{ github.run_number }}"
-          files: ${{ steps.find_exe.outputs.exe_path }}
+          files: ${{ steps.package.outputs.zip_name }}
           prerelease: true
           body: |
             Automated Windows build from commit ${{ github.sha }}
 
-            **Download:** `${{ steps.find_exe.outputs.exe_name }}` below
+            ## Download & Run
 
-            ### What's in this build
+            1. Download `${{ steps.package.outputs.zip_name }}` below
+            2. Extract the ZIP anywhere (e.g. `C:\Games\CKAN-Modern\`)
+            3. Run `CKAN-Modern.exe`
+
+            > **Requires:** Windows 10/11 with [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) — already installed on most machines via Microsoft Edge.
+
+            ## What's in this build
             - Modern React + WebView2 UI (replaces WinForms)
             - AI-powered mod search — describe your playstyle, get mod suggestions
             - Markdown rendering + one-click install chips in AI chat
