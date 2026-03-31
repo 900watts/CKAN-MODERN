@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
-import { ckanIpc } from '../../services/ipc';
+import { aiService } from '../../services/ai';
+import type { ChatMessage } from '../../services/ai';
 import styles from './AIChatPanel.module.css';
 
 interface Message {
@@ -32,9 +33,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
 
   // Load points balance on mount
   useEffect(() => {
-    ckanIpc.call('ai:points-balance').then((res: any) => {
-      setPoints(res.balance);
-    }).catch(() => {});
+    setPoints(100); // Default free tier points
   }, []);
 
   // Auto-scroll to bottom
@@ -57,23 +56,26 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     setIsLoading(true);
 
     try {
-      const response = await ckanIpc.call<{ message: string }, any>('ai:chat', {
-        message: userMessage.content,
-        history: messages.map((m) => ({ role: m.role, content: m.content })),
-      });
+      if (!aiService.isConfigured()) {
+        throw new Error('Silicon Flow API key not configured. Go to Settings > Silicon Flow to add your key.');
+      }
+
+      // Build chat history for the API
+      const chatHistory: ChatMessage[] = messages
+        .filter((m) => m.role !== 'system')
+        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+      chatHistory.push({ role: 'user', content: userMessage.content });
+
+      const response = await aiService.chat(chatHistory);
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: response.reply || response.message || "Got it! Let me help with that.",
+        content: response.reply,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-
-      if (response.points !== undefined) {
-        setPoints(response.points);
-      }
     } catch (err) {
       const errorMessage: Message = {
         id: crypto.randomUUID(),
@@ -178,7 +180,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
           </button>
         </div>
         <div className={styles.inputHint}>
-          Powered by Silicon Flow · Free tier active
+          Powered by Silicon Flow · GLM-Z1-9B (Free)
         </div>
       </div>
     </motion.aside>

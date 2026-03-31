@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { HardDrive, Plus, Gamepad2 } from 'lucide-react';
+import { Plus, Gamepad2 } from 'lucide-react';
 import styles from './InstancesPage.module.css';
 
 export default function InstancesPage() {

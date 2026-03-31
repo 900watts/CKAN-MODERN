@@ -14,6 +14,21 @@
   --color-border: #3D3D3D;
 }
 
+/* ─── Light Mode ─── */
+:root[data-theme="light"] {
+  --color-bg-primary: #F5F5F5 !important;
+  --color-bg-surface: #FFFFFF !important;
+  --color-bg-elevated: #E8E8E8 !important;
+  --color-accent-primary: #0078D4 !important;
+  --color-accent-secondary: #E67E22 !important;
+  --color-text-primary: #1A1A1A !important;
+  --color-text-secondary: #666666 !important;
+  --color-success: #2E7D32 !important;
+  --color-warning: #F9A825 !important;
+  --color-error: #D32F2F !important;
+  --color-border: #D0D0D0 !important;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -57,6 +72,14 @@ html, body, #root {
 :focus-visible {
   outline: 2px solid var(--color-accent-primary);
   outline-offset: 2px;
+}
+
+/* Light mode scrollbar adjustments */
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #BDBDBD;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #9E9E9E;
 }
 
 /* Typography */

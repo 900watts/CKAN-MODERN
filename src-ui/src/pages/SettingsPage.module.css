@@ -115,3 +115,113 @@
   font-weight: 700;
   letter-spacing: 0.5px;
 }
+
+/* ─── Auth Form ─── */
+
+.authForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.authTabs {
+  display: flex;
+  gap: 4px;
+  background: var(--color-bg-primary);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 4px;
+}
+
+.authTab {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.authTabActive {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.authInput {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.authInput:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.authInput::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+}
+
+.authError {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 80, 80, 0.12);
+  color: #ff5050;
+  font-size: 12px;
+}
+
+.authDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.authDivider::before,
+.authDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.btnGithub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #24292e;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.btnGithub:hover {
+  opacity: 0.85;
+}
+
+.btnPrimary,
+.btnSecondary,
+.btnGithub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
