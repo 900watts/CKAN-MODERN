@@ -44,18 +44,4 @@
 2. Double-click to run
 3. KSP auto-detected from Steam
 
-## 💻 Build from Source
 
-```powershell
-# 1. Clone
-git clone https://github.com/900watts/CKAN-MODERN.git
-cd CKAN-MODERN
-
-# 2. Build React frontend
-cd CKAN-MODERN-PROJECT/src-ui
-npm install
-npm run build
-
-# 3. Build .NET app
-cd ../../ModernGUI
-dotnet build -c Release
