@@ -2,15 +2,33 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Filter, Grid3X3, List, Package, Download, ArrowDownWideNarrow,
-  X, ExternalLink, Tag, User, Clock, HardDrive, Loader2
+  X, ExternalLink, Tag, User, Clock, HardDrive, Loader2, CheckCircle, AlertCircle,
+  FolderSearch, FolderOpen, ArrowUpCircle
 } from 'lucide-react';
 import { registryService } from '../services/registry';
 import type { CkanModule, SearchFilters } from '../services/registry';
+import ckanIpc from '../services/ipc';
 import styles from './ModListPage.module.css';
+
+interface UnmanagedMod {
+  folder: string;
+  path: string;
+  file_count: number;
+  size: number;
+  managed: false;
+}
 
 interface ModListPageProps {
   view: 'available' | 'installed';
   onInstallChange?: () => void;
+}
+
+interface UpdatableMod {
+  identifier: string;
+  name: string;
+  installed_version: string;
+  latest_version: string;
+  download_size: number;
 }
 
 const BATCH_SIZE = 60;
@@ -26,21 +44,93 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
   const [activeTag, setActiveTag] = useState<string | undefined>();
   const [showFilters, setShowFilters] = useState(false);
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
+  const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
+  const [installStatus, setInstallStatus] = useState<{ id: string; msg: string; type: 'success' | 'error' } | null>(null);
+  const [unmanagedMods, setUnmanagedMods] = useState<UnmanagedMod[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
+  const [hasScanned, setHasScanned] = useState(false);
+  const [updatableMods, setUpdatableMods] = useState<UpdatableMod[]>([]);
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const loadMods = useCallback(() => {
     setIsLoading(true);
-    registryService.load().then(() => {
+    registryService.load().then(async () => {
       const filters: SearchFilters = { sortBy, tag: activeTag };
       let mods: CkanModule[];
+
       if (view === 'installed') {
-        mods = registryService.getInstalledModules();
+        // Try to get real installed list from CKAN Core backend
+        if (ckanIpc.isConnected()) {
+          try {
+            const result = await ckanIpc.call<any, any>('mod:list-installed', {});
+            if (result?.mods && Array.isArray(result.mods) && result.mods.length > 0) {
+              // Map backend DTOs to CkanModule shape, filling missing fields with defaults
+              mods = result.mods.map((m: any) => ({
+                identifier: m.identifier || '',
+                name: m.name || m.identifier || '',
+                abstract: m.abstract || m.description || '',
+                author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
+                license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
+                tags: m.tags || [],
+                resources: m.resources || {},
+                version: m.version || '',
+                download_size: m.download_size || 0,
+                install_size: m.install_size || 0,
+                ksp_version: m.ksp_version || null,
+                ksp_version_min: m.ksp_version_min || null,
+                ksp_version_max: m.ksp_version_max || null,
+                release_date: m.release_date || null,
+                depends: m.depends || [],
+                recommends: m.recommends || [],
+                conflicts: m.conflicts || [],
+                description: m.description || m.abstract || '',
+                download: null,
+                download_count: m.download_count || 0,
+                version_count: m.version_count || 1,
+                all_versions: m.all_versions || [m.version || ''],
+              } as CkanModule));
+
+              // Sync installed state to registryService so badges work
+              for (const m of mods) {
+                registryService.install(m.identifier);
+              }
+            } else {
+              // Backend returned empty — fall back to localStorage
+              mods = registryService.getInstalledModules();
+            }
+          } catch {
+            // IPC failed — fall back to localStorage
+            mods = registryService.getInstalledModules();
+          }
+        } else {
+          // Dev mode — use localStorage
+          mods = registryService.getInstalledModules();
+        }
+
         if (search.trim()) {
           const q = search.toLowerCase();
           mods = mods.filter(m =>
             m.name.toLowerCase().includes(q) ||
             m.identifier.toLowerCase().includes(q)
           );
+        }
+
+        // Apply tag filter
+        if (activeTag) {
+          mods = mods.filter(m => m.tags.includes(activeTag));
+        }
+
+        // Apply sorting
+        if (sortBy) {
+          mods = [...mods].sort((a, b) => {
+            switch (sortBy) {
+              case 'name': return a.name.localeCompare(b.name);
+              case 'downloads': return b.download_count - a.download_count;
+              case 'updated': return (b.release_date ?? '').localeCompare(a.release_date ?? '');
+              default: return 0;
+            }
+          });
         }
       } else {
         mods = registryService.search(search, filters);
@@ -56,6 +146,57 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
     loadMods();
   }, [loadMods]);
 
+  // Auto-scan GameData for unmanaged mods when viewing Installed tab
+  const scanGameData = useCallback(async () => {
+    if (!ckanIpc.isConnected()) return;
+    setIsScanning(true);
+    try {
+      const result = await ckanIpc.call<any, any>('mod:scan-gamedata', {});
+      if (result?.scanned && result.unmanaged) {
+        setUnmanagedMods(result.unmanaged);
+      }
+      setHasScanned(true);
+    } catch {
+      // Silent fail — scan is best-effort
+      setHasScanned(true);
+    } finally {
+      setIsScanning(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'installed') {
+      scanGameData();
+    } else {
+      setUnmanagedMods([]);
+      setHasScanned(false);
+    }
+  }, [view, scanGameData]);
+
+  // Check for mod updates when viewing installed tab
+  const checkForUpdates = useCallback(async () => {
+    if (!ckanIpc.isConnected()) return;
+    setIsCheckingUpdates(true);
+    try {
+      const result = await ckanIpc.call<any, any>('mod:check-updates', {});
+      if (result?.updates && Array.isArray(result.updates)) {
+        setUpdatableMods(result.updates);
+      }
+    } catch {
+      // Silent fail — update check is best-effort
+    } finally {
+      setIsCheckingUpdates(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'installed') {
+      checkForUpdates();
+    } else {
+      setUpdatableMods([]);
+    }
+  }, [view, checkForUpdates]);
+
   // Infinite scroll
   useEffect(() => {
     const el = contentRef.current;
@@ -69,14 +210,90 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
     return () => el.removeEventListener('scroll', onScroll);
   }, [allMods.length]);
 
+  // Listen for install/uninstall push events from .NET backend
+  useEffect(() => {
+    const unsub1 = ckanIpc.on('install:complete', (data: any) => {
+      setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
+      registryService.install(data?.identifier);
+      setInstallStatus({ id: data?.identifier, msg: `${data?.name || data?.identifier} installed`, type: 'success' });
+      onInstallChange?.();
+      loadMods();
+    });
+    const unsub2 = ckanIpc.on('install:error', (data: any) => {
+      setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
+      setInstallStatus({ id: data?.identifier, msg: `Install failed: ${data?.error}`, type: 'error' });
+    });
+    const unsub3 = ckanIpc.on('uninstall:complete', (data: any) => {
+      setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
+      registryService.uninstall(data?.identifier);
+      onInstallChange?.();
+      loadMods();
+    });
+    const unsub4 = ckanIpc.on('uninstall:error', (data: any) => {
+      setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
+      setInstallStatus({ id: data?.identifier, msg: `Uninstall failed: ${data?.error}`, type: 'error' });
+    });
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
+  }, [onInstallChange, loadMods]);
+
+  // Auto-clear status toast after 4 seconds
+  useEffect(() => {
+    if (!installStatus) return;
+    const t = setTimeout(() => setInstallStatus(null), 4000);
+    return () => clearTimeout(t);
+  }, [installStatus]);
+
   const visibleMods = allMods.slice(0, displayCount);
 
-  const handleInstall = (mod: CkanModule) => {
-    if (registryService.isInstalled(mod.identifier)) {
-      registryService.uninstall(mod.identifier);
+  const handleInstall = async (mod: CkanModule) => {
+    const isInstalled = registryService.isInstalled(mod.identifier);
+    const isConnected = ckanIpc.isConnected();
+
+    // Mark as in-progress
+    setInstallingIds(prev => new Set(prev).add(mod.identifier));
+
+    if (isConnected) {
+      // Use IPC to trigger real CKAN Core install/uninstall
+      try {
+        if (isInstalled) {
+          const result = await ckanIpc.call<any, any>('mod:uninstall', { identifier: mod.identifier });
+          if (result?.status === 'removed') {
+            registryService.uninstall(mod.identifier);
+            setInstallStatus({ id: mod.identifier, msg: `${mod.name} removed`, type: 'success' });
+          } else if (result?.status === 'error') {
+            setInstallStatus({ id: mod.identifier, msg: `Uninstall failed: ${result.error}`, type: 'error' });
+          }
+        } else {
+          const result = await ckanIpc.call<any, any>('mod:install', { identifier: mod.identifier });
+          if (result?.status === 'installed') {
+            registryService.install(mod.identifier);
+            setInstallStatus({ id: mod.identifier, msg: `${mod.name} installed`, type: 'success' });
+          } else if (result?.status === 'error') {
+            setInstallStatus({ id: mod.identifier, msg: `Install failed: ${result.error}`, type: 'error' });
+          }
+        }
+      } catch (err) {
+        setInstallStatus({
+          id: mod.identifier,
+          msg: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          type: 'error',
+        });
+      }
     } else {
-      registryService.install(mod.identifier);
+      // Dev mode fallback — just toggle localStorage
+      if (isInstalled) {
+        registryService.uninstall(mod.identifier);
+      } else {
+        registryService.install(mod.identifier);
+      }
+      setInstallStatus({
+        id: mod.identifier,
+        msg: isInstalled ? `${mod.name} removed (dev mode)` : `${mod.name} installed (dev mode)`,
+        type: 'success',
+      });
     }
+
+    setInstallingIds(prev => { const next = new Set(prev); next.delete(mod.identifier); return next; });
     onInstallChange?.();
     loadMods();
   };
@@ -182,6 +399,44 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
         </AnimatePresence>
       </div>
 
+      {/* Updates Available Banner */}
+      {view === 'installed' && updatableMods.length > 0 && (
+        <div className={styles.updatesSection}>
+          <div className={styles.updatesHeader}>
+            <ArrowUpCircle size={16} />
+            <h3>Updates Available</h3>
+            <span className={styles.updatesCount}>{updatableMods.length}</span>
+          </div>
+          <div className={styles.updatesList}>
+            {updatableMods.map((um) => (
+              <div key={um.identifier} className={styles.updateCard}>
+                <div className={styles.updateInfo}>
+                  <span className={styles.updateName}>{um.name}</span>
+                  <span className={styles.updateVersions}>
+                    v{um.installed_version} <span className={styles.updateArrow}>&rarr;</span> v{um.latest_version}
+                  </span>
+                </div>
+                <button
+                  className={styles.updateBtn}
+                  onClick={() => handleInstall({ identifier: um.identifier, name: um.name } as CkanModule)}
+                  disabled={installingIds.has(um.identifier)}
+                >
+                  {installingIds.has(um.identifier) ? (
+                    <><Loader2 size={12} className={styles.spin} /> Updating...</>
+                  ) : 'Update'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {view === 'installed' && isCheckingUpdates && (
+        <div className={styles.updatesChecking}>
+          <Loader2 size={14} className={styles.spin} />
+          <span>Checking for updates...</span>
+        </div>
+      )}
+
       {/* Content */}
       <div className={styles.contentWrapper}>
         <div className={styles.content} ref={contentRef}>
@@ -212,9 +467,11 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
                     <div className={styles.modIcon}>
                       <Package size={20} />
                     </div>
-                    {registryService.isInstalled(mod.identifier) && (
+                    {installingIds.has(mod.identifier) ? (
+                      <span className={styles.installingBadge}><Loader2 size={10} className={styles.spin} /> Installing...</span>
+                    ) : registryService.isInstalled(mod.identifier) ? (
                       <span className={styles.installedBadge}>Installed</span>
-                    )}
+                    ) : null}
                   </div>
                   <h3 className={styles.modName}>{mod.name}</h3>
                   <p className={styles.modAbstract}>{mod.abstract}</p>
@@ -267,8 +524,11 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
                     <button
                       className={`${styles.installBtn} ${registryService.isInstalled(mod.identifier) ? styles.removeBtn : ''}`}
                       onClick={(e) => { e.stopPropagation(); handleInstall(mod); }}
+                      disabled={installingIds.has(mod.identifier)}
                     >
-                      {registryService.isInstalled(mod.identifier) ? 'Remove' : 'Install'}
+                      {installingIds.has(mod.identifier) ? (
+                        <><Loader2 size={12} className={styles.spin} /> Working...</>
+                      ) : registryService.isInstalled(mod.identifier) ? 'Remove' : 'Install'}
                     </button>
                   </span>
                 </div>
@@ -281,6 +541,47 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
               Showing {displayCount.toLocaleString()} of {allMods.length.toLocaleString()} — scroll for more
             </div>
           )}
+
+          {/* Unmanaged Mods Detection (Installed view only) */}
+          {view === 'installed' && hasScanned && unmanagedMods.length > 0 && (
+            <div className={styles.unmanagedSection}>
+              <div className={styles.unmanagedHeader}>
+                <FolderSearch size={16} />
+                <h3>Detected in GameData ({unmanagedMods.length})</h3>
+                <span className={styles.unmanagedHint}>Not managed by CKAN</span>
+              </div>
+              <div className={styles.unmanagedList}>
+                {unmanagedMods.map((mod) => (
+                  <div key={mod.folder} className={styles.unmanagedCard}>
+                    <div className={styles.unmanagedIcon}>
+                      <FolderOpen size={16} />
+                    </div>
+                    <div className={styles.unmanagedInfo}>
+                      <span className={styles.unmanagedName}>{mod.folder}</span>
+                      <span className={styles.unmanagedMeta}>
+                        {mod.file_count} files &middot; {registryService.formatSize(mod.size)}
+                      </span>
+                    </div>
+                    <span className={styles.unmanagedBadge}>Manual</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {view === 'installed' && !hasScanned && isScanning && (
+            <div className={styles.scanningBar}>
+              <Loader2 size={14} className={styles.spin} />
+              <span>Scanning GameData for manually installed mods...</span>
+            </div>
+          )}
+
+          {view === 'installed' && hasScanned && unmanagedMods.length === 0 && allMods.length === 0 && (
+            <div className={styles.scanResult}>
+              <FolderSearch size={16} />
+              <span>No manually installed mods detected in GameData</span>
+            </div>
+          )}
         </div>
 
         {/* Detail Panel */}
@@ -290,19 +591,37 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
               mod={selectedMod}
               onClose={() => setSelectedMod(null)}
               onInstall={() => handleInstall(selectedMod)}
+              installing={installingIds.has(selectedMod.identifier)}
             />
           )}
         </AnimatePresence>
       </div>
+
+      {/* Install Status Toast */}
+      <AnimatePresence>
+        {installStatus && (
+          <motion.div
+            className={`${styles.toast} ${installStatus.type === 'error' ? styles.toastError : styles.toastSuccess}`}
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ duration: 0.2 }}
+          >
+            {installStatus.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+            <span>{installStatus.msg}</span>
+            <button className={styles.toastClose} onClick={() => setInstallStatus(null)}><X size={14} /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 /* ─── Mod Detail Panel ─── */
 function ModDetailPanel({
-  mod, onClose, onInstall,
+  mod, onClose, onInstall, installing,
 }: {
-  mod: CkanModule; onClose: () => void; onInstall: () => void;
+  mod: CkanModule; onClose: () => void; onInstall: () => void; installing?: boolean;
 }) {
   const installed = registryService.isInstalled(mod.identifier);
   return (
@@ -401,8 +720,14 @@ function ModDetailPanel({
         )}
       </div>
       <div className={styles.detailFooter}>
-        <button className={`${styles.detailInstallBtn} ${installed ? styles.detailRemoveBtn : ''}`} onClick={onInstall}>
-          {installed ? 'Uninstall' : 'Install Mod'}
+        <button
+          className={`${styles.detailInstallBtn} ${installed ? styles.detailRemoveBtn : ''}`}
+          onClick={onInstall}
+          disabled={installing}
+        >
+          {installing ? (
+            <><Loader2 size={14} className={styles.spin} /> Working...</>
+          ) : installed ? 'Uninstall' : 'Install Mod'}
         </button>
       </div>
     </motion.aside>

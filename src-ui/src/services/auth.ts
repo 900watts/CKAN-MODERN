@@ -104,7 +104,15 @@ class AuthService {
   async signUpWithEmail(email: string, password: string): Promise<{ error?: string }> {
     if (!this.state.configured) return { error: 'Supabase not configured' };
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        // Desktop app: no valid redirect URL for email verification.
+        // User verifies email in browser, then signs in manually in the app.
+        emailRedirectTo: undefined,
+      },
+    });
     if (error) return { error: error.message };
 
     // Create initial profile with free tier + 100 points

@@ -1,0 +1,199 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 4px 0 0;
+}
+
+.content {
+  flex: 1;
+  overflow: auto;
+  padding: 20px 24px;
+  max-width: 720px;
+}
+
+/* ─── Sections ─── */
+
+.section {
+  margin-bottom: 28px;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+  margin-bottom: 10px;
+}
+
+/* ─── FAQ Accordion ─── */
+
+.faqList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.faqItem {
+  background: var(--color-bg-surface);
+}
+
+.faqItem + .faqItem {
+  border-top: 1px solid var(--color-border);
+}
+
+.faqQuestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  gap: 12px;
+  transition: background 0.15s ease;
+}
+
+.faqQuestion:hover {
+  background: var(--color-bg-elevated);
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.faqAnswer {
+  padding: 0 16px 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--color-text-secondary);
+}
+
+.faqItemOpen .faqQuestion {
+  color: var(--color-accent-primary);
+}
+
+/* ─── Known Issues ─── */
+
+.issuesList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.issueCard {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.issueHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.issueBadge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(252, 225, 0, 0.15);
+  color: var(--color-warning);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.issueTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.issueDesc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin: 0 0 8px;
+}
+
+.workaround {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-bg-primary);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.workaround strong {
+  color: var(--color-text-primary);
+}
+
+/* ─── Resource Links ─── */
+
+.linksCard {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-accent-primary);
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.link:hover {
+  background: var(--color-bg-elevated);
+}

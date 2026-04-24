@@ -43,6 +43,16 @@
   border-radius: 10px;
 }
 
+.tierBadge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-hover);
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
 .closeBtn {
   display: flex;
   align-items: center;
@@ -183,12 +193,12 @@
 
 .inputWrapper {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  padding: 8px 8px 8px 14px;
+  padding: 6px 8px 6px 14px;
   transition: border-color 0.15s ease;
 }
 
@@ -202,10 +212,12 @@
   border: none;
   outline: none;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 20px;
   color: var(--color-text-primary);
   resize: none;
   max-height: 100px;
+  min-height: 20px;
+  padding: 4px 0;
   font-family: inherit;
 }
 
@@ -257,4 +269,74 @@
   margin-top: 6px;
   text-align: center;
   opacity: 0.7;
+}
+
+/* ─── Markdown Styles ─── */
+.mdCode {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.mdList {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.mdList li {
+  margin-bottom: 2px;
+}
+
+.installCmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  margin: 4px 2px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-accent-primary);
+  color: var(--color-bg-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  font-family: inherit;
+}
+
+.installCmd:hover {
+  opacity: 0.85;
+}
+
+/* ─── Model Selector Bar ─── */
+.modelBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  font-size: 11px;
+}
+
+.modelSelect {
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
+.modelSelect:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.modelLabel {
+  color: var(--color-text-secondary);
+  font-weight: 500;
 }

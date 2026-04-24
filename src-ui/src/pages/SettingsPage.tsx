@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Globe, User, Zap, Database, LogIn, LogOut, Mail, AlertCircle, Check, Eye, EyeOff, Sun, Moon, Palette } from 'lucide-react';
-const GithubIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-);
+import { User, Zap, Database, LogIn, LogOut, Mail, AlertCircle, Sun, Moon, Palette, Key, Check } from 'lucide-react';
 import { authService } from '../services/auth';
 import type { AuthState } from '../services/auth';
 import { isSupabaseConfigured } from '../services/supabase';
-import { aiService } from '../services/ai';
+import { aiService, AI_PROVIDERS } from '../services/ai';
+import type { CustomProvider } from '../services/ai';
 import { themeService } from '../services/theme';
 import type { Theme } from '../services/theme';
 import styles from './SettingsPage.module.css';
@@ -19,15 +17,37 @@ export default function SettingsPage() {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [showAuthForm, setShowAuthForm] = useState(false);
 
-  // Silicon Flow API key state
-  const [sfKeyInput, setSfKeyInput] = useState('');
-  const [sfShowKey, setSfShowKey] = useState(false);
-  const [sfEditing, setSfEditing] = useState(false);
-  const [sfSaved, setSfSaved] = useState(false);
-  const sfIsCustom = aiService.isUsingCustomKey();
+  const [authSuccess, setAuthSuccess] = useState('');
 
   // Theme state
   const [theme, setTheme] = useState<Theme>(themeService.getTheme());
+
+  // API key state
+  const providers: CustomProvider[] = ['openrouter', 'google', 'openai'];
+  const [apiKeys, setApiKeys] = useState<Record<CustomProvider, string>>({
+    openrouter: '',
+    google: '',
+    openai: '',
+  });
+  const [savedKeys, setSavedKeys] = useState<Record<CustomProvider, boolean>>({
+    openrouter: !!aiService.getCustomApiKey('openrouter'),
+    google: !!aiService.getCustomApiKey('google'),
+    openai: !!aiService.getCustomApiKey('openai'),
+  });
+
+  const handleSaveApiKey = (provider: CustomProvider) => {
+    const key = apiKeys[provider].trim();
+    if (!key) return;
+    aiService.setApiKey(provider, key);
+    setSavedKeys((prev) => ({ ...prev, [provider]: true }));
+    setApiKeys((prev) => ({ ...prev, [provider]: '' }));
+  };
+
+  const handleClearApiKey = (provider: CustomProvider) => {
+    aiService.clearApiKeyFor(provider);
+    setSavedKeys((prev) => ({ ...prev, [provider]: false }));
+    setApiKeys((prev) => ({ ...prev, [provider]: '' }));
+  };
 
   useEffect(() => {
     return authService.onChange(setAuth);
@@ -39,22 +59,26 @@ export default function SettingsPage() {
 
   const handleEmailAuth = async () => {
     setAuthError('');
-    const result = authMode === 'signin'
-      ? await authService.signInWithEmail(email, password)
-      : await authService.signUpWithEmail(email, password);
-
-    if (result.error) {
-      setAuthError(result.error);
+    setAuthSuccess('');
+    if (authMode === 'signin') {
+      const result = await authService.signInWithEmail(email, password);
+      if (result.error) {
+        setAuthError(result.error);
+      } else {
+        setShowAuthForm(false);
+        setEmail('');
+        setPassword('');
+      }
     } else {
-      setShowAuthForm(false);
-      setEmail('');
-      setPassword('');
+      const result = await authService.signUpWithEmail(email, password);
+      if (result.error) {
+        setAuthError(result.error);
+      } else {
+        setAuthSuccess('Account created! Check your email inbox and click the verification link to activate your account.');
+        setEmail('');
+        setPassword('');
+      }
     }
-  };
-
-  const handleOAuth = async (provider: 'github' | 'google' | 'discord') => {
-    const result = await authService.signInWithOAuth(provider);
-    if (result.error) setAuthError(result.error);
   };
 
   const configured = isSupabaseConfigured();
@@ -126,16 +150,11 @@ export default function SettingsPage() {
                 />
 
                 {authError && <div className={styles.authError}>{authError}</div>}
+                {authSuccess && <div className={styles.authSuccess}>{authSuccess}</div>}
 
                 <button className={styles.btnPrimary} onClick={handleEmailAuth}>
                   <Mail size={14} />
                   {authMode === 'signin' ? 'Sign In with Email' : 'Create Account'}
-                </button>
-
-                <div className={styles.authDivider}><span>or</span></div>
-
-                <button className={styles.btnGithub} onClick={() => handleOAuth('github')}>
-                  <GithubIcon /> Continue with GitHub
                 </button>
 
                 <button className={styles.btnSecondary} onClick={() => setShowAuthForm(false)} style={{ marginTop: 8 }}>
@@ -192,10 +211,17 @@ export default function SettingsPage() {
               <div>
                 <div className={styles.settingLabel}>Model</div>
                 <div className={styles.settingDesc}>
-                  {aiService.getModelName()} (Free tier)
+                  {aiService.getModelName()}
                 </div>
               </div>
               <span className={styles.tierBadge}>FREE</span>
+            </div>
+            <div className={styles.divider} />
+            <div className={styles.settingRow}>
+              <div>
+                <div className={styles.settingLabel}>Usage Limits</div>
+                <div className={styles.settingDesc}>Free: 20 requests/day | Paid: Unlimited (1 point/request)</div>
+              </div>
             </div>
             <div className={styles.divider} />
             <div className={styles.settingRow}>
@@ -208,81 +234,70 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Silicon Flow */}
+        {/* AI API Keys Section */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>
-            <Globe size={16} />
-            Silicon Flow
+            <Key size={16} />
+            AI API Keys
           </div>
           <div className={styles.card}>
-            {sfEditing ? (
-              <div className={styles.authForm}>
-                <div className={styles.settingLabel}>API Key</div>
-                <div className={styles.settingDesc} style={{ marginBottom: 8 }}>
-                  Enter your own Silicon Flow API key, or leave blank to use the built-in default.
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    className={styles.authInput}
-                    type={sfShowKey ? 'text' : 'password'}
-                    placeholder="sk-..."
-                    value={sfKeyInput}
-                    onChange={(e) => setSfKeyInput(e.target.value)}
-                    style={{ flex: 1 }}
-                  />
-                  <button
-                    className={styles.btnSecondary}
-                    onClick={() => setSfShowKey(!sfShowKey)}
-                    style={{ padding: '8px 12px' }}
-                  >
-                    {sfShowKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <button
-                    className={styles.btnPrimary}
-                    onClick={() => {
-                      aiService.setApiKey(sfKeyInput);
-                      setSfEditing(false);
-                      setSfSaved(true);
-                      setTimeout(() => setSfSaved(false), 2000);
-                    }}
-                  >
-                    <Check size={14} /> Save
-                  </button>
-                  <button
-                    className={styles.btnSecondary}
-                    onClick={() => {
-                      aiService.setApiKey('');
-                      setSfKeyInput('');
-                      setSfEditing(false);
-                    }}
-                  >
-                    Reset to Default
-                  </button>
-                  <button
-                    className={styles.btnSecondary}
-                    onClick={() => setSfEditing(false)}
-                  >
-                    Cancel
-                  </button>
+            <div className={styles.settingRow}>
+              <div>
+                <div className={styles.settingLabel}>Custom Providers</div>
+                <div className={styles.settingDesc}>
+                  Add your own API keys to use different AI models
                 </div>
               </div>
-            ) : (
-              <div className={styles.settingRow}>
-                <div>
-                  <div className={styles.settingLabel}>
-                    API Key {sfSaved && <span style={{ color: 'var(--color-accent-primary)', fontSize: 12, marginLeft: 8 }}>Saved!</span>}
-                  </div>
-                  <div className={styles.settingDesc}>
-                    {sfIsCustom ? 'Using your custom key' : 'Using built-in key (free tier)'}
-                  </div>
+            </div>
+            {providers.map((provider) => (
+              <div key={provider}>
+                <div className={styles.divider} />
+                <div className={styles.apiKeyRow}>
+                  <span className={styles.providerLabel}>
+                    {AI_PROVIDERS[provider].name}
+                  </span>
+                  {savedKeys[provider] ? (
+                    <>
+                      <span className={styles.apiKeySaved}>
+                        <Check size={14} /> Key saved
+                      </span>
+                      <button
+                        className={styles.btnDanger}
+                        onClick={() => handleClearApiKey(provider)}
+                      >
+                        Clear
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        className={styles.apiKeyInput}
+                        type="password"
+                        placeholder={`Enter ${AI_PROVIDERS[provider].name} API key`}
+                        value={apiKeys[provider]}
+                        onChange={(e) =>
+                          setApiKeys((prev) => ({
+                            ...prev,
+                            [provider]: e.target.value,
+                          }))
+                        }
+                        onKeyDown={(e) =>
+                          e.key === 'Enter' && handleSaveApiKey(provider)
+                        }
+                      />
+                      <button
+                        className={styles.btnPrimary}
+                        onClick={() => handleSaveApiKey(provider)}
+                        disabled={!apiKeys[provider].trim()}
+                        style={{ padding: '6px 14px', fontSize: '12px' }}
+                      >
+                        Save
+                      </button>
+                    </>
+                  )}
                 </div>
-                <button className={styles.btnSecondary} onClick={() => { setSfKeyInput(sfIsCustom ? aiService.getApiKey() : ''); setSfEditing(true); }}>
-                  {sfIsCustom ? 'Edit' : 'Override'}
-                </button>
               </div>
-            )}
+            ))}
           </div>
         </div>
 

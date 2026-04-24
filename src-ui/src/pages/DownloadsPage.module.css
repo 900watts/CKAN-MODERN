@@ -1,8 +1,31 @@
 .page { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-.header { padding: 20px 24px 16px; border-bottom: 1px solid var(--color-border); background: var(--color-bg-surface); }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid var(--color-border); background: var(--color-bg-surface); }
 .title { font-size: 20px; font-weight: 600; color: var(--color-text-primary); }
 .content { flex: 1; overflow: auto; padding: 20px 24px; }
 .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 300px; text-align: center; }
 .emptyIcon { color: var(--color-text-secondary); opacity: 0.5; }
 .empty h2 { font-size: 18px; font-weight: 600; color: var(--color-text-primary); }
 .empty p { font-size: 14px; color: var(--color-text-secondary); }
+.clearBtn { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1px solid var(--color-border); border-radius: 8px; background: transparent; color: var(--color-text-secondary); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+.clearBtn:hover { border-color: #ff5050; color: #ff5050; }
+.sections { display: flex; flex-direction: column; gap: 24px; }
+.section {}
+.sectionTitle { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 10px; }
+.opList { display: flex; flex-direction: column; gap: 8px; }
+.opCard { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: 10px; position: relative; }
+.opActive { border-color: var(--color-accent-primary); background: rgba(96, 205, 255, 0.04); }
+.opCompleted { }
+.opFailed { border-color: rgba(255, 80, 80, 0.3); }
+.opIcon { flex-shrink: 0; margin-top: 2px; color: var(--color-text-secondary); }
+.opActive .opIcon { color: var(--color-accent-primary); }
+.opCompleted .opIcon { color: var(--color-success, #6ccb5f); }
+.opFailed .opIcon { color: #ff5050; }
+.opInfo { flex: 1; min-width: 0; }
+.opName { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+.opMeta { display: flex; gap: 10px; font-size: 11px; color: var(--color-text-secondary); margin-top: 4px; }
+.opType { text-transform: capitalize; font-weight: 500; }
+.opError { font-size: 12px; color: #ff5050; margin-top: 6px; padding: 6px 10px; background: rgba(255, 80, 80, 0.08); border-radius: 6px; }
+.retryBtn { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: var(--color-text-secondary); cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+.retryBtn:hover { border-color: var(--color-accent-primary); color: var(--color-accent-primary); }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

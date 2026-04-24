@@ -10,3 +10,41 @@
 .addBtn:hover { opacity: 0.85; }
 .addBtnLarge { display: flex; align-items: center; gap: 8px; padding: 12px 24px; border: 1px dashed var(--color-border); border-radius: 12px; background: transparent; color: var(--color-text-secondary); font-size: 14px; cursor: pointer; margin-top: 8px; transition: border-color 0.15s ease, color 0.15s ease; }
 .addBtnLarge:hover { border-color: var(--color-accent-primary); color: var(--color-accent-primary); }
+
+/* Form Card */
+.formCard { background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+.formHeader { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--color-border); background: var(--color-bg-elevated); }
+.formHeader h3 { font-size: 14px; font-weight: 600; color: var(--color-text-primary); }
+.formClose { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; border-radius: 6px; background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.formClose:hover { background: var(--color-bg-primary); color: var(--color-text-primary); }
+.formBody { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.formField { display: flex; flex-direction: column; gap: 6px; }
+.formLabel { font-size: 12px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.3px; }
+.formInput { padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg-primary); color: var(--color-text-primary); font-size: 13px; outline: none; transition: border-color 0.15s ease; font-family: inherit; }
+.formInput:focus { border-color: var(--color-accent-primary); }
+.formInput::placeholder { color: var(--color-text-secondary); opacity: 0.6; }
+select.formInput { cursor: pointer; }
+.pathRow { display: flex; align-items: center; gap: 0; position: relative; }
+.pathIcon { position: absolute; left: 12px; color: var(--color-text-secondary); pointer-events: none; z-index: 1; }
+.pathRow .formInput { flex: 1; padding-left: 32px; }
+.browseBtn { padding: 8px 14px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg-elevated); color: var(--color-text-primary); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: border-color 0.15s ease, background 0.15s ease; }
+.browseBtn:hover { border-color: var(--color-accent-primary); background: var(--color-bg-surface); }
+.formHint { font-size: 11px; color: var(--color-text-secondary); opacity: 0.7; }
+.formError { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px; background: rgba(255, 80, 80, 0.12); color: #ff5050; font-size: 12px; }
+.formActions { display: flex; gap: 8px; margin-top: 4px; }
+.formBtnPrimary { padding: 10px 20px; border: none; border-radius: 8px; background: var(--color-accent-primary); color: var(--color-bg-primary); font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s ease; }
+.formBtnPrimary:hover { opacity: 0.85; }
+.formBtnSecondary { padding: 10px 20px; border: 1px solid var(--color-border); border-radius: 8px; background: transparent; color: var(--color-text-primary); font-size: 13px; cursor: pointer; }
+.formBtnSecondary:hover { border-color: var(--color-accent-primary); }
+
+/* Instance List */
+.instanceList { display: flex; flex-direction: column; gap: 10px; }
+.instanceCard { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: 12px; transition: border-color 0.15s ease; }
+.instanceCard:hover { border-color: var(--color-accent-primary); }
+.instanceIcon { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: var(--color-bg-elevated); color: var(--color-accent-primary); flex-shrink: 0; }
+.instanceInfo { flex: 1; min-width: 0; }
+.instanceName { font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 2px; }
+.instancePath { font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Cascadia Code', 'JetBrains Mono', monospace; margin-bottom: 4px; }
+.instanceMeta { display: flex; gap: 12px; font-size: 11px; color: var(--color-text-secondary); }
+.removeBtn { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: none; border-radius: 8px; background: transparent; color: var(--color-text-secondary); cursor: pointer; flex-shrink: 0; transition: background 0.15s ease, color 0.15s ease; }
+.removeBtn:hover { background: rgba(255, 80, 80, 0.12); color: var(--color-error); }
