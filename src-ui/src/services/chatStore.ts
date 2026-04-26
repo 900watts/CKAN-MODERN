@@ -25,19 +25,19 @@ function notify() {
   _listeners.forEach((fn) => fn());
 }
 
+// FIX: Use arrow functions to avoid 'this' binding issues with useSyncExternalStore
 export const chatStore = {
-  get(): ChatMsg[] {
-    return _messages;
-  },
-  push(msg: ChatMsg) {
+  get: (): ChatMsg[] => _messages,
+  push: (msg: ChatMsg) => {
     _messages = [..._messages, msg];
     notify();
   },
-  clear() {
+  clear: () => {
     _messages = [WELCOME];
     notify();
   },
-  subscribe(fn: () => void): () => void {
+  // FIX: Arrow function so 'this' is not needed — useSyncExternalStore passes subscribe as a bare function
+  subscribe: (fn: () => void): (() => void) => {
     _listeners.add(fn);
     return () => _listeners.delete(fn);
   },

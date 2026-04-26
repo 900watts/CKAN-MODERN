@@ -5,6 +5,7 @@ import ModListPage from './pages/ModListPage';
 import SettingsPage from './pages/SettingsPage';
 import InstancesPage from './pages/InstancesPage';
 import DownloadsPage from './pages/DownloadsPage';
+import ReposPage from './pages/ReposPage';
 import { ckanIpc } from './services/ipc';
 import { downloadStore } from './services/downloadStore';
 
@@ -30,6 +31,7 @@ function App() {
     switch (activePage) {
       case 'available':
       case 'installed':
+        // FIX: Only key on activePage+refreshKey here — do NOT put key on <Layout>
         return <ModListPage key={`${activePage}-${refreshKey}`} view={activePage} onInstallChange={handleInstallChange} />;
       case 'settings':
         return <SettingsPage />;
@@ -37,13 +39,17 @@ function App() {
         return <InstancesPage />;
       case 'downloads':
         return <DownloadsPage />;
+      case 'repos':
+        return <ReposPage />;
       default:
         return <ModListPage view="available" onInstallChange={handleInstallChange} />;
     }
   };
 
   return (
-    <Layout activePage={activePage} onNavigate={setActivePage} key={refreshKey}>
+    // FIX: Removed key={refreshKey} from Layout — it was causing full Layout remount on every install,
+    // resetting the sidebar expanded/collapsed state, AI panel open state, and causing a visible flash.
+    <Layout activePage={activePage} onNavigate={setActivePage}>
       {renderPage()}
     </Layout>
   );

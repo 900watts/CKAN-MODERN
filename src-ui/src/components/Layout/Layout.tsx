@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen, BookMarked } from 'lucide-react';
 import AIChatPanel from '../AIChat/AIChatPanel';
 import { registryService } from '../../services/registry';
 import styles from './Layout.module.css';
@@ -43,6 +43,8 @@ export default function Layout({ children, activePage = 'available', onNavigate 
     { id: 'installed', label: 'Installed', icon: <FolderOpen size={20} />, badge: installedCount || undefined },
     { id: 'downloads', label: 'Downloads', icon: <Download size={20} /> },
     { id: 'instances', label: 'Instances', icon: <Database size={20} /> },
+    // FIX: Added missing Repos nav item — ReposPage existed but was unreachable
+    { id: 'repos', label: 'Repositories', icon: <BookMarked size={20} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={20} /> },
   ];
 

@@ -96,13 +96,11 @@ class RegistryService {
   }
 
   search(query: string, filters?: SearchFilters): CkanModule[] {
-    const mods = this.getModules();
-    if (!query.trim() && !filters?.tag) return mods;
+    let results = this.getModules();
 
-    const q = query.toLowerCase().trim();
-    let results = mods;
-
-    if (q) {
+    // FIX: Apply text filter only when query is non-empty
+    if (query.trim()) {
+      const q = query.toLowerCase().trim();
       results = results.filter((m) => {
         const nameMatch = m.name.toLowerCase().includes(q);
         const idMatch = m.identifier.toLowerCase().includes(q);
@@ -113,10 +111,13 @@ class RegistryService {
       });
     }
 
+    // Apply tag filter
     if (filters?.tag) {
       results = results.filter((m) => m.tags.includes(filters.tag!));
     }
 
+    // FIX: Always apply sorting — previously it was inside the early-return branch
+    // so sorting was silently skipped when there was no search query (default "downloads" sort did nothing)
     if (filters?.sortBy) {
       results = [...results].sort((a, b) => {
         switch (filters.sortBy) {

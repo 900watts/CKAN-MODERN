@@ -52,7 +52,6 @@ function init() {
   });
 
   ckanIpc.on('install:complete', (d: any) => {
-    // find the active install for this identifier
     const active = _ops.find((o) => o.identifier === d?.identifier && o.status === 'active' && o.type === 'install');
     if (active) {
       upsert(active.id, { status: 'completed', finishedAt: Date.now() });
@@ -129,32 +128,26 @@ function init() {
   });
 }
 
+// FIX: Use arrow functions to avoid 'this' binding issues with useSyncExternalStore
 export const downloadStore = {
   init,
-  getAll(): Operation[] {
-    return _ops;
-  },
-  getActive(): Operation[] {
-    return _ops.filter((o) => o.status === 'active');
-  },
-  getCompleted(): Operation[] {
-    return _ops.filter((o) => o.status === 'completed');
-  },
-  getFailed(): Operation[] {
-    return _ops.filter((o) => o.status === 'failed');
-  },
-  clearHistory() {
+  getAll: (): Operation[] => _ops,
+  getActive: (): Operation[] => _ops.filter((o) => o.status === 'active'),
+  getCompleted: (): Operation[] => _ops.filter((o) => o.status === 'completed'),
+  getFailed: (): Operation[] => _ops.filter((o) => o.status === 'failed'),
+  clearHistory: () => {
     _ops = _ops.filter((o) => o.status === 'active');
     notify();
   },
-  retry(op: Operation) {
+  retry: (op: Operation) => {
     if (op.type === 'install') {
       ckanIpc.call('mod:install', { identifier: op.identifier });
     } else {
       ckanIpc.call('mod:uninstall', { identifier: op.identifier });
     }
   },
-  subscribe(fn: () => void): () => void {
+  // FIX: Arrow function so 'this' is not needed — useSyncExternalStore passes subscribe as a bare function
+  subscribe: (fn: () => void): (() => void) => {
     _listeners.add(fn);
     return () => _listeners.delete(fn);
   },
