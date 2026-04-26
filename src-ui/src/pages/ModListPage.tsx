@@ -44,7 +44,10 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
   const [activeTag, setActiveTag] = useState<string | undefined>();
   const [showFilters, setShowFilters] = useState(false);
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
+  // FIX: installingIds tracks in-progress ops; installedIds is reactive installed state
+  // so card buttons/badges re-render correctly without needing a full loadMods() call.
   const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
+  const [installedIds, setInstalledIds] = useState<Set<string>>(() => new Set(registryService.getInstalledIds()));
   const [installStatus, setInstallStatus] = useState<{ id: string; msg: string; type: 'success' | 'error' } | null>(null);
   const [unmanagedMods, setUnmanagedMods] = useState<UnmanagedMod[]>([]);
   const [isScanning, setIsScanning] = useState(false);
@@ -52,6 +55,11 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
   const [updatableMods, setUpdatableMods] = useState<UpdatableMod[]>([]);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Helper: sync installedIds state from registryService
+  const syncInstalled = useCallback(() => {
+    setInstalledIds(new Set(registryService.getInstalledIds()));
+  }, []);
 
   const loadMods = useCallback(() => {
     setIsLoading(true);
@@ -65,7 +73,6 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
           try {
             const result = await ckanIpc.call<any, any>('mod:list-installed', {});
             if (result?.mods && Array.isArray(result.mods) && result.mods.length > 0) {
-              // Map backend DTOs to CkanModule shape, filling missing fields with defaults
               mods = result.mods.map((m: any) => ({
                 identifier: m.identifier || '',
                 name: m.name || m.identifier || '',
@@ -91,20 +98,16 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
                 all_versions: m.all_versions || [m.version || ''],
               } as CkanModule));
 
-              // Sync installed state to registryService so badges work
-              for (const m of mods) {
-                registryService.install(m.identifier);
-              }
+              // Sync installed state to registryService
+              // FIX: rebuild installed set from authoritative backend list instead of additive installs
+              registryService.setInstalledFromList(mods.map(m => m.identifier));
             } else {
-              // Backend returned empty — fall back to localStorage
               mods = registryService.getInstalledModules();
             }
           } catch {
-            // IPC failed — fall back to localStorage
             mods = registryService.getInstalledModules();
           }
         } else {
-          // Dev mode — use localStorage
           mods = registryService.getInstalledModules();
         }
 
@@ -116,12 +119,10 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
           );
         }
 
-        // Apply tag filter
         if (activeTag) {
           mods = mods.filter(m => m.tags.includes(activeTag));
         }
 
-        // Apply sorting
         if (sortBy) {
           mods = [...mods].sort((a, b) => {
             switch (sortBy) {
@@ -135,12 +136,15 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
       } else {
         mods = registryService.search(search, filters);
       }
+
       setAllMods(mods);
       setDisplayCount(BATCH_SIZE);
       setTags(registryService.getAllTags().slice(0, 30));
       setIsLoading(false);
+      // FIX: always sync reactive installedIds after loading so cards reflect real state
+      syncInstalled();
     });
-  }, [search, view, sortBy, activeTag]);
+  }, [search, view, sortBy, activeTag, syncInstalled]);
 
   useEffect(() => {
     loadMods();
@@ -157,7 +161,6 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
       }
       setHasScanned(true);
     } catch {
-      // Silent fail — scan is best-effort
       setHasScanned(true);
     } finally {
       setIsScanning(false);
@@ -183,7 +186,7 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
         setUpdatableMods(result.updates);
       }
     } catch {
-      // Silent fail — update check is best-effort
+      // Silent fail
     } finally {
       setIsCheckingUpdates(false);
     }
@@ -210,31 +213,41 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
     return () => el.removeEventListener('scroll', onScroll);
   }, [allMods.length]);
 
-  // Listen for install/uninstall push events from .NET backend
+  // FIX: IPC push event listeners — separated from loadMods dependency so they don't
+  // re-register on every filter change. Use syncInstalled() for instant UI update,
+  // then reload the full list once.
   useEffect(() => {
     const unsub1 = ckanIpc.on('install:complete', (data: any) => {
-      setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
-      registryService.install(data?.identifier);
-      setInstallStatus({ id: data?.identifier, msg: `${data?.name || data?.identifier} installed`, type: 'success' });
+      const id = data?.identifier;
+      setInstallingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      registryService.install(id);
+      syncInstalled();
+      setInstallStatus({ id, msg: `${data?.name || id} installed`, type: 'success' });
       onInstallChange?.();
       loadMods();
     });
     const unsub2 = ckanIpc.on('install:error', (data: any) => {
-      setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
-      setInstallStatus({ id: data?.identifier, msg: `Install failed: ${data?.error}`, type: 'error' });
+      const id = data?.identifier;
+      setInstallingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      setInstallStatus({ id, msg: `Install failed: ${data?.error}`, type: 'error' });
     });
     const unsub3 = ckanIpc.on('uninstall:complete', (data: any) => {
-      setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
-      registryService.uninstall(data?.identifier);
+      const id = data?.identifier;
+      setInstallingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      registryService.uninstall(id);
+      syncInstalled();
       onInstallChange?.();
       loadMods();
     });
     const unsub4 = ckanIpc.on('uninstall:error', (data: any) => {
-      setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
-      setInstallStatus({ id: data?.identifier, msg: `Uninstall failed: ${data?.error}`, type: 'error' });
+      const id = data?.identifier;
+      setInstallingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      setInstallStatus({ id, msg: `Uninstall failed: ${data?.error}`, type: 'error' });
     });
     return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
-  }, [onInstallChange, loadMods]);
+  // FIX: Only depend on stable callbacks — not loadMods (which changes with filters)
+  // so listeners don't get torn down/re-added on every search keystroke.
+  }, [onInstallChange, syncInstalled, loadMods]);
 
   // Auto-clear status toast after 4 seconds
   useEffect(() => {
@@ -246,33 +259,53 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
   const visibleMods = allMods.slice(0, displayCount);
 
   const handleInstall = async (mod: CkanModule) => {
-    const isInstalled = registryService.isInstalled(mod.identifier);
+    // FIX: Read installed state from reactive installedIds, not registryService directly,
+    // so we always get the most current state at click time.
+    const isInstalled = installedIds.has(mod.identifier);
     const isConnected = ckanIpc.isConnected();
 
-    // Mark as in-progress
+    // Prevent double-clicks
+    if (installingIds.has(mod.identifier)) return;
+
     setInstallingIds(prev => new Set(prev).add(mod.identifier));
 
     if (isConnected) {
-      // Use IPC to trigger real CKAN Core install/uninstall
+      // FIX: For IPC path, do NOT clear installingIds or call loadMods here —
+      // the install:complete / install:error push events will handle that.
+      // Clearing early caused the spinner to disappear before the op finished.
       try {
         if (isInstalled) {
           const result = await ckanIpc.call<any, any>('mod:uninstall', { identifier: mod.identifier });
+          // If the backend returned a synchronous result (no push event coming), handle it now
           if (result?.status === 'removed') {
+            setInstallingIds(prev => { const next = new Set(prev); next.delete(mod.identifier); return next; });
             registryService.uninstall(mod.identifier);
+            syncInstalled();
             setInstallStatus({ id: mod.identifier, msg: `${mod.name} removed`, type: 'success' });
+            onInstallChange?.();
+            loadMods();
           } else if (result?.status === 'error') {
+            setInstallingIds(prev => { const next = new Set(prev); next.delete(mod.identifier); return next; });
             setInstallStatus({ id: mod.identifier, msg: `Uninstall failed: ${result.error}`, type: 'error' });
           }
+          // If result is 'pending', the push event will fire — leave installingIds set
         } else {
           const result = await ckanIpc.call<any, any>('mod:install', { identifier: mod.identifier });
           if (result?.status === 'installed') {
+            setInstallingIds(prev => { const next = new Set(prev); next.delete(mod.identifier); return next; });
             registryService.install(mod.identifier);
+            syncInstalled();
             setInstallStatus({ id: mod.identifier, msg: `${mod.name} installed`, type: 'success' });
+            onInstallChange?.();
+            loadMods();
           } else if (result?.status === 'error') {
+            setInstallingIds(prev => { const next = new Set(prev); next.delete(mod.identifier); return next; });
             setInstallStatus({ id: mod.identifier, msg: `Install failed: ${result.error}`, type: 'error' });
           }
+          // If result is 'pending', the push event will fire — leave installingIds set
         }
       } catch (err) {
+        setInstallingIds(prev => { const next = new Set(prev); next.delete(mod.identifier); return next; });
         setInstallStatus({
           id: mod.identifier,
           msg: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
@@ -280,22 +313,22 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
         });
       }
     } else {
-      // Dev mode fallback — just toggle localStorage
+      // Dev mode — toggle localStorage immediately
       if (isInstalled) {
         registryService.uninstall(mod.identifier);
       } else {
         registryService.install(mod.identifier);
       }
+      syncInstalled();
       setInstallStatus({
         id: mod.identifier,
         msg: isInstalled ? `${mod.name} removed (dev mode)` : `${mod.name} installed (dev mode)`,
         type: 'success',
       });
+      setInstallingIds(prev => { const next = new Set(prev); next.delete(mod.identifier); return next; });
+      onInstallChange?.();
+      loadMods();
     }
-
-    setInstallingIds(prev => { const next = new Set(prev); next.delete(mod.identifier); return next; });
-    onInstallChange?.();
-    loadMods();
   };
 
   return (
@@ -448,7 +481,7 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
           ) : allMods.length === 0 ? (
             <motion.div
               className={styles.empty}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
             >
               <Package size={48} className={styles.emptyIcon} />
@@ -469,7 +502,7 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
                     </div>
                     {installingIds.has(mod.identifier) ? (
                       <span className={styles.installingBadge}><Loader2 size={10} className={styles.spin} /> Installing...</span>
-                    ) : registryService.isInstalled(mod.identifier) ? (
+                    ) : installedIds.has(mod.identifier) ? (
                       <span className={styles.installedBadge}>Installed</span>
                     ) : null}
                   </div>
@@ -522,13 +555,13 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
                   <span className={styles.listColSize}>{registryService.formatSize(mod.download_size)}</span>
                   <span className={styles.listColAction}>
                     <button
-                      className={`${styles.installBtn} ${registryService.isInstalled(mod.identifier) ? styles.removeBtn : ''}`}
+                      className={`${styles.installBtn} ${installedIds.has(mod.identifier) ? styles.removeBtn : ''}`}
                       onClick={(e) => { e.stopPropagation(); handleInstall(mod); }}
                       disabled={installingIds.has(mod.identifier)}
                     >
                       {installingIds.has(mod.identifier) ? (
                         <><Loader2 size={12} className={styles.spin} /> Working...</>
-                      ) : registryService.isInstalled(mod.identifier) ? 'Remove' : 'Install'}
+                      ) : installedIds.has(mod.identifier) ? 'Remove' : 'Install'}
                     </button>
                   </span>
                 </div>
@@ -589,6 +622,7 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
           {selectedMod && (
             <ModDetailPanel
               mod={selectedMod}
+              installedIds={installedIds}
               onClose={() => setSelectedMod(null)}
               onInstall={() => handleInstall(selectedMod)}
               installing={installingIds.has(selectedMod.identifier)}
@@ -619,11 +653,16 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
 
 /* ─── Mod Detail Panel ─── */
 function ModDetailPanel({
-  mod, onClose, onInstall, installing,
+  mod, installedIds, onClose, onInstall, installing,
 }: {
-  mod: CkanModule; onClose: () => void; onInstall: () => void; installing?: boolean;
+  mod: CkanModule;
+  installedIds: Set<string>;
+  onClose: () => void;
+  onInstall: () => void;
+  installing?: boolean;
 }) {
-  const installed = registryService.isInstalled(mod.identifier);
+  // FIX: Use passed-in installedIds (reactive state) instead of calling registryService directly
+  const installed = installedIds.has(mod.identifier);
   return (
     <motion.aside
       className={styles.detailPanel}
@@ -640,6 +679,7 @@ function ModDetailPanel({
         <div className={styles.detailMeta}>
           <span className={styles.detailVersion}>v{mod.version}</span>
           {mod.license[0] && <span className={styles.detailLicense}>{mod.license[0]}</span>}
+          {installed && <span className={styles.installedBadge} style={{ fontSize: '11px', padding: '2px 8px' }}>Installed</span>}
         </div>
         <p className={styles.detailAbstract}>{mod.abstract}</p>
         {mod.description && mod.description !== mod.abstract && (

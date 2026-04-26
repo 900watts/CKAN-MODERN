@@ -1,7 +1,5 @@
 /**
  * Registry data service — fetches and manages the real CKAN mod registry.
- * In dev mode, loads from the pre-built registry.json.
- * In production (WebView2), this would come from the .NET backend via IPC.
  */
 
 export interface ModAuthor {
@@ -76,7 +74,6 @@ class RegistryService {
       })
       .then((data: Registry) => {
         this.registry = data;
-        // Restore installed state from localStorage
         try {
           const saved = localStorage.getItem('ckan-installed');
           if (saved) this.installedIds = new Set(JSON.parse(saved));
@@ -98,26 +95,23 @@ class RegistryService {
   search(query: string, filters?: SearchFilters): CkanModule[] {
     let results = this.getModules();
 
-    // FIX: Apply text filter only when query is non-empty
     if (query.trim()) {
       const q = query.toLowerCase().trim();
       results = results.filter((m) => {
-        const nameMatch = m.name.toLowerCase().includes(q);
-        const idMatch = m.identifier.toLowerCase().includes(q);
-        const abstractMatch = m.abstract.toLowerCase().includes(q);
-        const authorMatch = m.author.some((a) => a.toLowerCase().includes(q));
-        const tagMatch = m.tags.some((t) => t.toLowerCase().includes(q));
-        return nameMatch || idMatch || abstractMatch || authorMatch || tagMatch;
+        return (
+          m.name.toLowerCase().includes(q) ||
+          m.identifier.toLowerCase().includes(q) ||
+          m.abstract.toLowerCase().includes(q) ||
+          m.author.some((a) => a.toLowerCase().includes(q)) ||
+          m.tags.some((t) => t.toLowerCase().includes(q))
+        );
       });
     }
 
-    // Apply tag filter
     if (filters?.tag) {
       results = results.filter((m) => m.tags.includes(filters.tag!));
     }
 
-    // FIX: Always apply sorting — previously it was inside the early-return branch
-    // so sorting was silently skipped when there was no search query (default "downloads" sort did nothing)
     if (filters?.sortBy) {
       results = [...results].sort((a, b) => {
         switch (filters.sortBy) {
@@ -140,6 +134,11 @@ class RegistryService {
     return this.installedIds.has(identifier);
   }
 
+  /** Returns a copy of installed IDs for reactive state in components. */
+  getInstalledIds(): string[] {
+    return [...this.installedIds];
+  }
+
   install(identifier: string): void {
     this.installedIds.add(identifier);
     this.saveInstalled();
@@ -147,6 +146,16 @@ class RegistryService {
 
   uninstall(identifier: string): void {
     this.installedIds.delete(identifier);
+    this.saveInstalled();
+  }
+
+  /**
+   * FIX: Replaces the entire installed set from an authoritative list (e.g. from the backend).
+   * Previously we only ever added to installedIds, so uninstalls done outside the UI
+   * (or on previous sessions) would never be reflected.
+   */
+  setInstalledFromList(identifiers: string[]): void {
+    this.installedIds = new Set(identifiers);
     this.saveInstalled();
   }
 
