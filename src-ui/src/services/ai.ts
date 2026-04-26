@@ -10,46 +10,6 @@ const SILICON_FLOW_BASE = 'https://api.siliconflow.cn/v1';
 const FREE_MODEL = 'THUDM/GLM-Z1-9B-0414';
 const DAILY_LIMIT = 20;
 
-// ---- Custom Provider Types & Config ----
-
-export type CustomProvider = 'openrouter' | 'google' | 'openai';
-
-export interface ProviderConfig {
-  name: string;
-  baseUrl: string;
-  defaultModel: string;
-  models: string[];
-}
-
-export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
-  openrouter: {
-    name: 'OpenRouter',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    defaultModel: 'google/gemini-2.0-flash-exp:free',
-    models: [
-      'google/gemini-2.0-flash-exp:free',
-      'deepseek/deepseek-chat-free:free',
-      'meta-llama/llama-3.3-70b-instruct:free',
-    ],
-  },
-  google: {
-    name: 'Google',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-2.0-flash',
-    models: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-  },
-  openai: {
-    name: 'OpenAI',
-    baseUrl: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4o-mini',
-    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
-  },
-};
-
-const STORAGE_KEY_PREFIX = 'ckan_ai_apikey_';
-const STORAGE_SELECTED_PROVIDER = 'ckan_ai_selected_provider';
-const STORAGE_SELECTED_MODEL = 'ckan_ai_selected_model';
-
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -198,14 +158,7 @@ class AiService {
       throw new Error('Please sign in to use AI. Go to Settings > Account.');
     }
 
-    // 2. Check if a custom provider is selected and has a key
-    const selectedProvider = this.getSelectedProvider();
-    if (selectedProvider && this.getCustomApiKey(selectedProvider)) {
-      const model = this.getSelectedModel() || AI_PROVIDERS[selectedProvider].defaultModel;
-      return this.chatWithCustomProvider(selectedProvider, model, messages, options);
-    }
-
-    // 3. Default: Get API key from Supabase (Silicon Flow)
+    // 2. Get API key from Supabase
     const apiKey = await this.getApiKey();
 
     // 3. Log usage + enforce daily limit (atomic DB operation)
@@ -322,172 +275,205 @@ class AiService {
     this.apiKey = null;
     this.keyFetchPromise = null;
   }
-
-  // ---- Custom Provider API Key Management ----
-
-  /** Get a custom API key from localStorage. */
-  getCustomApiKey(provider: CustomProvider): string | null {
-    return localStorage.getItem(`${STORAGE_KEY_PREFIX}${provider}`);
-  }
-
-  /** Set a custom API key in localStorage. */
-  setApiKey(provider: CustomProvider, key: string): void {
-    localStorage.setItem(`${STORAGE_KEY_PREFIX}${provider}`, key);
-  }
-
-  /** Clear a custom API key from localStorage. */
-  clearApiKeyFor(provider: CustomProvider): void {
-    localStorage.removeItem(`${STORAGE_KEY_PREFIX}${provider}`);
-  }
-
-  /** Check if any custom API key is configured. */
-  hasAnyCustomKey(): boolean {
-    return (['openrouter', 'google', 'openai'] as CustomProvider[]).some(
-      (p) => !!this.getCustomApiKey(p)
-    );
-  }
-
-  /** Get providers that have a custom API key set. */
-  getConfiguredProviders(): CustomProvider[] {
-    return (['openrouter', 'google', 'openai'] as CustomProvider[]).filter(
-      (p) => !!this.getCustomApiKey(p)
-    );
-  }
-
-  /** Get the selected provider (or null for default CKAN Cloud). */
-  getSelectedProvider(): CustomProvider | null {
-    const val = localStorage.getItem(STORAGE_SELECTED_PROVIDER);
-    if (val && val in AI_PROVIDERS) return val as CustomProvider;
-    return null;
-  }
-
-  /** Set the selected provider (null = CKAN Cloud default). */
-  setSelectedProvider(provider: CustomProvider | null): void {
-    if (provider) {
-      localStorage.setItem(STORAGE_SELECTED_PROVIDER, provider);
-      // Also set default model for the provider if no model selected
-      const currentModel = this.getSelectedModel();
-      const providerModels = AI_PROVIDERS[provider].models;
-      if (!currentModel || !providerModels.includes(currentModel)) {
-        this.setSelectedModel(AI_PROVIDERS[provider].defaultModel);
-      }
-    } else {
-      localStorage.removeItem(STORAGE_SELECTED_PROVIDER);
-      localStorage.removeItem(STORAGE_SELECTED_MODEL);
-    }
-  }
-
-  /** Get the selected model. */
-  getSelectedModel(): string | null {
-    return localStorage.getItem(STORAGE_SELECTED_MODEL);
-  }
-
-  /** Set the selected model. */
-  setSelectedModel(model: string): void {
-    localStorage.setItem(STORAGE_SELECTED_MODEL, model);
-  }
-
-  /** Get display name for current active model/provider. */
-  getActiveModelDisplay(): string {
-    const provider = this.getSelectedProvider();
-    if (provider && this.getCustomApiKey(provider)) {
-      const model = this.getSelectedModel() || AI_PROVIDERS[provider].defaultModel;
-      return `${AI_PROVIDERS[provider].name}: ${model}`;
-    }
-    return 'GLM-Z1-9B (via CKAN Cloud)';
-  }
-
-  /** Call a custom provider (OpenRouter, Google, or OpenAI). */
-  private async chatWithCustomProvider(
-    provider: CustomProvider,
-    model: string,
-    messages: ChatMessage[],
-    options?: { signal?: AbortSignal }
-  ): Promise<AiChatResult> {
-    const customKey = this.getCustomApiKey(provider)!;
-    const config = AI_PROVIDERS[provider];
-
-    const fullMessages: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...messages,
-    ];
-
-    let reply: string;
-    let usage: AiChatResult['usage'];
-
-    if (provider === 'google') {
-      // Google Gemini uses a different API format
-      const contents = fullMessages.map((m) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.role === 'system' ? `[System Instructions]\n${m.content}` : m.content }],
-      }));
-
-      const res = await fetch(
-        `${config.baseUrl}/models/${model}:generateContent?key=${customKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents,
-            generationConfig: {
-              maxOutputTokens: 1024,
-              temperature: 0.7,
-            },
-          }),
-          signal: options?.signal,
-        }
-      );
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        throw new Error(`${config.name} error (${res.status}): ${errText.slice(0, 200)}`);
-      }
-
-      const data = await res.json();
-      reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from model.';
-      usage = data.usageMetadata
-        ? {
-            prompt_tokens: data.usageMetadata.promptTokenCount || 0,
-            completion_tokens: data.usageMetadata.candidatesTokenCount || 0,
-            total_tokens: data.usageMetadata.totalTokenCount || 0,
-          }
-        : undefined;
-    } else {
-      // OpenAI-compatible format (OpenRouter and OpenAI)
-      const res = await fetch(`${config.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${customKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: fullMessages,
-          max_tokens: 1024,
-          temperature: 0.7,
-          stream: false,
-        }),
-        signal: options?.signal,
-      });
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        throw new Error(`${config.name} error (${res.status}): ${errText.slice(0, 200)}`);
-      }
-
-      const data = await res.json();
-      reply = data.choices?.[0]?.message?.content || 'No response from model.';
-      usage = data.usage;
-    }
-
-    return {
-      reply,
-      model,
-      usage,
-      tier: 'custom',
-    };
-  }
 }
 
 export const aiService = new AiService();
 export default aiService;
+
+// ────────────────────────────────────────────────────────────────
+// Custom AI Provider Support
+// ────────────────────────────────────────────────────────────────
+
+export type CustomProvider = 'openrouter' | 'google' | 'openai' | 'siliconflow-cn' | 'siliconflow-int';
+
+export interface ProviderConfig {
+  label: string;
+  baseUrl: string;
+  models: { id: string; label: string }[];
+  /** true = OpenAI-compatible chat/completions, false = Google format */
+  openaiCompat: boolean;
+}
+
+export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
+  'openrouter': {
+    label: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    openaiCompat: true,
+    models: [
+      { id: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)' },
+      { id: 'deepseek/deepseek-chat-free:free', label: 'DeepSeek Chat (Free)' },
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' },
+    ],
+  },
+  'google': {
+    label: 'Google AI',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    openaiCompat: false,
+    models: [
+      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+      { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+      { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+    ],
+  },
+  'openai': {
+    label: 'OpenAI / ChatGPT',
+    baseUrl: 'https://api.openai.com/v1',
+    openaiCompat: true,
+    models: [
+      { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+      { id: 'gpt-4o', label: 'GPT-4o' },
+      { id: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+    ],
+  },
+  'siliconflow-cn': {
+    label: 'Silicon Flow (CN)',
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    openaiCompat: true,
+    models: [
+      { id: 'THUDM/GLM-Z1-9B-0414', label: 'GLM-Z1-9B' },
+      { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },
+      { id: 'Qwen/Qwen2.5-7B-Instruct', label: 'Qwen 2.5 7B' },
+    ],
+  },
+  'siliconflow-int': {
+    label: 'Silicon Flow (INT)',
+    baseUrl: 'https://api.siliconflow.com/v1',
+    openaiCompat: true,
+    models: [
+      { id: 'THUDM/GLM-Z1-9B-0414', label: 'GLM-Z1-9B' },
+      { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },
+      { id: 'Qwen/Qwen2.5-7B-Instruct', label: 'Qwen 2.5 7B' },
+    ],
+  },
+};
+
+// ── localStorage key management ──
+
+const STORAGE_PREFIX = 'ckan_ai_';
+
+export function getCustomApiKey(provider: CustomProvider): string | null {
+  return localStorage.getItem(`${STORAGE_PREFIX}key_${provider}`);
+}
+
+export function setApiKey(provider: CustomProvider, key: string): void {
+  localStorage.setItem(`${STORAGE_PREFIX}key_${provider}`, key);
+}
+
+export function clearApiKeyFor(provider: CustomProvider): void {
+  localStorage.removeItem(`${STORAGE_PREFIX}key_${provider}`);
+}
+
+export function hasAnyCustomKey(): boolean {
+  return (Object.keys(AI_PROVIDERS) as CustomProvider[]).some(
+    (p) => !!getCustomApiKey(p)
+  );
+}
+
+export function getConfiguredProviders(): CustomProvider[] {
+  return (Object.keys(AI_PROVIDERS) as CustomProvider[]).filter(
+    (p) => !!getCustomApiKey(p)
+  );
+}
+
+export function getSelectedProvider(): CustomProvider | 'ckan-cloud' {
+  return (localStorage.getItem(`${STORAGE_PREFIX}provider`) as CustomProvider | 'ckan-cloud') || 'ckan-cloud';
+}
+
+export function setSelectedProvider(p: CustomProvider | 'ckan-cloud'): void {
+  localStorage.setItem(`${STORAGE_PREFIX}provider`, p);
+}
+
+export function getSelectedModel(provider: CustomProvider): string {
+  const saved = localStorage.getItem(`${STORAGE_PREFIX}model_${provider}`);
+  if (saved) return saved;
+  return AI_PROVIDERS[provider]?.models[0]?.id ?? '';
+}
+
+export function setSelectedModel(provider: CustomProvider, model: string): void {
+  localStorage.setItem(`${STORAGE_PREFIX}model_${provider}`, model);
+}
+
+// ── Custom provider chat ──
+
+export async function chatWithCustomProvider(
+  provider: CustomProvider,
+  model: string,
+  messages: ChatMessage[],
+  signal?: AbortSignal
+): Promise<AiChatResult> {
+  const apiKey = getCustomApiKey(provider);
+  if (!apiKey) throw new Error(`No API key set for ${AI_PROVIDERS[provider].label}. Add it in Settings.`);
+
+  const config = AI_PROVIDERS[provider];
+  const fullMessages: ChatMessage[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...messages,
+  ];
+
+  if (config.openaiCompat) {
+    // OpenAI-compatible format (OpenRouter, OpenAI, Silicon Flow)
+    const res = await fetch(`${config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: fullMessages,
+        max_tokens: 1024,
+        temperature: 0.7,
+        stream: false,
+      }),
+      signal,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`${config.label} error (${res.status}): ${errText.slice(0, 200)}`);
+    }
+
+    const data = await res.json();
+    return {
+      reply: data.choices?.[0]?.message?.content || 'No response from model.',
+      model,
+      usage: data.usage,
+      tier: 'custom',
+    };
+  } else {
+    // Google Gemini format
+    const contents = fullMessages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }));
+
+    const systemInstruction = fullMessages.find((m) => m.role === 'system');
+
+    const res = await fetch(
+      `${config.baseUrl}/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          ...(systemInstruction
+            ? { systemInstruction: { parts: [{ text: systemInstruction.content }] } }
+            : {}),
+          generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
+        }),
+        signal,
+      }
+    );
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`${config.label} error (${res.status}): ${errText.slice(0, 200)}`);
+    }
+
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from model.';
+    return { reply: text, model, tier: 'custom' };
+  }
+}

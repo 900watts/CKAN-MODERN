@@ -1,36 +1,24 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { motion } from 'framer-motion';
 import { X, Send, Bot, User, Loader2, Sparkles, Download } from 'lucide-react';
-import { aiService } from '../../services/ai';
-import type { ChatMessage } from '../../services/ai';
-import { AI_PROVIDERS } from '../../services/ai';
-import type { CustomProvider } from '../../services/ai';
+import { aiService, AI_PROVIDERS, hasAnyCustomKey, getConfiguredProviders, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatWithCustomProvider } from '../../services/ai';
+import type { ChatMessage, CustomProvider } from '../../services/ai';
+import { chatStore } from '../../services/chatStore';
+import type { ChatMsg } from '../../services/chatStore';
 import { supabase } from '../../services/supabase';
 import ckanIpc from '../../services/ipc';
 import styles from './AIChatPanel.module.css';
 
 const DAILY_LIMIT = 20;
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: Date;
-}
-
 interface AIChatPanelProps {
   onClose: () => void;
 }
 
 export default function AIChatPanel({ onClose }: AIChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: "Hi! I'm your CKAN AI assistant. I can help you find mods, explain dependencies, and recommend mod packs.\n\nSign in (Settings > Account) to start chatting. Free tier: 20 messages/day.",
-      timestamp: new Date(),
-    },
-  ]);
+  // Use persistent chat store
+  const messages = useSyncExternalStore(chatStore.subscribe, chatStore.get);
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [remainingToday, setRemainingToday] = useState<number | null>(null);
@@ -39,33 +27,13 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Model selector state
-  const [selectedProvider, setSelectedProvider] = useState<CustomProvider | null>(
-    aiService.getSelectedProvider()
-  );
-  const [selectedModel, setSelectedModel] = useState<string>(
-    aiService.getSelectedModel() || ''
-  );
-  const configuredProviders = aiService.getConfiguredProviders();
-  const hasCustomKeys = configuredProviders.length > 0;
-
-  const handleProviderChange = (value: string) => {
-    if (value === 'ckan-cloud') {
-      aiService.setSelectedProvider(null);
-      setSelectedProvider(null);
-      setSelectedModel('');
-    } else {
-      const provider = value as CustomProvider;
-      aiService.setSelectedProvider(provider);
-      setSelectedProvider(provider);
-      const defaultModel = AI_PROVIDERS[provider].defaultModel;
-      setSelectedModel(defaultModel);
-    }
-  };
-
-  const handleModelChange = (value: string) => {
-    aiService.setSelectedModel(value);
-    setSelectedModel(value);
-  };
+  const [curProvider, setCurProvider] = useState<CustomProvider | 'ckan-cloud'>(getSelectedProvider());
+  const [curModel, setCurModel] = useState<string>(() => {
+    const p = getSelectedProvider();
+    return p === 'ckan-cloud' ? '' : getSelectedModel(p);
+  });
+  const configuredProviders = getConfiguredProviders();
+  const showModelBar = hasAnyCustomKey();
 
   // Fetch tier + daily usage from Supabase on mount
   useEffect(() => {
@@ -74,7 +42,6 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) return;
 
-        // Get profile tier
         const { data: profile } = await supabase
           .from('profiles')
           .select('tier')
@@ -82,14 +49,13 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
           .single();
         if (profile?.tier) setUserTier(profile.tier);
 
-        // Get today's usage count
         const { data: usageCount } = await supabase.rpc('get_daily_ai_usage', {
           p_user_id: session.user.id,
         });
         const used = usageCount ?? 0;
         setRemainingToday(DAILY_LIMIT - used);
       } catch {
-        // Silently fail — will show usage after first request
+        // Silently fail
       }
     })();
   }, []);
@@ -99,54 +65,77 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleProviderChange = (val: string) => {
+    const p = val as CustomProvider | 'ckan-cloud';
+    setCurProvider(p);
+    setSelectedProvider(p);
+    if (p !== 'ckan-cloud') {
+      const m = getSelectedModel(p);
+      setCurModel(m);
+    } else {
+      setCurModel('');
+    }
+  };
+
+  const handleModelChange = (val: string) => {
+    setCurModel(val);
+    if (curProvider !== 'ckan-cloud') {
+      setSelectedModel(curProvider, val);
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
-    const userMessage: Message = {
+    const userMessage: ChatMsg = {
       id: crypto.randomUUID(),
       role: 'user',
       content: input.trim(),
-      timestamp: new Date(),
+      timestamp: Date.now(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    chatStore.push(userMessage);
     setInput('');
     setIsLoading(true);
 
     try {
-      if (!(await aiService.isConfigured())) {
-        throw new Error('Sign in to use CKAN AI. Go to Settings > Account to create a free account.');
-      }
-
-      // Build chat history for the API
+      // Build chat history
       const chatHistory: ChatMessage[] = messages
         .filter((m) => m.role !== 'system')
         .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
       chatHistory.push({ role: 'user', content: userMessage.content });
 
-      const response = await aiService.chat(chatHistory);
+      let reply: string;
 
-      // Update remaining requests from response
-      if (response.remaining_today !== undefined) {
-        setRemainingToday(response.remaining_today);
+      if (curProvider !== 'ckan-cloud') {
+        // Use custom provider
+        const response = await chatWithCustomProvider(curProvider, curModel, chatHistory);
+        reply = response.reply;
+      } else {
+        // Use CKAN Cloud (Silicon Flow via Supabase)
+        if (!(await aiService.isConfigured())) {
+          throw new Error('Sign in to use CKAN AI. Go to Settings > Account to create a free account.');
+        }
+        const response = await aiService.chat(chatHistory);
+        if (response.remaining_today !== undefined) {
+          setRemainingToday(response.remaining_today);
+        }
+        reply = response.reply;
       }
 
-      const assistantMessage: Message = {
+      chatStore.push({
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: response.reply,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
+        content: reply,
+        timestamp: Date.now(),
+      });
     } catch (err) {
-      const errorMessage: Message = {
+      chatStore.push({
         id: crypto.randomUUID(),
         role: 'assistant',
         content: `Sorry, I ran into an issue: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+        timestamp: Date.now(),
+      });
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
@@ -174,7 +163,6 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
 
     const parseInline = (line: string, keyPrefix: string): React.ReactNode[] => {
       const parts: React.ReactNode[] = [];
-      // Match **bold**, *italic*, `code`, and [INSTALL:id]
       const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[INSTALL:(.+?)\])/g;
       let lastIndex = 0;
       let match;
@@ -253,7 +241,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
           <Sparkles size={16} className={styles.headerIcon} />
           <span className={styles.headerTitle}>CKAN AI</span>
           <span className={styles.tierBadge}>{userTier.toUpperCase()}</span>
-          {remainingToday !== null && (
+          {curProvider === 'ckan-cloud' && remainingToday !== null && (
             <span className={styles.pointsBadge}>{remainingToday}/{DAILY_LIMIT}</span>
           )}
         </div>
@@ -263,36 +251,32 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       </div>
 
       {/* Model Selector */}
-      {hasCustomKeys && (
+      {showModelBar && (
         <div className={styles.modelBar}>
-          <span className={styles.modelLabel}>Provider:</span>
-          <select
-            className={styles.modelSelect}
-            value={selectedProvider || 'ckan-cloud'}
-            onChange={(e) => handleProviderChange(e.target.value)}
-          >
-            <option value="ckan-cloud">CKAN Cloud</option>
-            {configuredProviders.map((p) => (
-              <option key={p} value={p}>
-                {AI_PROVIDERS[p].name}
-              </option>
-            ))}
-          </select>
-          {selectedProvider && (
-            <>
-              <span className={styles.modelLabel}>Model:</span>
+          <div className={styles.modelSelect}>
+            <label className={styles.modelLabel}>Provider</label>
+            <select
+              value={curProvider}
+              onChange={(e) => handleProviderChange(e.target.value)}
+            >
+              <option value="ckan-cloud">CKAN Cloud</option>
+              {configuredProviders.map((p) => (
+                <option key={p} value={p}>{AI_PROVIDERS[p].label}</option>
+              ))}
+            </select>
+          </div>
+          {curProvider !== 'ckan-cloud' && (
+            <div className={styles.modelSelect}>
+              <label className={styles.modelLabel}>Model</label>
               <select
-                className={styles.modelSelect}
-                value={selectedModel || AI_PROVIDERS[selectedProvider].defaultModel}
+                value={curModel}
                 onChange={(e) => handleModelChange(e.target.value)}
               >
-                {AI_PROVIDERS[selectedProvider].models.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
+                {AI_PROVIDERS[curProvider].models.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
                 ))}
               </select>
-            </>
+            </div>
           )}
         </div>
       )}
@@ -358,7 +342,9 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
           </button>
         </div>
         <div className={styles.inputHint}>
-          Powered by CKAN Cloud · GLM-Z1-9B
+          {curProvider === 'ckan-cloud'
+            ? 'Powered by CKAN Cloud · GLM-Z1-9B'
+            : `Using ${AI_PROVIDERS[curProvider].label}`}
         </div>
       </div>
     </motion.aside>

@@ -235,60 +235,70 @@
   gap: 6px;
 }
 
-/* ─── AI API Keys ─── */
+/* ─── API Key Section ─── */
 
 .apiKeyRow {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
 }
 
-.apiKeyInput {
+.providerLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  min-width: 140px;
+}
+
+.apiKeyInputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 1;
-  padding: 8px 12px;
+  justify-content: flex-end;
+}
+
+.apiKeyInput {
+  padding: 7px 12px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
   font-size: 13px;
-  font-family: 'Cascadia Code', monospace;
   outline: none;
+  width: 200px;
+  transition: border-color 0.15s ease;
 }
 
 .apiKeyInput:focus {
   border-color: var(--color-accent-primary);
 }
 
-.apiKeyInput::placeholder {
-  color: var(--color-text-secondary);
-  opacity: 0.5;
-}
-
 .apiKeySaved {
-  color: var(--color-success, #6ccb5f);
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-success, #6ccb5f);
+  font-weight: 500;
 }
 
 .btnDanger {
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
   border: 1px solid rgba(255, 80, 80, 0.3);
-  border-radius: 8px;
-  background: transparent;
+  border-radius: 6px;
+  background: rgba(255, 80, 80, 0.1);
   color: #ff5050;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
 
 .btnDanger:hover {
-  background: rgba(255, 80, 80, 0.1);
-}
-
-.providerLabel {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text-primary);
-  min-width: 90px;
+  background: rgba(255, 80, 80, 0.2);
 }

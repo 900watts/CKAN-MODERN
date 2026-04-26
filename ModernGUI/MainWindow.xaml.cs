@@ -125,7 +125,7 @@ public partial class MainWindow : Window
     private static Stream? GetEmbeddedResource(string relativePath)
     {
         // .NET embeds resources with dots replacing path separators
-        // wwwroot/assets/index-abc.js → CKAN_M.wwwroot.assets.index_abc.js
+        // wwwroot/assets/index-abc.js → CKAN.Modern.wwwroot.assets.index_abc.js
         // But hyphens in filenames are kept as-is in some SDK versions.
         // We try multiple naming conventions to be safe.
 

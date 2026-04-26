@@ -6,6 +6,11 @@ import SettingsPage from './pages/SettingsPage';
 import InstancesPage from './pages/InstancesPage';
 import DownloadsPage from './pages/DownloadsPage';
 import { ckanIpc } from './services/ipc';
+import { downloadStore } from './services/downloadStore';
+
+// Initialize download store listeners early so events are captured
+// even before the Downloads tab is opened
+downloadStore.init();
 
 function App() {
   const [activePage, setActivePage] = useState<NavItem>('available');

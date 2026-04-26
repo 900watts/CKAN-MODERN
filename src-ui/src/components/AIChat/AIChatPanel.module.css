@@ -311,18 +311,26 @@
 }
 
 /* ─── Model Selector Bar ─── */
+
 .modelBar {
   display: flex;
-  align-items: center;
   gap: 8px;
-  padding: 6px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-primary);
-  font-size: 11px;
+  background: var(--color-bg-elevated);
 }
 
 .modelSelect {
-  padding: 3px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.modelSelect select {
+  width: 100%;
+  padding: 4px 6px;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background: var(--color-bg-surface);
@@ -332,11 +340,14 @@
   cursor: pointer;
 }
 
-.modelSelect:focus {
+.modelSelect select:focus {
   border-color: var(--color-accent-primary);
 }
 
 .modelLabel {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   color: var(--color-text-secondary);
-  font-weight: 500;
 }

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { User, Zap, Database, LogIn, LogOut, Mail, AlertCircle, Sun, Moon, Palette, Key, Check } from 'lucide-react';
+import { User, Zap, Database, LogIn, LogOut, Mail, AlertCircle, Sun, Moon, Palette, Key, Check, X } from 'lucide-react';
 import { authService } from '../services/auth';
 import type { AuthState } from '../services/auth';
 import { isSupabaseConfigured } from '../services/supabase';
-import { aiService, AI_PROVIDERS } from '../services/ai';
+import { aiService, AI_PROVIDERS, getCustomApiKey, setApiKey, clearApiKeyFor } from '../services/ai';
 import type { CustomProvider } from '../services/ai';
 import { themeService } from '../services/theme';
 import type { Theme } from '../services/theme';
@@ -23,30 +23,25 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<Theme>(themeService.getTheme());
 
   // API key state
-  const providers: CustomProvider[] = ['openrouter', 'google', 'openai'];
-  const [apiKeys, setApiKeys] = useState<Record<CustomProvider, string>>({
-    openrouter: '',
-    google: '',
-    openai: '',
-  });
-  const [savedKeys, setSavedKeys] = useState<Record<CustomProvider, boolean>>({
-    openrouter: !!aiService.getCustomApiKey('openrouter'),
-    google: !!aiService.getCustomApiKey('google'),
-    openai: !!aiService.getCustomApiKey('openai'),
+  const providers = Object.keys(AI_PROVIDERS) as CustomProvider[];
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [savedKeys, setSavedKeys] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    providers.forEach((p) => { init[p] = !!getCustomApiKey(p); });
+    return init;
   });
 
   const handleSaveApiKey = (provider: CustomProvider) => {
-    const key = apiKeys[provider].trim();
+    const key = apiKeys[provider]?.trim();
     if (!key) return;
-    aiService.setApiKey(provider, key);
+    setApiKey(provider, key);
     setSavedKeys((prev) => ({ ...prev, [provider]: true }));
     setApiKeys((prev) => ({ ...prev, [provider]: '' }));
   };
 
   const handleClearApiKey = (provider: CustomProvider) => {
-    aiService.clearApiKeyFor(provider);
+    clearApiKeyFor(provider);
     setSavedKeys((prev) => ({ ...prev, [provider]: false }));
-    setApiKeys((prev) => ({ ...prev, [provider]: '' }));
   };
 
   useEffect(() => {
@@ -241,59 +236,40 @@ export default function SettingsPage() {
             AI API Keys
           </div>
           <div className={styles.card}>
-            <div className={styles.settingRow}>
-              <div>
-                <div className={styles.settingLabel}>Custom Providers</div>
-                <div className={styles.settingDesc}>
-                  Add your own API keys to use different AI models
-                </div>
-              </div>
+            <div className={styles.settingDesc} style={{ marginBottom: 12 }}>
+              Connect your own API keys to use custom AI providers. Keys are stored locally in your browser.
             </div>
-            {providers.map((provider) => (
+            {providers.map((provider, i) => (
               <div key={provider}>
-                <div className={styles.divider} />
+                {i > 0 && <div className={styles.divider} />}
                 <div className={styles.apiKeyRow}>
-                  <span className={styles.providerLabel}>
-                    {AI_PROVIDERS[provider].name}
-                  </span>
+                  <div className={styles.providerLabel}>{AI_PROVIDERS[provider].label}</div>
                   {savedKeys[provider] ? (
-                    <>
-                      <span className={styles.apiKeySaved}>
-                        <Check size={14} /> Key saved
-                      </span>
-                      <button
-                        className={styles.btnDanger}
-                        onClick={() => handleClearApiKey(provider)}
-                      >
-                        Clear
+                    <div className={styles.apiKeySaved}>
+                      <Check size={14} /> Key saved
+                      <button className={styles.btnDanger} onClick={() => handleClearApiKey(provider)}>
+                        <X size={12} /> Clear
                       </button>
-                    </>
+                    </div>
                   ) : (
-                    <>
+                    <div className={styles.apiKeyInputRow}>
                       <input
                         className={styles.apiKeyInput}
                         type="password"
-                        placeholder={`Enter ${AI_PROVIDERS[provider].name} API key`}
-                        value={apiKeys[provider]}
-                        onChange={(e) =>
-                          setApiKeys((prev) => ({
-                            ...prev,
-                            [provider]: e.target.value,
-                          }))
-                        }
-                        onKeyDown={(e) =>
-                          e.key === 'Enter' && handleSaveApiKey(provider)
-                        }
+                        placeholder="Paste API key..."
+                        value={apiKeys[provider] || ''}
+                        onChange={(e) => setApiKeys((prev) => ({ ...prev, [provider]: e.target.value }))}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSaveApiKey(provider)}
                       />
                       <button
                         className={styles.btnPrimary}
                         onClick={() => handleSaveApiKey(provider)}
-                        disabled={!apiKeys[provider].trim()}
-                        style={{ padding: '6px 14px', fontSize: '12px' }}
+                        disabled={!apiKeys[provider]?.trim()}
+                        style={{ padding: '6px 12px', fontSize: '12px' }}
                       >
                         Save
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
