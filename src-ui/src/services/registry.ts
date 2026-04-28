@@ -1,5 +1,7 @@
 /**
  * Registry data service — fetches and manages the real CKAN mod registry.
+ * In dev mode, loads from the pre-built registry.json.
+ * In production (WebView2), this would come from the .NET backend via IPC.
  */
 
 export interface ModAuthor {
@@ -74,6 +76,7 @@ class RegistryService {
       })
       .then((data: Registry) => {
         this.registry = data;
+        // Restore installed state from localStorage
         try {
           const saved = localStorage.getItem('ckan-installed');
           if (saved) this.installedIds = new Set(JSON.parse(saved));
@@ -93,18 +96,20 @@ class RegistryService {
   }
 
   search(query: string, filters?: SearchFilters): CkanModule[] {
-    let results = this.getModules();
+    const mods = this.getModules();
+    if (!query.trim() && !filters?.tag && !filters?.sortBy) return mods;
 
-    if (query.trim()) {
-      const q = query.toLowerCase().trim();
+    const q = query.toLowerCase().trim();
+    let results = mods;
+
+    if (q) {
       results = results.filter((m) => {
-        return (
-          m.name.toLowerCase().includes(q) ||
-          m.identifier.toLowerCase().includes(q) ||
-          m.abstract.toLowerCase().includes(q) ||
-          m.author.some((a) => a.toLowerCase().includes(q)) ||
-          m.tags.some((t) => t.toLowerCase().includes(q))
-        );
+        const nameMatch = m.name.toLowerCase().includes(q);
+        const idMatch = m.identifier.toLowerCase().includes(q);
+        const abstractMatch = m.abstract.toLowerCase().includes(q);
+        const authorMatch = m.author.some((a) => a.toLowerCase().includes(q));
+        const tagMatch = m.tags.some((t) => t.toLowerCase().includes(q));
+        return nameMatch || idMatch || abstractMatch || authorMatch || tagMatch;
       });
     }
 
@@ -134,11 +139,6 @@ class RegistryService {
     return this.installedIds.has(identifier);
   }
 
-  /** Returns a copy of installed IDs for reactive state in components. */
-  getInstalledIds(): string[] {
-    return [...this.installedIds];
-  }
-
   install(identifier: string): void {
     this.installedIds.add(identifier);
     this.saveInstalled();
@@ -149,13 +149,8 @@ class RegistryService {
     this.saveInstalled();
   }
 
-  /**
-   * FIX: Replaces the entire installed set from an authoritative list (e.g. from the backend).
-   * Previously we only ever added to installedIds, so uninstalls done outside the UI
-   * (or on previous sessions) would never be reflected.
-   */
-  setInstalledFromList(identifiers: string[]): void {
-    this.installedIds = new Set(identifiers);
+  clearInstalled(): void {
+    this.installedIds.clear();
     this.saveInstalled();
   }
 

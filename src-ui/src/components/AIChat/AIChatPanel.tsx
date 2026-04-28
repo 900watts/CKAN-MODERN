@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { motion } from 'framer-motion';
 import { X, Send, Bot, User, Loader2, Sparkles, Download } from 'lucide-react';
-import { aiService, AI_PROVIDERS, hasAnyCustomKey, getConfiguredProviders, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatWithCustomProvider } from '../../services/ai';
+import { aiService, AI_PROVIDERS, getConfiguredProviders, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatWithCustomProvider } from '../../services/ai';
 import type { ChatMessage, CustomProvider } from '../../services/ai';
 import { chatStore } from '../../services/chatStore';
 import type { ChatMsg } from '../../services/chatStore';
@@ -33,7 +33,6 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     return p === 'ckan-cloud' ? '' : getSelectedModel(p);
   });
   const configuredProviders = getConfiguredProviders();
-  const showModelBar = hasAnyCustomKey();
 
   // Fetch tier + daily usage from Supabase on mount
   useEffect(() => {
@@ -241,8 +240,8 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
           <Sparkles size={16} className={styles.headerIcon} />
           <span className={styles.headerTitle}>CKAN AI</span>
           <span className={styles.tierBadge}>{userTier.toUpperCase()}</span>
-          {curProvider === 'ckan-cloud' && remainingToday !== null && (
-            <span className={styles.pointsBadge}>{remainingToday}/{DAILY_LIMIT}</span>
+          {curProvider === 'ckan-cloud' && (
+            <span className={styles.pointsBadge}>{remainingToday ?? DAILY_LIMIT}/{DAILY_LIMIT}</span>
           )}
         </div>
         <button className={styles.closeBtn} onClick={onClose} title="Close">
@@ -250,36 +249,34 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         </button>
       </div>
 
-      {/* Model Selector */}
-      {showModelBar && (
-        <div className={styles.modelBar}>
+      {/* Model Selector — always visible */}
+      <div className={styles.modelBar}>
+        <div className={styles.modelSelect}>
+          <label className={styles.modelLabel}>Provider</label>
+          <select
+            value={curProvider}
+            onChange={(e) => handleProviderChange(e.target.value)}
+          >
+            <option value="ckan-cloud">CKAN Cloud</option>
+            {configuredProviders.map((p) => (
+              <option key={p} value={p}>{AI_PROVIDERS[p].label}</option>
+            ))}
+          </select>
+        </div>
+        {curProvider !== 'ckan-cloud' && (
           <div className={styles.modelSelect}>
-            <label className={styles.modelLabel}>Provider</label>
+            <label className={styles.modelLabel}>Model</label>
             <select
-              value={curProvider}
-              onChange={(e) => handleProviderChange(e.target.value)}
+              value={curModel}
+              onChange={(e) => handleModelChange(e.target.value)}
             >
-              <option value="ckan-cloud">CKAN Cloud</option>
-              {configuredProviders.map((p) => (
-                <option key={p} value={p}>{AI_PROVIDERS[p].label}</option>
+              {AI_PROVIDERS[curProvider].models.map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
               ))}
             </select>
           </div>
-          {curProvider !== 'ckan-cloud' && (
-            <div className={styles.modelSelect}>
-              <label className={styles.modelLabel}>Model</label>
-              <select
-                value={curModel}
-                onChange={(e) => handleModelChange(e.target.value)}
-              >
-                {AI_PROVIDERS[curProvider].models.map((m) => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Messages */}
       <div className={styles.messages}>

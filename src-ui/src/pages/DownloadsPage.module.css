@@ -31,7 +31,7 @@
   color: var(--color-text-primary);
 }
 
-.content { flex: 1; overflow: auto; padding: 20px 24px; max-width: 720px; }
+.content { flex: 1; overflow: auto; padding: 20px 24px; max-width: 720px; margin: 0 auto; }
 
 /* ─── Empty State ─── */
 .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 300px; text-align: center; }
