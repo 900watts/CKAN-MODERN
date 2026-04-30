@@ -21,6 +21,7 @@ interface UnmanagedMod {
 interface ModListPageProps {
   view: 'available' | 'installed';
   onInstallChange?: () => void;
+  installTick?: number;
 }
 
 interface UpdatableMod {
@@ -33,7 +34,7 @@ interface UpdatableMod {
 
 const BATCH_SIZE = 60;
 
-export default function ModListPage({ view, onInstallChange }: ModListPageProps) {
+export default function ModListPage({ view, onInstallChange, installTick }: ModListPageProps) {
   const [search, setSearch] = useState('');
   const [gridView, setGridView] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -142,7 +143,7 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
       setTags(registryService.getAllTags().slice(0, 30));
       setIsLoading(false);
     });
-  }, [search, view, sortBy, activeTag]);
+  }, [search, view, sortBy, activeTag, installTick]);
 
   useEffect(() => {
     loadMods();
@@ -219,7 +220,6 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
       registryService.install(data?.identifier);
       setInstallStatus({ id: data?.identifier, msg: `${data?.name || data?.identifier} installed`, type: 'success' });
       onInstallChange?.();
-      loadMods();
     });
     const unsub2 = ckanIpc.on('install:error', (data: any) => {
       setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
@@ -229,14 +229,13 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
       setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
       registryService.uninstall(data?.identifier);
       onInstallChange?.();
-      loadMods();
     });
     const unsub4 = ckanIpc.on('uninstall:error', (data: any) => {
       setInstallingIds(prev => { const next = new Set(prev); next.delete(data?.identifier); return next; });
       setInstallStatus({ id: data?.identifier, msg: `Uninstall failed: ${data?.error}`, type: 'error' });
     });
     return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
-  }, [onInstallChange, loadMods]);
+  }, [onInstallChange]);
 
   // Auto-clear status toast after 4 seconds
   useEffect(() => {
@@ -297,7 +296,33 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
 
     setInstallingIds(prev => { const next = new Set(prev); next.delete(mod.identifier); return next; });
     onInstallChange?.();
-    loadMods();
+  };
+
+  const handleUpdate = async (identifier: string, name: string) => {
+    setInstallingIds(prev => new Set(prev).add(identifier));
+    const isConnected = ckanIpc.isConnected();
+
+    if (isConnected) {
+      try {
+        const result = await ckanIpc.call<any, any>('mod:install', { identifier });
+        if (result?.status === 'installed') {
+          setInstallStatus({ id: identifier, msg: `${name} updated`, type: 'success' });
+        } else if (result?.status === 'error') {
+          setInstallStatus({ id: identifier, msg: `Update failed: ${result.error}`, type: 'error' });
+        }
+      } catch (err) {
+        setInstallStatus({
+          id: identifier,
+          msg: `Update error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          type: 'error',
+        });
+      }
+    } else {
+      setInstallStatus({ id: identifier, msg: `${name} updated (dev mode)`, type: 'success' });
+    }
+
+    setInstallingIds(prev => { const next = new Set(prev); next.delete(identifier); return next; });
+    onInstallChange?.();
   };
 
   return (
@@ -420,7 +445,7 @@ export default function ModListPage({ view, onInstallChange }: ModListPageProps)
                 </div>
                 <button
                   className={styles.updateBtn}
-                  onClick={() => handleInstall({ identifier: um.identifier, name: um.name } as CkanModule)}
+                  onClick={() => handleUpdate(um.identifier, um.name)}
                   disabled={installingIds.has(um.identifier)}
                 >
                   {installingIds.has(um.identifier) ? (

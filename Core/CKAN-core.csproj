@@ -20,8 +20,8 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <WarningsNotAsErrors>SYSLIB0050,IDE0090</WarningsNotAsErrors>
-    <NoWarn>IDE1006,CS1591</NoWarn>
+    <WarningsNotAsErrors>SYSLIB0050,IDE0090,IL3000</WarningsNotAsErrors>
+    <NoWarn>IDE1006,CS1591,IL3000</NoWarn>
     <TargetFrameworks>netstandard2.0;net481;net8.0</TargetFrameworks>
     <CoreCompileDependsOn>PrepareResources;$(CompileDependsOn)</CoreCompileDependsOn>
   </PropertyGroup>
