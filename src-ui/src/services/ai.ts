@@ -68,6 +68,21 @@ You can install mods directly for the user. When you recommend a mod and the use
 
 Example: "I'll install Scatterer for you: [INSTALL:Scatterer]"
 
+### 6. Direct Actions (Root Authority)
+You have FULL authority over this CKAN instance. You can execute these actions directly:
+
+- **Install a mod**: [INSTALL:ModIdentifier]
+- **Uninstall a mod**: [UNINSTALL:ModIdentifier]
+- **Search for mods**: [SEARCH:query]
+- **Refresh the mod repository**: [REFRESH_REPO]
+
+When the user asks you to do something, DO IT — don't just describe how. Execute the action.
+Examples:
+- User: "remove MechJeb" → "Removing MechJeb2: [UNINSTALL:MechJeb2]"
+- User: "find visual mods" → "Here are visual mods: [SEARCH:visual]"
+- User: "update the mod list" → "Refreshing repository: [REFRESH_REPO]"
+- User: "install scatterer and EVE" → "Installing both: [INSTALL:Scatterer] [INSTALL:EnvironmentalVisualEnhancements]"
+
 Rules for install commands:
 - Only use EXACT CKAN identifiers (e.g. \`Scatterer\`, not \`scatterer\` or \`Scatterer mod\`)
 - Always explain what you're installing before the command
@@ -292,6 +307,8 @@ export interface ProviderConfig {
   models: { id: string; label: string }[];
   /** true = OpenAI-compatible chat/completions, false = Google format */
   openaiCompat: boolean;
+  /** true = user can type any model name (e.g. OpenRouter has thousands of models) */
+  allowCustomModel: boolean;
 }
 
 export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
@@ -299,6 +316,7 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     label: 'OpenRouter',
     baseUrl: 'https://openrouter.ai/api/v1',
     openaiCompat: true,
+    allowCustomModel: true,
     models: [
       { id: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)' },
       { id: 'deepseek/deepseek-chat-free:free', label: 'DeepSeek Chat (Free)' },
@@ -309,6 +327,7 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     label: 'Google AI',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     openaiCompat: false,
+    allowCustomModel: true,
     models: [
       { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
       { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
@@ -319,6 +338,7 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     label: 'OpenAI / ChatGPT',
     baseUrl: 'https://api.openai.com/v1',
     openaiCompat: true,
+    allowCustomModel: true,
     models: [
       { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
       { id: 'gpt-4o', label: 'GPT-4o' },
@@ -329,6 +349,7 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     label: 'Silicon Flow (CN)',
     baseUrl: 'https://api.siliconflow.cn/v1',
     openaiCompat: true,
+    allowCustomModel: true,
     models: [
       { id: 'THUDM/GLM-Z1-9B-0414', label: 'GLM-Z1-9B' },
       { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },
@@ -339,6 +360,7 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     label: 'Silicon Flow (INT)',
     baseUrl: 'https://api.siliconflow.com/v1',
     openaiCompat: true,
+    allowCustomModel: true,
     models: [
       { id: 'THUDM/GLM-Z1-9B-0414', label: 'GLM-Z1-9B' },
       { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { motion } from 'framer-motion';
-import { X, Send, Bot, User, Loader2, Sparkles, Download } from 'lucide-react';
-import { aiService, AI_PROVIDERS, getConfiguredProviders, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatWithCustomProvider } from '../../services/ai';
+import { X, Send, Bot, User, Loader2, Sparkles, Download, Trash2, Search, RefreshCw } from 'lucide-react';
+import { aiService, AI_PROVIDERS, getCustomApiKey, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatWithCustomProvider } from '../../services/ai';
 import type { ChatMessage, CustomProvider } from '../../services/ai';
 import { chatStore } from '../../services/chatStore';
 import type { ChatMsg } from '../../services/chatStore';
@@ -32,7 +32,8 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     const p = getSelectedProvider();
     return p === 'ckan-cloud' ? '' : getSelectedModel(p);
   });
-  const configuredProviders = getConfiguredProviders();
+  const [customModelInput, setCustomModelInput] = useState('');
+  const allProviders = Object.keys(AI_PROVIDERS) as CustomProvider[];
 
   // Fetch tier + daily usage from Supabase on mount
   useEffect(() => {
@@ -77,9 +78,22 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   };
 
   const handleModelChange = (val: string) => {
+    if (val === '__custom__') {
+      // User selected "Custom model" — focus will go to the text input
+      return;
+    }
     setCurModel(val);
+    setCustomModelInput('');
     if (curProvider !== 'ckan-cloud') {
       setSelectedModel(curProvider, val);
+    }
+  };
+
+  const handleCustomModelCommit = () => {
+    const model = customModelInput.trim();
+    if (model && curProvider !== 'ckan-cloud') {
+      setCurModel(model);
+      setSelectedModel(curProvider, model);
     }
   };
 
@@ -128,6 +142,9 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         content: reply,
         timestamp: Date.now(),
       });
+
+      // Execute any action commands in the AI's response
+      executeAiActions(reply);
     } catch (err) {
       chatStore.push({
         id: crypto.randomUUID(),
@@ -148,6 +165,24 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     }
   };
 
+  /** Execute action commands embedded in AI responses */
+  const executeAiActions = (text: string) => {
+    // [INSTALL:ModId]
+    const installMatches = text.matchAll(/\[INSTALL:([^\]]+)\]/g);
+    for (const m of installMatches) {
+      ckanIpc.call('mod:install', { identifier: m[1] }).catch(() => {});
+    }
+    // [UNINSTALL:ModId]
+    const uninstallMatches = text.matchAll(/\[UNINSTALL:([^\]]+)\]/g);
+    for (const m of uninstallMatches) {
+      ckanIpc.call('mod:uninstall', { identifier: m[1] }).catch(() => {});
+    }
+    // [REFRESH_REPO]
+    if (text.includes('[REFRESH_REPO]')) {
+      ckanIpc.call('repo:refresh', {}).catch(() => {});
+    }
+  };
+
   function renderMarkdown(text: string): React.ReactNode {
     const lines = text.split('\n');
     const elements: React.ReactNode[] = [];
@@ -162,7 +197,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
 
     const parseInline = (line: string, keyPrefix: string): React.ReactNode[] => {
       const parts: React.ReactNode[] = [];
-      const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[INSTALL:(.+?)\])/g;
+      const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[INSTALL:(.+?)\]|\[UNINSTALL:(.+?)\]|\[SEARCH:(.+?)\]|\[REFRESH_REPO\])/g;
       let lastIndex = 0;
       let match;
 
@@ -187,6 +222,47 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
               }}
             >
               <Download size={12} /> Install {modId}
+            </button>
+          );
+        } else if (match[6]) {
+          const modId = match[6];
+          parts.push(
+            <button
+              key={`${keyPrefix}-uninstall-${match.index}`}
+              className={styles.installCmd}
+              style={{ borderColor: 'rgba(255,80,80,0.4)', color: '#ff7070' }}
+              onClick={() => {
+                ckanIpc.call('mod:uninstall', { identifier: modId });
+              }}
+            >
+              <Trash2 size={12} /> Uninstall {modId}
+            </button>
+          );
+        } else if (match[7]) {
+          const query = match[7];
+          parts.push(
+            <button
+              key={`${keyPrefix}-search-${match.index}`}
+              className={styles.installCmd}
+              style={{ borderColor: 'rgba(96,205,255,0.4)', color: 'var(--color-accent-primary)' }}
+              onClick={() => {
+                // Will be handled by parent — for now just visual
+              }}
+            >
+              <Search size={12} /> Search: {query}
+            </button>
+          );
+        } else if (match[0] === '[REFRESH_REPO]') {
+          parts.push(
+            <button
+              key={`${keyPrefix}-refresh-${match.index}`}
+              className={styles.installCmd}
+              style={{ borderColor: 'rgba(108,203,95,0.4)', color: 'var(--color-success, #6ccb5f)' }}
+              onClick={() => {
+                ckanIpc.call('repo:refresh', {});
+              }}
+            >
+              <RefreshCw size={12} /> Refresh Repository
             </button>
           );
         }
@@ -258,23 +334,49 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             onChange={(e) => handleProviderChange(e.target.value)}
           >
             <option value="ckan-cloud">CKAN Cloud</option>
-            {configuredProviders.map((p) => (
-              <option key={p} value={p}>{AI_PROVIDERS[p].label}</option>
+            {allProviders.map((p) => (
+              <option key={p} value={p}>
+                {AI_PROVIDERS[p].label}{getCustomApiKey(p) ? '' : ' (no key)'}
+              </option>
             ))}
           </select>
         </div>
         {curProvider !== 'ckan-cloud' && (
-          <div className={styles.modelSelect}>
-            <label className={styles.modelLabel}>Model</label>
-            <select
-              value={curModel}
-              onChange={(e) => handleModelChange(e.target.value)}
-            >
-              {AI_PROVIDERS[curProvider].models.map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </select>
-          </div>
+          <>
+            <div className={styles.modelSelect}>
+              <label className={styles.modelLabel}>Model</label>
+              <select
+                value={customModelInput ? '__custom__' : curModel}
+                onChange={(e) => handleModelChange(e.target.value)}
+              >
+                {AI_PROVIDERS[curProvider].models.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+                {AI_PROVIDERS[curProvider].allowCustomModel && (
+                  <option value="__custom__">Custom model...</option>
+                )}
+              </select>
+            </div>
+            {(customModelInput || curModel === '__custom__') && AI_PROVIDERS[curProvider].allowCustomModel && (
+              <div className={styles.modelSelect}>
+                <label className={styles.modelLabel}>Model ID</label>
+                <input
+                  className={styles.customModelInput}
+                  value={customModelInput}
+                  onChange={(e) => setCustomModelInput(e.target.value)}
+                  onBlur={handleCustomModelCommit}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCustomModelCommit(); }}
+                  placeholder="e.g. anthropic/claude-3.5-sonnet"
+                  spellCheck={false}
+                />
+              </div>
+            )}
+            {!getCustomApiKey(curProvider) && (
+              <div className={styles.noKeyWarning}>
+                No API key set. Add one in Settings.
+              </div>
+            )}
+          </>
         )}
       </div>
 
