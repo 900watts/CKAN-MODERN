@@ -299,6 +299,27 @@ public sealed class IpcHandler : IDisposable
             }
             catch (Exception ex)
             {
+                // Check for TooManyModsProvideKraken wrapped in AggregateException
+                var actual = ex is AggregateException agg ? agg.InnerException ?? ex : ex;
+                if (actual is TooManyModsProvideKraken tooMany2)
+                {
+                    log.Info($"[IPC] Multiple providers for {tooMany2.requested} (wrapped), asking user to choose");
+                    var providers2 = tooMany2.modules.Select(m => new
+                    {
+                        identifier = m.identifier,
+                        name = m.name,
+                        @abstract = m.@abstract,
+                    }).ToArray();
+                    return (object)new
+                    {
+                        identifier,
+                        status = "needs_provider_choice",
+                        requested = tooMany2.requested,
+                        requester = tooMany2.requester.name,
+                        providers = providers2
+                    };
+                }
+
                 log.Error($"[IPC] Install failed for {identifier}", ex);
                 // Wrap raw Core exceptions (which may be localized) with a clear English message
                 var friendlyError = ex switch

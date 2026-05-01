@@ -318,9 +318,9 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     openaiCompat: true,
     allowCustomModel: true,
     models: [
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' },
+      { id: 'qwen/qwen3-coder:free', label: 'Qwen3 Coder (Free)' },
       { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (Free)' },
-      { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super 120B (Free)' },
-      { id: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5 (Free)' },
     ],
   },
   'google': {
@@ -329,9 +329,9 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     openaiCompat: false,
     allowCustomModel: true,
     models: [
-      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-      { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-      { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+      { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
     ],
   },
   'openai': {
@@ -342,7 +342,7 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     models: [
       { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
       { id: 'gpt-4o', label: 'GPT-4o' },
-      { id: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+      { id: 'o3-mini', label: 'o3-mini' },
     ],
   },
   'siliconflow-cn': {
@@ -351,9 +351,9 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     openaiCompat: true,
     allowCustomModel: true,
     models: [
-      { id: 'THUDM/GLM-Z1-9B-0414', label: 'GLM-Z1-9B' },
-      { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },
-      { id: 'Qwen/Qwen2.5-7B-Instruct', label: 'Qwen 2.5 7B' },
+      { id: 'Qwen/Qwen3-8B', label: 'Qwen3 8B' },
+      { id: 'deepseek-ai/DeepSeek-V3.2', label: 'DeepSeek V3.2' },
+      { id: 'zai-org/GLM-4.6', label: 'GLM 4.6' },
     ],
   },
   'siliconflow-int': {
@@ -362,9 +362,9 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     openaiCompat: true,
     allowCustomModel: true,
     models: [
-      { id: 'THUDM/GLM-Z1-9B-0414', label: 'GLM-Z1-9B' },
-      { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },
-      { id: 'Qwen/Qwen2.5-7B-Instruct', label: 'Qwen 2.5 7B' },
+      { id: 'Qwen/Qwen3-8B', label: 'Qwen3 8B' },
+      { id: 'deepseek-ai/DeepSeek-V3.2', label: 'DeepSeek V3.2' },
+      { id: 'zai-org/GLM-4.6', label: 'GLM 4.6' },
     ],
   },
 };
