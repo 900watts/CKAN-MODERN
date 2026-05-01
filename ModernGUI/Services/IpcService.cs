@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using log4net;
 using Newtonsoft.Json.Linq;
 
@@ -121,6 +122,9 @@ public sealed class IpcHandler : IDisposable
             "app:maximize"        => HandleMaximize(),
             "app:close"           => HandleClose(),
             "app:browse-folder"   => await HandleBrowseFolder(request.Args),
+
+            // ─── Repository ───
+            "repo:refresh"        => await HandleRepoRefresh(request.Args),
 
             _ => throw new InvalidOperationException($"Unknown IPC channel: {request.Channel}")
         };
@@ -533,6 +537,35 @@ public sealed class IpcHandler : IDisposable
             {
                 _instanceManager.SetCurrentInstance(name);
                 InitRegistryForInstance(instance);
+
+                // Auto-refresh repository in the background so mods are installable
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        PushEvent?.Invoke("repo:refresh-start", new { });
+                        var registry = _registryManager!.registry;
+                        var repos = registry.Repositories.Values.OrderBy(r => r.priority).ToArray();
+                        if (repos.Length == 0)
+                        {
+                            var defaultRepo = new Repository("default", new Uri("https://github.com/KSP-CKAN/CKAN-meta/archive/master.tar.gz"));
+                            registry.RepositoriesAdd(defaultRepo);
+                            repos = new[] { defaultRepo };
+                            _registryManager.Save();
+                        }
+                        var downloader = new NetAsyncDownloader(_user, () => null, "CKAN-Modern/2.0");
+                        _repoData.Update(repos, instance.Game, skipETags: false, downloader: downloader, user: _user, userAgent: "CKAN-Modern/2.0");
+                        InitRegistryForInstance(instance);
+                        var modCount = _registryManager?.registry?.CompatibleModules(instance.StabilityToleranceConfig, instance.VersionCriteria())?.Count() ?? 0;
+                        PushEvent?.Invoke("repo:refresh-complete", new { modCount });
+                    }
+                    catch (Exception ex)
+                    {
+                        log.Error("[IPC] Auto-refresh after instance add failed", ex);
+                        PushEvent?.Invoke("repo:refresh-error", new { error = ex.Message });
+                    }
+                });
+
                 return Task.FromResult<object?>(new { success = true, name, path });
             }
             return Task.FromResult<object?>(new { success = false, error = "Could not create instance — invalid game directory" });
@@ -760,6 +793,75 @@ public sealed class IpcHandler : IDisposable
             installed = installed != null,
             auto_installed = autoInstalled || (installed?.AutoInstalled ?? false),
         };
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  REPOSITORY REFRESH — Downloads latest mod metadata
+    // ═══════════════════════════════════════════════════════════
+
+    private async Task<object?> HandleRepoRefresh(JToken? args)
+    {
+        var instance = _instanceManager?.CurrentInstance;
+
+        if (instance == null || _registryManager == null)
+        {
+            return new { success = false, error = "No active game instance" };
+        }
+
+        return await Task.Run(() =>
+        {
+            try
+            {
+                PushEvent?.Invoke("repo:refresh-start", new { });
+
+                var registry = _registryManager.registry;
+                var repos = registry.Repositories.Values
+                    .OrderBy(r => r.priority)
+                    .ToArray();
+
+                if (repos.Length == 0)
+                {
+                    // Add default CKAN repository if none exist
+                    var defaultRepo = new Repository("default", new Uri("https://github.com/KSP-CKAN/CKAN-meta/archive/master.tar.gz"));
+                    registry.RepositoriesAdd(defaultRepo);
+                    repos = new[] { defaultRepo };
+                    _registryManager.Save();
+                }
+
+                var downloader = new NetAsyncDownloader(_user, () => null, "CKAN-Modern/2.0");
+
+                var result = _repoData.Update(
+                    repos,
+                    instance.Game,
+                    skipETags: false,
+                    downloader: downloader,
+                    user: _user,
+                    userAgent: "CKAN-Modern/2.0"
+                );
+
+                // Reload registry with fresh data
+                InitRegistryForInstance(instance);
+
+                var modCount = _registryManager?.registry?.CompatibleModules(
+                    instance.StabilityToleranceConfig,
+                    instance.VersionCriteria())?.Count() ?? 0;
+
+                PushEvent?.Invoke("repo:refresh-complete", new { modCount });
+
+                return (object)new
+                {
+                    success = true,
+                    result = result.ToString(),
+                    modCount
+                };
+            }
+            catch (Exception ex)
+            {
+                log.Error("[IPC] Repository refresh failed", ex);
+                PushEvent?.Invoke("repo:refresh-error", new { error = ex.Message });
+                return (object)new { success = false, error = $"Repository refresh failed: {ex.Message}" };
+            }
+        });
     }
 
     public void Dispose()

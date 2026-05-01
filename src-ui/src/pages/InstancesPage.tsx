@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Gamepad2, Folder, X, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Gamepad2, Folder, X, Trash2, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import ckanIpc from '../services/ipc';
 import styles from './InstancesPage.module.css';
 
@@ -34,8 +34,28 @@ export default function InstancesPage() {
   const [path, setPath] = useState('');
   const [version, setVersion] = useState('1.12.5');
   const [error, setError] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshStatus, setRefreshStatus] = useState('');
 
-  const handleAdd = () => {
+  const handleRefreshRepo = async () => {
+    setIsRefreshing(true);
+    setRefreshStatus('Downloading mod repository...');
+    try {
+      const result = await ckanIpc.call<any, any>('repo:refresh', {});
+      if (result?.success) {
+        setRefreshStatus(`Repository updated — ${result.modCount} compatible mods found`);
+      } else {
+        setRefreshStatus(`Refresh failed: ${result?.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      setRefreshStatus(`Refresh failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsRefreshing(false);
+      setTimeout(() => setRefreshStatus(''), 5000);
+    }
+  };
+
+  const handleAdd = async () => {
     setError('');
     if (!name.trim()) {
       setError('Name is required');
@@ -44,6 +64,23 @@ export default function InstancesPage() {
     if (!path.trim()) {
       setError('Game path is required');
       return;
+    }
+
+    // Send to backend via IPC
+    if (ckanIpc.isConnected()) {
+      try {
+        const result = await ckanIpc.call<any, any>('game:add-instance', {
+          name: name.trim(),
+          path: path.trim(),
+        });
+        if (!result?.success) {
+          setError(result?.error || 'Failed to add instance');
+          return;
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add instance');
+        return;
+      }
     }
 
     const newInstance: GameInstance = {
@@ -61,6 +98,7 @@ export default function InstancesPage() {
     setName('');
     setPath('');
     setVersion('1.12.5');
+    setRefreshStatus('Syncing mod repository for new instance...');
   };
 
   const handleRemove = (id: string) => {
@@ -73,12 +111,38 @@ export default function InstancesPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>Game Instances</h1>
-        <button className={styles.addBtn} onClick={() => setShowAddForm(true)}>
-          <Plus size={16} />
-          Add Instance
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            className={styles.addBtn}
+            onClick={handleRefreshRepo}
+            disabled={isRefreshing}
+            title="Download latest mod data from CKAN repository"
+          >
+            {isRefreshing ? <Loader2 size={16} className={styles.spin} /> : <RefreshCw size={16} />}
+            {isRefreshing ? 'Refreshing...' : 'Refresh Repository'}
+          </button>
+          <button className={styles.addBtn} onClick={() => setShowAddForm(true)}>
+            <Plus size={16} />
+            Add Instance
+          </button>
+        </div>
       </div>
       <div className={styles.content}>
+        {/* Refresh Status Banner */}
+        <AnimatePresence>
+          {refreshStatus && (
+            <motion.div
+              className={styles.formError}
+              style={{ marginBottom: 16, color: refreshStatus.includes('fail') ? '#ff5050' : 'var(--color-accent-primary)', borderColor: refreshStatus.includes('fail') ? 'rgba(255,80,80,0.3)' : 'rgba(96,205,255,0.3)', background: refreshStatus.includes('fail') ? 'rgba(255,80,80,0.08)' : 'rgba(96,205,255,0.08)', padding: '10px 14px', borderRadius: '8px', border: '1px solid', fontSize: '13px' }}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              {isRefreshing && <Loader2 size={12} className={styles.spin} />}
+              {refreshStatus}
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Add Instance Form */}
         <AnimatePresence>
           {showAddForm && (

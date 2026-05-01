@@ -48,3 +48,6 @@ select.formInput { cursor: pointer; }
 .instanceMeta { display: flex; gap: 12px; font-size: 11px; color: var(--color-text-secondary); }
 .removeBtn { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: none; border-radius: 8px; background: transparent; color: var(--color-text-secondary); cursor: pointer; flex-shrink: 0; transition: background 0.15s ease, color 0.15s ease; }
 .removeBtn:hover { background: rgba(255, 80, 80, 0.12); color: var(--color-error); }
+.addBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

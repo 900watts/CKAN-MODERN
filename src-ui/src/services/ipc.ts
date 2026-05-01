@@ -32,7 +32,8 @@ export type IpcChannel =
   | 'app:minimize'
   | 'app:maximize'
   | 'app:close'
-  | 'app:browse-folder';
+  | 'app:browse-folder'
+  | 'repo:refresh';
 
 export interface IpcRequest<T = unknown> {
   channel: IpcChannel;
