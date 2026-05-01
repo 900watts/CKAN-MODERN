@@ -52,6 +52,12 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
   const [hasScanned, setHasScanned] = useState(false);
   const [updatableMods, setUpdatableMods] = useState<UpdatableMod[]>([]);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const [providerChoice, setProviderChoice] = useState<{
+    identifier: string;
+    requested: string;
+    requester: string;
+    providers: { identifier: string; name: string; abstract: string }[];
+  } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const loadMods = useCallback(() => {
@@ -269,6 +275,13 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           if (result?.status === 'installed') {
             registryService.install(mod.identifier);
             setInstallStatus({ id: mod.identifier, msg: `${mod.name} installed`, type: 'success' });
+          } else if (result?.status === 'needs_provider_choice') {
+            setProviderChoice({
+              identifier: mod.identifier,
+              requested: result.requested,
+              requester: result.requester,
+              providers: result.providers,
+            });
           } else if (result?.status === 'error') {
             setInstallStatus({ id: mod.identifier, msg: `Install failed: ${result.error}`, type: 'error' });
           }
@@ -307,6 +320,15 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
         const result = await ckanIpc.call<any, any>('mod:install', { identifier });
         if (result?.status === 'installed') {
           setInstallStatus({ id: identifier, msg: `${name} updated`, type: 'success' });
+          // Remove from updatable list
+          setUpdatableMods(prev => prev.filter(m => m.identifier !== identifier));
+        } else if (result?.status === 'needs_provider_choice') {
+          setProviderChoice({
+            identifier,
+            requested: result.requested,
+            requester: result.requester,
+            providers: result.providers,
+          });
         } else if (result?.status === 'error') {
           setInstallStatus({ id: identifier, msg: `Update failed: ${result.error}`, type: 'error' });
         }
@@ -322,6 +344,43 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
     }
 
     setInstallingIds(prev => { const next = new Set(prev); next.delete(identifier); return next; });
+    onInstallChange?.();
+  };
+
+  const handleProviderSelect = async (providerIdentifier: string) => {
+    if (!providerChoice) return;
+    const origId = providerChoice.identifier;
+    setProviderChoice(null);
+    setInstallingIds(prev => new Set(prev).add(origId));
+
+    try {
+      // First install the selected provider
+      await ckanIpc.call<any, any>('mod:install', { identifier: providerIdentifier });
+      // Then retry the original mod install
+      const result = await ckanIpc.call<any, any>('mod:install', { identifier: origId });
+      if (result?.status === 'installed') {
+        registryService.install(origId);
+        setInstallStatus({ id: origId, msg: `Installed successfully`, type: 'success' });
+      } else if (result?.status === 'needs_provider_choice') {
+        // Another provider choice needed (nested deps)
+        setProviderChoice({
+          identifier: origId,
+          requested: result.requested,
+          requester: result.requester,
+          providers: result.providers,
+        });
+      } else if (result?.status === 'error') {
+        setInstallStatus({ id: origId, msg: `Install failed: ${result.error}`, type: 'error' });
+      }
+    } catch (err) {
+      setInstallStatus({
+        id: origId,
+        msg: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        type: 'error',
+      });
+    }
+
+    setInstallingIds(prev => { const next = new Set(prev); next.delete(origId); return next; });
     onInstallChange?.();
   };
 
@@ -623,6 +682,67 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           )}
         </AnimatePresence>
       </div>
+
+      {/* Provider Choice Modal */}
+      <AnimatePresence>
+        {providerChoice && (
+          <motion.div
+            className={styles.modalOverlay}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setProviderChoice(null)}
+          >
+            <motion.div
+              className={styles.providerModal}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={styles.providerModalHeader}>
+                <Package size={18} />
+                <div>
+                  <h3>Choose a Provider</h3>
+                  <p>
+                    <strong>{providerChoice.requester}</strong> requires{' '}
+                    <strong>{providerChoice.requested}</strong>, which can be provided by
+                    multiple mods. Select one:
+                  </p>
+                </div>
+                <button className={styles.providerModalClose} onClick={() => setProviderChoice(null)}>
+                  <X size={16} />
+                </button>
+              </div>
+              <div className={styles.providerList}>
+                {providerChoice.providers.map((p) => (
+                  <button
+                    key={p.identifier}
+                    className={styles.providerOption}
+                    onClick={() => handleProviderSelect(p.identifier)}
+                  >
+                    <div className={styles.providerOptionIcon}>
+                      <Package size={16} />
+                    </div>
+                    <div className={styles.providerOptionInfo}>
+                      <span className={styles.providerOptionName}>{p.name}</span>
+                      <span className={styles.providerOptionId}>{p.identifier}</span>
+                      {p.abstract && (
+                        <span className={styles.providerOptionDesc}>{p.abstract}</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className={styles.providerModalFooter}>
+                <button className={styles.providerCancelBtn} onClick={() => setProviderChoice(null)}>
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Install Status Toast */}
       <AnimatePresence>

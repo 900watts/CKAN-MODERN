@@ -318,9 +318,9 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
     openaiCompat: true,
     allowCustomModel: true,
     models: [
-      { id: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)' },
-      { id: 'deepseek/deepseek-chat-free:free', label: 'DeepSeek Chat (Free)' },
-      { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' },
+      { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (Free)' },
+      { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super 120B (Free)' },
+      { id: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5 (Free)' },
     ],
   },
   'google': {

@@ -78,10 +78,6 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   };
 
   const handleModelChange = (val: string) => {
-    if (val === '__custom__') {
-      // User selected "Custom model" — focus will go to the text input
-      return;
-    }
     setCurModel(val);
     setCustomModelInput('');
     if (curProvider !== 'ckan-cloud') {
@@ -346,20 +342,17 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             <div className={styles.modelSelect}>
               <label className={styles.modelLabel}>Model</label>
               <select
-                value={customModelInput ? '__custom__' : curModel}
+                value={curModel}
                 onChange={(e) => handleModelChange(e.target.value)}
               >
                 {AI_PROVIDERS[curProvider].models.map((m) => (
                   <option key={m.id} value={m.id}>{m.label}</option>
                 ))}
-                {AI_PROVIDERS[curProvider].allowCustomModel && (
-                  <option value="__custom__">Custom model...</option>
-                )}
               </select>
             </div>
-            {(customModelInput || curModel === '__custom__') && AI_PROVIDERS[curProvider].allowCustomModel && (
+            {AI_PROVIDERS[curProvider].allowCustomModel && (
               <div className={styles.modelSelect}>
-                <label className={styles.modelLabel}>Model ID</label>
+                <label className={styles.modelLabel}>Or type model ID</label>
                 <input
                   className={styles.customModelInput}
                   value={customModelInput}

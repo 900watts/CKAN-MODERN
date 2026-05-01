@@ -279,6 +279,24 @@ public sealed class IpcHandler : IDisposable
 
                 return new { identifier, status = "installed", name = mod.name };
             }
+            catch (TooManyModsProvideKraken tooMany)
+            {
+                log.Info($"[IPC] Multiple providers for {tooMany.requested}, asking user to choose");
+                var providers = tooMany.modules.Select(m => new
+                {
+                    identifier = m.identifier,
+                    name = m.name,
+                    @abstract = m.@abstract,
+                }).ToArray();
+                return (object)new
+                {
+                    identifier,
+                    status = "needs_provider_choice",
+                    requested = tooMany.requested,
+                    requester = tooMany.requester.name,
+                    providers
+                };
+            }
             catch (Exception ex)
             {
                 log.Error($"[IPC] Install failed for {identifier}", ex);
