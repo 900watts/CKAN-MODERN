@@ -278,8 +278,19 @@ public sealed class IpcHandler : IDisposable
             catch (Exception ex)
             {
                 log.Error($"[IPC] Install failed for {identifier}", ex);
-                PushEvent?.Invoke("install:error", new { identifier, error = ex.Message });
-                return (object)new { identifier, status = "error", error = ex.Message };
+                // Wrap raw Core exceptions (which may be localized) with a clear English message
+                var friendlyError = ex switch
+                {
+                    ModuleNotFoundKraken mnf => $"Module '{mnf.identifier}' is not available for your game version. Check compatibility.",
+                    ModuleIsDLCKraken dlc => $"'{dlc.module.name}' is a DLC and cannot be installed via CKAN.",
+                    InconsistentKraken ik => $"Registry inconsistency: {ik.ShortDescription}",
+                    DependenciesNotSatisfiedKraken => $"Cannot install '{identifier}': some dependencies could not be satisfied.",
+                    ModuleDownloadErrorsKraken => $"Download failed for '{identifier}'. Check your internet connection and try again.",
+                    DownloadErrorsKraken => $"Download failed. Check your internet connection and try again.",
+                    _ => $"Install failed for '{identifier}': {ex.Message}"
+                };
+                PushEvent?.Invoke("install:error", new { identifier, error = friendlyError });
+                return (object)new { identifier, status = "error", error = friendlyError };
             }
         });
     }
@@ -323,8 +334,13 @@ public sealed class IpcHandler : IDisposable
             catch (Exception ex)
             {
                 log.Error($"[IPC] Uninstall failed for {identifier}", ex);
-                PushEvent?.Invoke("uninstall:error", new { identifier, error = ex.Message });
-                return (object)new { identifier, status = "error", error = ex.Message };
+                var friendlyError = ex switch
+                {
+                    ModNotInstalledKraken => $"'{identifier}' is not installed.",
+                    _ => $"Uninstall failed for '{identifier}': {ex.Message}"
+                };
+                PushEvent?.Invoke("uninstall:error", new { identifier, error = friendlyError });
+                return (object)new { identifier, status = "error", error = friendlyError };
             }
         });
     }
