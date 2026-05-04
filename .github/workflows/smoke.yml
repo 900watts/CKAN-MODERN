@@ -1,0 +1,69 @@
+name: Smoke Test NetKAN
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_call:
+    outputs:
+      unsigned-artifact-id:
+        description: Artifact ID of the assets to be signed
+        value: ${{ jobs.build-release.outputs.unsigned-artifact-id }}
+
+jobs:
+  build-release:
+    uses: ./.github/workflows/build.yml
+    with:
+      configuration: Release
+
+  smoke-test-inflator:
+    needs: build-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download out artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: Release-out-unsigned
+          path: _build/out/
+      - name: Restore permissions discarded by zip/unzip of artifact
+        run: chmod a+x _build/out/CKAN-NetKAN/Release/bin/net8.0/linux-x64/publish/CKAN-NetKAN
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Inflator image
+        uses: docker/build-push-action@v5
+        with:
+          file: netkan.Dockerfile
+          context: _build/out/CKAN-NetKAN/Release/bin/net8.0/linux-x64/publish
+          tags: kspckan/inflator
+          outputs: |
+            type=image
+            type=docker
+      - name: Smoke test Inflator image
+        run: >
+          docker run --rm --entrypoint /bin/bash kspckan/inflator -c "./CKAN-NetKAN
+          https://raw.githubusercontent.com/KSP-CKAN/NetKAN/master/NetKAN/ZeroMiniAVC.netkan"
+      - name: Export Inflator image tar file
+        uses: docker/build-push-action@v5
+        with:
+          file: netkan.Dockerfile
+          context: _build/out/CKAN-NetKAN/Release/bin/net8.0/linux-x64/publish
+          tags: kspckan/inflator
+          outputs: type=docker,dest=/tmp/inflator-image.tar
+      - name: Upload Inflator image tar file artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: inflator-image
+          path: /tmp/inflator-image.tar
+  # notify:
+  #   needs:
+  #     - build-release
+  #     - smoke-test-inflator
+  #   if: failure()
+  #   uses: ./.github/workflows/notify.yml
+  #   with:
+  #     name: ${{ github.workflow }}
+  #     success: ${{ !contains(needs.*.result, 'failure') }}
+  #   secrets: inherit

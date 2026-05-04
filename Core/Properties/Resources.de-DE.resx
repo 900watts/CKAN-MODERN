@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    Microsoft ResX Schema
+
+    Version 2.0
+
+    The primary goals of this format is to allow a simple XML format
+    that is mostly human readable. The generation and parsing of the
+    various data types are done through the TypeConverter classes
+    associated with the data types.
+
+    Example:
+
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+
+    There are any number of "resheader" rows that contain simple
+    name/value pairs.
+
+    Each data row contains a name, and value. The row also contains a
+    type or mimetype. Type corresponds to a .NET class that support
+    text/value conversion through the TypeConverter architecture.
+    Classes that don't support this are serialized and stored with the
+    mimetype set.
+
+    The mimetype is used for serialized objects, and tells the
+    ResXResourceReader how to depersist the object. This is currently not
+    extensible. For a given mimetype the value must be set accordingly:
+
+    Note - application/x-microsoft.net.object.binary.base64 is the format
+    that the ResXResourceWriter will generate, however the reader can
+    read any of the formats listed below.
+
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" id="root">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace"/>
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0"/>
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string"/>
+              <xsd:attribute name="type" type="xsd:string"/>
+              <xsd:attribute name="mimetype" type="xsd:string"/>
+              <xsd:attribute ref="xml:space"/>
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string"/>
+              <xsd:attribute name="name" type="xsd:string"/>
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2"/>
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1"/>
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3"/>
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4"/>
+              <xsd:attribute ref="xml:space"/>
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required"/>
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AutoUpdateNotFetched" xml:space="preserve">
+    <value>Wir haben noch nicht die Release-Informationen abgerufen. Update nicht möglich.</value>
+  </data>
+  <data name="NetDownloading" xml:space="preserve">
+    <value>Lädt herunter: {0}</value>
+  </data>
+  <data name="NetInvalidLocation" xml:space="preserve">
+    <value>Ungültige URL im Ziel-Header: {0}</value>
+  </data>
+  <data name="ByteRateCounterRateSummary" xml:space="preserve">
+    <value>{0}/s - {1} ({2}) verbleibend - {3}%</value>
+  </data>
+  <data name="ByteRateCounterSummary" xml:space="preserve">
+    <value>{0} verbleibend - {1}%</value>
+  </data>
+  <data name="ByteRateCounterHoursMinutesSeconds" xml:space="preserve">
+    <value>{0} h, {1} min, {2} s</value>
+  </data>
+  <data name="ByteRateCounterMinutesSeconds" xml:space="preserve">
+    <value>{0} min, {1} s</value>
+  </data>
+  <data name="ByteRateCounterSeconds" xml:space="preserve">
+    <value>{0} s</value>
+  </data>
+  <data name="NetAsyncDownloaderDownloading" xml:space="preserve">
+    <value>Lädt herunter: {0} ...</value>
+  </data>
+  <data name="NetAsyncDownloaderCancelled" xml:space="preserve">
+    <value>Herunterladen von Nutzer abgebrochen</value>
+  </data>
+  <data name="NetAsyncDownloaderValidating" xml:space="preserve">
+    <value>Herunterladen von {0} abgeschlossen. Verifizieren und in Cache speichern...</value>
+  </data>
+  <data name="NetFileCacheCannotFind" xml:space="preserve">
+    <value>Cache-Verzeichnis konnte nicht gefunden werden: {0}</value>
+  </data>
+  <data name="NetFileCacheZipError" xml:space="preserve">
+    <value>Fehler in Schritt {0} für {1}: {2}</value>
+  </data>
+  <data name="NetFileCacheZipTestArchiveFalse" xml:space="preserve">
+    <value>ZipFile.TestArchive(true) hat "falsch" zurückgegeben</value>
+  </data>
+  <data name="NetFileCacheNullFileName" xml:space="preserve">
+    <value>Dateiname ist Null</value>
+  </data>
+  <data name="NetFileCacheMonoNotSupported" xml:space="preserve">
+    <value>{0}
+
+Installiere das 'mono-complete' Paket oder gleichwertiges für dein Betriebssystem.</value>
+  </data>
+  <data name="NetModuleCacheBadLength" xml:space="preserve">
+    <value>{0}: {1} hat Länge {2}, {3} erwartet</value>
+  </data>
+  <data name="NetModuleCacheNotValidZIP" xml:space="preserve">
+    <value>{0}: {1} ist keine gültige ZIP-Datei: {2}</value>
+  </data>
+  <data name="NetModuleCacheMismatchSHA256" xml:space="preserve">
+    <value>{0}: {1} hat SHA256 {2}. {3} erwartet</value>
+  </data>
+  <data name="NetRepoUpdatingBuildMap" xml:space="preserve">
+    <value>Aktualisiere Spiel-Versionsdaten</value>
+  </data>
+  <data name="NetRepoCheckingForUpdates" xml:space="preserve">
+    <value>Suche nach Aktualisierungen</value>
+  </data>
+  <data name="NetRepoAlreadyUpToDate" xml:space="preserve">
+    <value>Bereits aktuell</value>
+  </data>
+  <data name="NetRepoNoChanges" xml:space="preserve">
+    <value>Keine Änderungen seit letzter Aktualisierung</value>
+  </data>
+  <data name="NetRepoUpdating" xml:space="preserve">
+    <value>Aktualisiere {0}</value>
+  </data>
+  <data name="GameInstancePlayGameFailed" xml:space="preserve">
+    <value>Das Spiel konnte nicht gestartet werden.
+
+{0}</value>
+  </data>
+  <data name="KrakenFileExistsWithOwner" xml:space="preserve">
+    <value>Oh nein! Wir haben versucht, eine Datei zu überschreiben, die einer anderen Mod gehört!
+
+Wenn dieses Problem wieder auftritt, dann ist es vielleicht ein Paketfehler.
+Bitte melde es unter:
+
+https://github.com/KSP-CKAN/NetKAN/issues/new/choose
+
+Bitte gib die folgenden Informationen mit an:
+
+Datei: {0}
+Installierende Mod: {1}
+Besitzende Mod: {2}</value>
+  </data>
+  <data name="KrakenFileExistsWithoutOwner" xml:space="preserve">
+    <value>Oh nein!
+
+Es sieht so aus, als ob du versuchst, eine Mod zu installieren, die bereits installiert ist,
+oder die mit einer anderen Mod, die bereits installiert ist, in Konflikt steht.
+
+Aus Sicherheitsgründen wird CKAN *nie* eine Datei überschreiben oder ändern, die es nicht selbst installiert hat.
+
+Wenn du {1} über das CKAN installieren möchtest,
+dann deinstalliere bitte manuell die Mod, die folgende Dateien besitzt:
+
+{0}
+
+und versuche es erneut.</value>
+  </data>
+  <data name="KrakenFileExistsWithoutInstalling" xml:space="preserve">
+    <value>Oh nein!
+
+Es sieht so aus, als ob du versuchst, eine Mod zu installieren, die bereits installiert ist,
+oder die mit einer anderen Mod, die bereits installiert ist, in Konflikt steht.
+
+Aus Sicherheitsgründen wird CKAN *nie* eine Datei überschreiben oder ändern, die es nicht selbst installiert hat.
+
+Deinstalliere bitte manuell die Mod, die folgende Dateien besitzt:
+
+{0}
+
+und versuche es erneut.</value>
+  </data>
+  <data name="KrakenBadMetadata" xml:space="preserve">
+    <value>Fehlerhafte Metadaten für das Modul {0} erkannt: {1}</value>
+  </data>
+  <data name="KrakenIsDLC" xml:space="preserve">
+    <value>CKAN kann die Erweiterung '{0}' nicht für dich installieren.</value>
+  </data>
+  <data name="KrakenInstanceNameTaken" xml:space="preserve">
+    <value>Dieser Instanzname ist bereits vergeben: {0}</value>
+  </data>
+  <data name="RelationshipResolverUserReason" xml:space="preserve">
+    <value>Neue Mod-Installation ausgewählt vom Nutzer</value>
+  </data>
+  <data name="NetModuleCacheMetapackage" xml:space="preserve">
+    <value>{0} {1} (Metapacket)</value>
+  </data>
+  <data name="ModuleLabelListFavourites" xml:space="preserve">
+    <value>Favoriten</value>
+  </data>
+  <data name="ModuleLabelListHidden" xml:space="preserve">
+    <value>Versteckt</value>
+  </data>
+  <data name="ModuleLabelListHeld" xml:space="preserve">
+    <value>Zurückgehalten</value>
+  </data>
+  <data name="RelationshipTypeProvides" xml:space="preserve">
+    <value>Liefert</value>
+  </data>
+  <data name="RelationshipTypeDepends" xml:space="preserve">
+    <value>Abhängigkeit</value>
+  </data>
+  <data name="RelationshipTypeRecommends" xml:space="preserve">
+    <value>Empfehlung</value>
+  </data>
+  <data name="RelationshipTypeSuggests" xml:space="preserve">
+    <value>Vorschlag</value>
+  </data>
+  <data name="RelationshipTypeSupports" xml:space="preserve">
+    <value>Unterstützt</value>
+  </data>
+  <data name="RelationshipTypeConflicts" xml:space="preserve">
+    <value>Konflikt</value>
+  </data>
+</root>

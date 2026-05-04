@@ -1,0 +1,8 @@
+files:
+  - source: /GUI/**/*.resx
+    ignore:
+      - Properties/
+      - Localization/
+    translation: /GUI/Localization/%locale%/%file_name%.%locale%.%file_extension%
+  - source: /**/Resources.resx
+    translation: /**/%file_name%.%locale%.%file_extension%

@@ -1,0 +1,244 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+
+using ICSharpCode.SharpZipLib.Zip;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using log4net;
+
+using CKAN.IO;
+using CKAN.Extensions;
+using CKAN.Avc;
+using CKAN.Games;
+
+namespace CKAN.NetKAN.Services
+{
+    internal sealed class ModuleService : IModuleService
+    {
+        public ModuleService(IGame game)
+        {
+            this.game = game;
+        }
+
+        private readonly IGame game;
+
+        private static readonly ILog Log = LogManager.GetLogger(typeof(ModuleService));
+
+        public AvcVersion? GetInternalAvc(CkanModule module, string zipFilePath, string? internalFilePath = null)
+        {
+            using (var zipfile = new ZipFile(zipFilePath))
+            {
+                return GetInternalAvc(zipfile, FindInternalAvc(module, zipfile, internalFilePath)?.Item1);
+            }
+        }
+
+        /// <summary>
+        /// Find and parse a .ckan file in a ZIP.
+        /// If the module has an `install` property, only files that would
+        /// be installed are considered. Otherwise the whole ZIP is searched.
+        /// </summary>
+        /// <param name="module">The CkanModule associated with the ZIP, so we can tell which files would be installed</param>
+        /// <param name="zipPath">Where the ZIP file is</param>
+        /// <param name="inst">Game instance for generating InstallableFiles</param>
+        /// <returns>Parsed contents of the file, or null if none found</returns>
+        public JObject? GetInternalCkan(CkanModule module, string zipPath)
+            => GetInternalCkan(module, new ZipFile(zipPath), game);
+
+        /// <summary>
+        /// Find and parse a .ckan file in the ZIP.
+        /// If the module has an `install` property, only files that would
+        /// be installed are considered. Otherwise the whole ZIP is searched.
+        /// </summary>
+        /// <param name="module">The CkanModule associated with the ZIP, so we can tell which files would be installed</param>
+        /// <param name="zip">The ZipFile to search</param>
+        /// <param name="inst">Game instance for generating InstallableFiles</param>
+        /// <returns>Parsed contents of the file, or null if none found</returns>
+        private static JObject? GetInternalCkan(CkanModule module, ZipFile zip, IGame game)
+            => (module.install != null
+                    // Find embedded .ckan files that would be included in the install
+                    ? GetFilesBySuffix(module, zip, ".ckan", game)
+                        .Select(instF => instF.source)
+                    // Find embedded .ckan files anywhere in the ZIP
+                    : zip.OfType<ZipEntry>()
+                         .Where(ModuleInstaller.IsInternalCkan))
+                .Select(entry => DeserializeFromStream(
+                                    zip.GetInputStream(entry)))
+                .FirstOrDefault();
+
+        public bool HasInstallableFiles(CkanModule module, string filePath)
+            => Utilities.DefaultIfThrows(() =>
+                   ModuleInstaller.FindInstallableFiles(module, filePath, game).ToArray())
+                           != null;
+
+        public IEnumerable<InstallableFile> GetConfigFiles(CkanModule module, ZipFile zip)
+            => GetFilesBySuffix(module, zip, ".cfg", game);
+
+        public IEnumerable<InstallableFile> GetPlugins(CkanModule module, ZipFile zip)
+            => GetFilesBySuffix(module, zip, ".dll", game);
+
+        public IEnumerable<InstallableFile> GetCrafts(CkanModule module, ZipFile zip)
+            => GetFilesBySuffix(module, zip, ".craft", game);
+
+        private static IEnumerable<InstallableFile> GetFilesBySuffix(CkanModule   module,
+                                                                     ZipFile      zip,
+                                                                     string       suffix,
+                                                                     IGame        game)
+            => ModuleInstaller.FindInstallableFiles(module, zip, game)
+                              .Where(instF => instF.destination.EndsWith(suffix, StringComparison.InvariantCultureIgnoreCase));
+
+        public IEnumerable<InstallableFile> GetSourceCode(CkanModule module, ZipFile zip)
+            => GetFilesBySuffixes(module, zip, sourceCodeSuffixes, game);
+
+        private static readonly string[] sourceCodeSuffixes = new string[] { ".cs", ".csproj", ".sln" };
+
+        private static IEnumerable<InstallableFile> GetFilesBySuffixes(CkanModule                  module,
+                                                                       ZipFile                     zip,
+                                                                       IReadOnlyCollection<string> suffixes,
+                                                                       IGame                       game)
+            => ModuleInstaller.FindInstallableFiles(module, zip, game)
+                              .Where(instF => suffixes.Any(suffix => instF.destination.EndsWith(suffix, StringComparison.InvariantCultureIgnoreCase)));
+
+        public IEnumerable<ZipEntry> FileSources(CkanModule module, ZipFile zip)
+            => ModuleInstaller.FindInstallableFiles(module, zip, game)
+                              .Select(instF => instF.source)
+                              .Where(ze => !ze.IsDirectory);
+
+        public IEnumerable<string> FileDestinations(CkanModule module, string filePath)
+            => ModuleInstaller.FindInstallableFiles(module, filePath, game)
+                              .Where(f => !f.source.IsDirectory)
+                              .Select(f => f.destination);
+
+        /// <summary>
+        /// Return a parsed JObject from a stream.
+        /// Courtesy https://stackoverflow.com/questions/8157636/can-json-net-serialize-deserialize-to-from-a-stream/17788118#17788118
+        /// </summary>
+        private static JObject? DeserializeFromStream(Stream stream)
+        {
+            using (var sr = new StreamReader(stream))
+            {
+                // Only one document per internal .ckan
+                return YamlExtensions.Parse(sr).FirstOrDefault()?.ToJObject();
+            }
+        }
+
+        /// <summary>
+        /// Locate a version file in an archive.
+        /// This requires a module object as we *first* search files we might install,
+        /// falling back to a search of all files in the archive.
+        /// Returns null if no version is found.
+        /// Throws a Kraken if too many versions are found.
+        /// </summary>
+        /// <param name="module">The metadata associated with this module, used to find installable files</param>
+        /// <param name="zipfile">The archive containing the module's files</param>
+        /// <param name="internalFilePath">Filter for selecting a version file, either exact match or regular expression</param>
+        /// <returns>
+        /// Tuple consisting of the chosen file's entry in the archive plus a boolean
+        /// indicating whether it's a file would be extracted to disk at installation
+        /// </returns>
+        public Tuple<ZipEntry, bool>? FindInternalAvc(CkanModule module,
+                                                      ZipFile    zipfile,
+                                                      string?    internalFilePath)
+        {
+            Log.DebugFormat("Finding AVC .version file for {0}", module);
+
+            const string versionExt = ".version";
+
+            // Get all our version files
+            var files = ModuleInstaller.FindInstallableFiles(module, zipfile, game)
+                .Select(x => x.source)
+                .Where(source => source.Name.EndsWith(versionExt,
+                    StringComparison.InvariantCultureIgnoreCase))
+                .ToList();
+            // By default, we look for ones we can install
+            var installable = true;
+
+            if (files.Count == 0)
+            {
+                // Oh dear, no version file at all? Let's see if we can find *any* to use.
+                files.AddRange(zipfile.Cast<ZipEntry>()
+                    .Where(file => file.Name.EndsWith(versionExt,
+                        StringComparison.InvariantCultureIgnoreCase)));
+
+                if (files.Count == 0)
+                {
+                    // Okay, there's *really* nothing there.
+                    return null;
+                }
+                // Tell calling code that it may not be a "real" version file
+                installable = false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(internalFilePath))
+            {
+                Regex internalRE = new Regex(internalFilePath, RegexOptions.Compiled);
+                var avcEntry = files
+                    .FirstOrDefault(f => f.Name == internalFilePath || internalRE.IsMatch(f.Name));
+                if (avcEntry == null)
+                {
+                    throw new Kraken(
+                        string.Format("Invalid $vref path/regexp {0}, doesn't match any of: {1}",
+                                      internalFilePath,
+                                      string.Join(", ", files.Select(f => f.Name))));
+                }
+                return new Tuple<ZipEntry, bool>(avcEntry, installable);
+            }
+            else if (files.Count > 1)
+            {
+                throw new Kraken(
+                    string.Format("Too many .version files located: {0}",
+                              string.Join(", ", files.Select(x => x.Name).Order())));
+            }
+            else
+            {
+                return new Tuple<ZipEntry, bool>(files.First(), installable);
+            }
+        }
+
+        /// <summary>
+        /// Returns an AVC object for the given file in the archive, if any.
+        /// </summary>
+        public static AvcVersion? GetInternalAvc(ZipFile zipfile, ZipEntry? avcEntry)
+        {
+            if (avcEntry == null)
+            {
+                return null;
+            }
+            Log.DebugFormat("Using AVC data from {0}", avcEntry.Name);
+
+            // Hooray, found our entry. Extract and return it.
+            using (var zipstream = zipfile.GetInputStream(avcEntry))
+            using (var stream = new StreamReader(zipstream))
+            {
+                var json = stream.ReadToEnd();
+
+                Log.DebugFormat("Parsing {0}", json);
+                try
+                {
+                    return JsonConvert.DeserializeObject<AvcVersion>(json);
+                }
+                catch (JsonException exc)
+                {
+                    throw new Kraken(string.Format(
+                        "Error parsing version file {0}: {1}",
+                        avcEntry.Name,
+                        exc.Message));
+                }
+            }
+        }
+
+        public IEnumerable<string> GetInternalSpaceWarpInfos(CkanModule module,
+                                                             ZipFile    zip,
+                                                             string?    internalFilePath = null)
+            => (internalFilePath is { Length: > 0 }
+                    ? ModuleInstaller.FindInstallableFiles(module, zip, game)
+                                     .Where(instF => instF.source.Name == internalFilePath)
+                    : GetFilesBySuffix(module, zip, SpaceWarpInfoFilename, game))
+                .Select(instF => instF.source)
+                .Select(entry => new StreamReader(zip.GetInputStream(entry)).ReadToEnd());
+
+        private const string SpaceWarpInfoFilename = "swinfo.json";
+    }
+}

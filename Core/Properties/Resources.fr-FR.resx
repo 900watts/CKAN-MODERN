@@ -1,0 +1,795 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    Microsoft ResX Schema
+
+    Version 2.0
+
+    The primary goals of this format is to allow a simple XML format
+    that is mostly human readable. The generation and parsing of the
+    various data types are done through the TypeConverter classes
+    associated with the data types.
+
+    Example:
+
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+
+    There are any number of "resheader" rows that contain simple
+    name/value pairs.
+
+    Each data row contains a name, and value. The row also contains a
+    type or mimetype. Type corresponds to a .NET class that support
+    text/value conversion through the TypeConverter architecture.
+    Classes that don't support this are serialized and stored with the
+    mimetype set.
+
+    The mimetype is used for serialized objects, and tells the
+    ResXResourceReader how to depersist the object. This is currently not
+    extensible. For a given mimetype the value must be set accordingly:
+
+    Note - application/x-microsoft.net.object.binary.base64 is the format
+    that the ResXResourceWriter will generate, however the reader can
+    read any of the formats listed below.
+
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" id="root">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace"/>
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0"/>
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string"/>
+              <xsd:attribute name="type" type="xsd:string"/>
+              <xsd:attribute name="mimetype" type="xsd:string"/>
+              <xsd:attribute ref="xml:space"/>
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string"/>
+              <xsd:attribute name="name" type="xsd:string"/>
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2"/>
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1"/>
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3"/>
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4"/>
+              <xsd:attribute ref="xml:space"/>
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required"/>
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AutoUpdateNotFetched" xml:space="preserve">
+    <value>Nous n'avons pas encore reçu les informations de publication. Impossible de mettre à jour.</value>
+  </data>
+  <data name="NetDownloading" xml:space="preserve">
+    <value>Téléchargement de {0}</value>
+  </data>
+  <data name="NetInvalidLocation" xml:space="preserve">
+    <value>Adresse invalide dans l'en-tête d'emplacement : {0}</value>
+  </data>
+  <data name="ByteRateCounterRateSummary" xml:space="preserve">
+    <value>{0}/s - {1} ({2}) restant - {3}%</value>
+  </data>
+  <data name="ByteRateCounterSummary" xml:space="preserve">
+    <value>{0} restant - {1}%</value>
+  </data>
+  <data name="ByteRateCounterHoursMinutesSeconds" xml:space="preserve">
+    <value>{0} heures, {1} min, {2} sec</value>
+  </data>
+  <data name="ByteRateCounterMinutesSeconds" xml:space="preserve">
+    <value>{0} min, {1} sec</value>
+  </data>
+  <data name="ByteRateCounterSeconds" xml:space="preserve">
+    <value>{0} s</value>
+  </data>
+  <data name="NetAsyncDownloaderDownloading" xml:space="preserve">
+    <value>Téléchargement de {0} ...</value>
+  </data>
+  <data name="NetAsyncDownloaderCancelled" xml:space="preserve">
+    <value>Téléchargement annulé par l'utilisateur</value>
+  </data>
+  <data name="NetAsyncDownloaderValidating" xml:space="preserve">
+    <value>Téléchargement de {0} terminé, validation et mise en cache...</value>
+  </data>
+  <data name="NetFileCacheCannotFind" xml:space="preserve">
+    <value>Impossible de trouver le dossier du cache : {0}</value>
+  </data>
+  <data name="NetFileCacheZipError" xml:space="preserve">
+    <value>Erreur à l'étape {0} pour {1} : {2}</value>
+  </data>
+  <data name="NetFileCacheZipTestArchiveFalse" xml:space="preserve">
+    <value>ZipFile.TestArchive(true) a renvoyé faux</value>
+  </data>
+  <data name="NetFileCacheNullFileName" xml:space="preserve">
+    <value>Nom de fichier null</value>
+  </data>
+  <data name="NetFileCacheMonoNotSupported" xml:space="preserve">
+    <value>{0}
+
+Installez le paquet `mono-complete` ou un équivalent pour votre système d'exploitation.</value>
+  </data>
+  <data name="NetModuleCacheBadLength" xml:space="preserve">
+    <value>{0} : {1} a une longueur de {2}, au lieu de {3}</value>
+  </data>
+  <data name="NetModuleCacheNotValidZIP" xml:space="preserve">
+    <value>{0} : {1} n'est pas un fichier ZIP valide : {2}</value>
+  </data>
+  <data name="NetModuleCacheMismatchSHA256" xml:space="preserve">
+    <value>{0} : {1} a un SHA256 {2}, au lieu de {3}</value>
+  </data>
+  <data name="NetRepoUpdatingBuildMap" xml:space="preserve">
+    <value>Actualisation des données de versions de jeu</value>
+  </data>
+  <data name="NetRepoCheckingForUpdates" xml:space="preserve">
+    <value>Recherche de mises à jour</value>
+  </data>
+  <data name="NetRepoAlreadyUpToDate" xml:space="preserve">
+    <value>Déjà à jour</value>
+  </data>
+  <data name="NetRepoNoChanges" xml:space="preserve">
+    <value>Aucun changement depuis la dernière mise à jour</value>
+  </data>
+  <data name="NetRepoUpdating" xml:space="preserve">
+    <value>Mise à jour de {0}</value>
+  </data>
+  <data name="NetRepoLoadingModulesFromRepo" xml:space="preserve">
+    <value>Chargement des modules depuis le dépôt téléchargé {0}...</value>
+  </data>
+  <data name="NetRepoNotATarGz" xml:space="preserve">
+    <value>Le fichier doit être un tar.gz ou un zip, impossible de traiter : {0}</value>
+  </data>
+  <data name="NetRepoNotATarGzStream" xml:space="preserve">
+    <value>Le flux d'entrée n'est pas un .tar.gz ou un .zip, impossible de continuer</value>
+  </data>
+  <data name="JsonRelationshipConverterAnyOfCombined" xml:space="preserve">
+    <value>`any_of` ne devrait pas être combiné avec `{0}`</value>
+  </data>
+  <data name="RegistryFileConflict" xml:space="preserve">
+    <value>{0} souhaite installer {1}, mais ce fichier appartient à {2}</value>
+  </data>
+  <data name="RegistryFileNotRemoved" xml:space="preserve">
+    <value>Erreur lors du retrait de {1}, fichier non supprimé : {0}</value>
+  </data>
+  <data name="RegistryDefaultDLCAbstract" xml:space="preserve">
+    <value>Une extension officielle</value>
+  </data>
+  <data name="RegistryManagerDirectoryNotFound" xml:space="preserve">
+    <value>Impossible de trouver un dossier dans {0}</value>
+  </data>
+  <data name="RegistryManagerExportFilenamePrefix" xml:space="preserve">
+    <value>installé</value>
+  </data>
+  <data name="RegistryManagerDefaultModpackAbstract" xml:space="preserve">
+    <value>Une liste des modules installés sur l'instance KSP {0}</value>
+  </data>
+  <data name="RegistryManagerRegistryVersionNotSupported" xml:space="preserve">
+    <value>Cette version de CKAN est trop ancienne pour charger :
+{0}
+Mettez à jour CKAN pour charger cette instance de jeu.</value>
+  </data>
+  <data name="CkanModuleDeserialisationError" xml:space="preserve">
+    <value>Erreur de désérialisation JSON : {0}</value>
+  </data>
+  <data name="CkanModuleUnsupportedSpec" xml:space="preserve">
+    <value>{0} nécessite CKAN {1}, impossible de le lire.</value>
+  </data>
+  <data name="CkanModuleMissingRequired" xml:space="preserve">
+    <value>{0} ne possède pas le champ obligatoire {1}</value>
+  </data>
+  <data name="CkanModuleKspVersionMixed" xml:space="preserve">
+    <value>ksp_version mélangé avec ksp_version_(min|max)</value>
+  </data>
+  <data name="CkanModuleNotAvailable" xml:space="preserve">
+    <value>Le module {0} version {1} n'est pas disponible</value>
+  </data>
+  <data name="CkanModuleAllVersions" xml:space="preserve">
+    <value>Toutes les versions</value>
+  </data>
+  <data name="LicenceInvalid" xml:space="preserve">
+    <value>La licence {0} est invalide</value>
+  </data>
+  <data name="ModuleInstallDescriptorMustHaveInstallTo" xml:space="preserve">
+    <value>L'instance d'installation doit avoir une instruction install_to</value>
+  </data>
+  <data name="ModuleInstallDescriptorRequireFileFind" xml:space="preserve">
+    <value>L'instance d'installation doit avoir une instruction file, find, ou find_regexp</value>
+  </data>
+  <data name="ModuleInstallDescriptorTooManyFileFind" xml:space="preserve">
+    <value>L'instance d'installation doit inclure une seule instruction file, find, ou find_regexp</value>
+  </data>
+  <data name="ModuleInstallDescriptorTooManyFilterInclude" xml:space="preserve">
+    <value>L'instance d'installation peut contenir une instruction filter ou include_only, mais pas les deux</value>
+  </data>
+  <data name="ModuleInstallDescriptorInvalidInstallPath" xml:space="preserve">
+    <value>Chemin d'installation invalide : {0}</value>
+  </data>
+  <data name="ModuleInstallDescriptorUnknownInstallPath" xml:space="preserve">
+    <value>install_to inconnu : {0}</value>
+  </data>
+  <data name="ModuleInstallDescriptorNoFilesFound" xml:space="preserve">
+    <value>Aucun fichier correspondant à {0} n'a été trouvé pour installer !</value>
+  </data>
+  <data name="ModuleInstallDescriptorNotMatchingLeadingPath" xml:space="preserve">
+    <value>Le nom du fichier de sortie ({0}) ne correspond pas au premier chemin de la séquence ({1})</value>
+  </data>
+  <data name="ModuleInstallDescriptorAsNoPathSeparators" xml:space="preserve">
+    <value>`as` ne doit pas inclure les séparateurs de chemin</value>
+  </data>
+  <data name="RelationshipDescriptorMinVersionOnly" xml:space="preserve">
+    <value>{0} {1} ou plus récente</value>
+  </data>
+  <data name="RelationshipDescriptorMaxVersionOnly" xml:space="preserve">
+    <value>{0} {1} ou plus ancienne</value>
+  </data>
+  <data name="RelationshipDescriptorAnyOfJoiner" xml:space="preserve">
+    <value>{0} OU {1}</value>
+  </data>
+  <data name="ReleaseStatusInvalid" xml:space="preserve">
+    <value>{0} n'est pas un statut de publication valide</value>
+  </data>
+  <data name="RepositoryDefaultName" xml:space="preserve">
+    <value>défaut</value>
+  </data>
+  <data name="CkanModuleVersionToString" xml:space="preserve">
+    <value>{0} alias {1}</value>
+  </data>
+  <data name="GameVersionYalovAny" xml:space="preserve">
+    <value>toutes</value>
+  </data>
+  <data name="GameVersionSelectNeedOne" xml:space="preserve">
+    <value>Nécessite au moins un nombre Majeur et Mineur</value>
+  </data>
+  <data name="GameVersionSelectHeader" xml:space="preserve">
+    <value>La version spécifiée n'est pas unique, veuillez en choisir une :</value>
+  </data>
+  <data name="GameVersionSelectBuildHeader" xml:space="preserve">
+    <value>Le numéro de build est inconnu pour ce patch. Veuillez en sélectionner un :</value>
+  </data>
+  <data name="GameVersionNotKnown" xml:space="preserve">
+    <value>Cette version est inconnue de CKAN.</value>
+  </data>
+  <data name="GameVersionCriteriaToString" xml:space="preserve">
+    <value>[Versions : {0}]</value>
+  </data>
+  <data name="GameVersionRangeMinOnly" xml:space="preserve">
+    <value>{0} {1} ou plus ancienne</value>
+  </data>
+  <data name="GameVersionRangeMaxOnly" xml:space="preserve">
+    <value>{0} {1} ou plus récente</value>
+  </data>
+  <data name="ProvidesModuleVersionToString" xml:space="preserve">
+    <value>{0} (fourni par {1})</value>
+  </data>
+  <data name="UnmanagedModuleVersionUnknown" xml:space="preserve">
+    <value>(non géré)</value>
+  </data>
+  <data name="UnmanagedModuleVersionKnown" xml:space="preserve">
+    <value>{0} (non géré)</value>
+  </data>
+  <data name="PathUtilsNotAbsolute" xml:space="preserve">
+    <value>{0} n'est pas un chemin absolu</value>
+  </data>
+  <data name="PathUtilsNotInside" xml:space="preserve">
+    <value>Oh zut. {0} n'est pas dans {1}</value>
+  </data>
+  <data name="PathUtilsAlreadyAbsolute" xml:space="preserve">
+    <value>{0} est déjà absolu</value>
+  </data>
+  <data name="PathUtilsNotRoot" xml:space="preserve">
+    <value>{0} n'est pas une racine absolue</value>
+  </data>
+  <data name="GameInstanceSettingUp" xml:space="preserve">
+    <value>Mise en place de CKAN pour la première fois...</value>
+  </data>
+  <data name="GameInstanceCreatingDir" xml:space="preserve">
+    <value>Création de {0}</value>
+  </data>
+  <data name="GameInstanceScanning" xml:space="preserve">
+    <value>Analyse des mods installés...</value>
+  </data>
+  <data name="GameInstanceVersionNotFound" xml:space="preserve">
+    <value>Version de jeu introuvable</value>
+  </data>
+  <data name="GameInstanceToString" xml:space="preserve">
+    <value>{0} Installation : {1}</value>
+  </data>
+  <data name="GameInstanceManagerPortable" xml:space="preserve">
+    <value>portable</value>
+  </data>
+  <data name="GameInstanceManagerAuto" xml:space="preserve">
+    <value>Auto {0}</value>
+  </data>
+  <data name="GameInstanceManagerSelectGamePrompt" xml:space="preserve">
+    <value>Veuillez sélectionner le jeu qui est installé sur {0}</value>
+  </data>
+  <data name="GameInstanceManagerCacheMigrationPrompt" xml:space="preserve">
+    <value>L'ancien dossier de cache contient {0}. Le nouveau dossier de cache a {1} libres.
+Que voulez-vous faire ?</value>
+  </data>
+  <data name="GameInstanceManagerCacheMigrationPromptFreeSpaceUnknown" xml:space="preserve">
+    <value>L'ancien dossier de cache contient {0}. Le nouveau dossier de cache a un espace libre inconnu.
+Que voulez-vous faire ?</value>
+  </data>
+  <data name="GameInstanceManagerCacheMigrationMove" xml:space="preserve">
+    <value>Déplacer les anciens fichiers mis en cache vers le nouveau dossier de cache</value>
+  </data>
+  <data name="GameInstanceManagerCacheMigrationDelete" xml:space="preserve">
+    <value>Supprimer les fichiers du cache</value>
+  </data>
+  <data name="GameInstanceManagerCacheMigrationOpen" xml:space="preserve">
+    <value>Ouvrir l'ancien et le nouveau dossier de cache dans le navigateur de fichiers</value>
+  </data>
+  <data name="GameInstanceManagerCacheMigrationNothing" xml:space="preserve">
+    <value>Ne rien faire</value>
+  </data>
+  <data name="GameInstanceManagerCacheMigrationRevert" xml:space="preserve">
+    <value>Revenir à l'ancien dossier de cache</value>
+  </data>
+  <data name="GameInstanceManagerCacheMigrationNotEnoughFreeSpace" xml:space="preserve">
+    <value>Pas assez d'espace pour déplacer les fichiers !</value>
+  </data>
+  <data name="GameInstanceCloneInvalid" xml:space="preserve">
+    <value>L'instance spécifiée n'est pas une instance {0} valide</value>
+  </data>
+  <data name="GameInstanceManagerCloneNotEnoughFreeSpace" xml:space="preserve">
+    <value>Pas assez d'espace sur le chemin de destination pour copier les fichiers !</value>
+  </data>
+  <data name="GameInstanceFakeBadVersion" xml:space="preserve">
+    <value>La version spécifiée {0} n'est pas une version connue : {1}</value>
+  </data>
+  <data name="GameInstanceFakeNotEmpty" xml:space="preserve">
+    <value>Le dossier spécifié existe déjà et n'est pas vide</value>
+  </data>
+  <data name="GameInstanceFakeDLCNotAllowed" xml:space="preserve">
+    <value>{0} version {1} ou plus récent est nécessaire pour le DLC {2}</value>
+  </data>
+  <data name="GameInstanceNoValidName" xml:space="preserve">
+    <value>Impossible de renvoyer un nom valide pour la nouvelle instance</value>
+  </data>
+  <data name="GameInstanceByPathName" xml:space="preserve">
+    <value>personnalisé</value>
+  </data>
+  <data name="GameInstancePathNotFound" xml:space="preserve">
+    <value>{0} n'existe pas</value>
+  </data>
+  <data name="GameInstancePlayGameFailed" xml:space="preserve">
+    <value>Impossible de lancer le jeu.
+
+{0}</value>
+  </data>
+  <data name="ModuleInstallerNothingToInstall" xml:space="preserve">
+    <value>Rien à installer</value>
+  </data>
+  <data name="ModuleInstallerAboutToInstall" xml:space="preserve">
+    <value>Vont être installés :</value>
+  </data>
+  <data name="ModuleInstallerUserDeclined" xml:space="preserve">
+    <value>L'utilisateur a refusé la liste d'installation</value>
+  </data>
+  <data name="ModuleInstallerInstallingMod" xml:space="preserve">
+    <value>Installation de {0} ...</value>
+  </data>
+  <data name="ModuleInstallerInstalledMod" xml:space="preserve">
+    <value>Fin de l'installation de {0}</value>
+  </data>
+  <data name="ModuleInstallerInstalledModFiltered" xml:space="preserve">
+    <value>Fin de l'installation de {0} ({1} fichiers filtrés)</value>
+  </data>
+  <data name="ModuleInstallerUpdatingRegistry" xml:space="preserve">
+    <value>Mise à jour du registre</value>
+  </data>
+  <data name="ModuleInstallerCommitting" xml:space="preserve">
+    <value>Validation des changements du système de fichiers</value>
+  </data>
+  <data name="ModuleInstallerDone" xml:space="preserve">
+    <value>Terminé !</value>
+  </data>
+  <data name="ModuleInstallerAlreadyInstalled" xml:space="preserve">
+    <value>{0} {1} déjà installé, ignoré</value>
+  </data>
+  <data name="ModuleInstallerZIPNotInCache" xml:space="preserve">
+    <value>Tentative d'installation de {0}, mais il n'est pas téléchargé ou le téléchargement est corrompu</value>
+  </data>
+  <data name="ModuleInstallerBadDLLLocation" xml:space="preserve">
+    <value>Le DLL du module {0} a été trouvé à {1}, mais ce n'est pas là où CKAN l'installerait. Annulation pour éviter que plusieurs copies du même mod soient installées. Pour installer ce module, désinstallez-le manuellement puis réessayez.</value>
+  </data>
+  <data name="ModuleInstallerFileSame" xml:space="preserve">
+    <value>pareil</value>
+  </data>
+  <data name="ModuleInstallerFileDifferent" xml:space="preserve">
+    <value>DIFFÉRENT</value>
+  </data>
+  <data name="ModuleInstallerOverwrite" xml:space="preserve">
+    <value>Le module {0} veut remplacer les fichiers manuellement installés suivants :
+
+{1}
+
+Remplacer ?</value>
+  </data>
+  <data name="ModuleInstallerOverwriteCancelled" xml:space="preserve">
+    <value>Interdiction de remplacer les fichiers manuellement installés, impossible d'installer {0}</value>
+  </data>
+  <data name="ModuleInstallerAboutToRemove" xml:space="preserve">
+    <value>Vont être désinstallés :</value>
+  </data>
+  <data name="ModuleInstallerContinuePrompt" xml:space="preserve">
+    <value>Continuer ?</value>
+  </data>
+  <data name="ModuleInstallerRemoveAborted" xml:space="preserve">
+    <value>Désinstallation du mod annulée à la demande l'utilisateur</value>
+  </data>
+  <data name="ModuleInstallerRemovingMod" xml:space="preserve">
+    <value>Désinstallation de {0}...</value>
+  </data>
+  <data name="ModuleInstallerRemovedMod" xml:space="preserve">
+    <value>Suppression de {0} terminée</value>
+  </data>
+  <data name="ModuleInstallerAboutToUpgrade" xml:space="preserve">
+    <value>Vont être mis à jour :</value>
+  </data>
+  <data name="ModuleInstallerUpgradeInstallingResuming" xml:space="preserve">
+    <value> * Installation : {0} {1} ({2}, {3} restant)</value>
+  </data>
+  <data name="ModuleInstallerUpgradeInstallingUncached" xml:space="preserve">
+    <value> * Installation : {0} {1} ({2}, {3})</value>
+  </data>
+  <data name="ModuleInstallerUpgradeInstallingCached" xml:space="preserve">
+    <value> * Installation : {0} {1} (en cache)</value>
+  </data>
+  <data name="ModuleInstallerUpgradeReinstalling" xml:space="preserve">
+    <value> * Réinstallation : {0} {1}</value>
+  </data>
+  <data name="ModuleInstallerUpgradeDowngrading" xml:space="preserve">
+    <value> * Rétrogradation : {0} de {1} vers {2}</value>
+  </data>
+  <data name="ModuleInstallerUpgradeUpgradingUncached" xml:space="preserve">
+    <value> * Mise à jour : {0} {1} vers {2} ({3}, {4})</value>
+  </data>
+  <data name="ModuleInstallerUpgradeUpgradingCached" xml:space="preserve">
+    <value> * Mise à jour : {0} {1} vers {2} (en cache)</value>
+  </data>
+  <data name="ModuleInstallerUpgradeAutoRemoving" xml:space="preserve">
+    <value> * Suppression automatique : {0} {1}</value>
+  </data>
+  <data name="ModuleInstallerUpgradeUserDeclined" xml:space="preserve">
+    <value>L'utilisateur a refusé la liste de mise à jour</value>
+  </data>
+  <data name="ModuleInstallerReplaceAutodetected" xml:space="preserve">
+    <value>Impossible de remplacer {0} car il n'a pas été installé par CKAN.
+Veuillez le retirer manuellement avant d'essayer de l'installer.</value>
+  </data>
+  <data name="ModuleInstallerReplaceNotInstalled" xml:space="preserve">
+    <value>Impossible de remplacer {0} car il n'est pas installé. Veuillez essayer d'installer {1} à la place.</value>
+  </data>
+  <data name="ModuleInstallerImportScanningFiles" xml:space="preserve">
+    <value>Analyse des fichiers...</value>
+  </data>
+  <data name="ModuleInstallerImportAlreadyCached" xml:space="preserve">
+    <value>Déjà en cache : {0}</value>
+  </data>
+  <data name="ModuleInstallerImportNotFound" xml:space="preserve">
+    <value>Introuvable dans l'index : {0}</value>
+  </data>
+  <data name="ModuleInstallerImportInstallPrompt" xml:space="preserve">
+    <value>Installer {0} mods importés compatibles dans l'instance de jeu {1} ({2}) ?</value>
+  </data>
+  <data name="ModuleInstallerImportDeletePrompt" xml:space="preserve">
+    <value>Analyse terminée. Supprimer {0} vieux fichiers après l'import ?</value>
+  </data>
+  <data name="KrakenDependencyNotSatisfied" xml:space="preserve">
+    <value>La dépendance sur {0} version {1} n'est pas satisfaite</value>
+  </data>
+  <data name="KrakenDependencyModuleNotFound" xml:space="preserve">
+    <value>Module introuvable : {0} {1}</value>
+  </data>
+  <data name="KrakenProvidedByMoreThanOne" xml:space="preserve">
+    <value>{1} nécessite {0}, qui peut être fourni par plusieurs mods.
+
+Quel fournisseur {0} voulez-vous installer ?</value>
+  </data>
+  <data name="KrakenInconsistenciesHeader" xml:space="preserve">
+    <value>Des incohérences ont été trouvées :</value>
+  </data>
+  <data name="KrakenFailedToDeleteFiles" xml:space="preserve">
+    <value>Impossible de remplacer ou supprimer des fichiers pour {0} :
+
+{1}
+
+Si le jeu est toujours en cours d'exécution, fermez-le et réessayez. Sinon, vérifiez les permissions.</value>
+  </data>
+  <data name="KrakenMissingDependency" xml:space="preserve">
+    <value>Dépendance {1} insatisfaite pour : {0}</value>
+  </data>
+  <data name="KrakenMissingDependencyNeededFor" xml:space="preserve">
+    <value>requis par {0}</value>
+  </data>
+  <data name="KrakenConflictsWith" xml:space="preserve">
+    <value>{0} est en conflit avec {1}</value>
+  </data>
+  <data name="KrakenFileExistsWithOwner" xml:space="preserve">
+    <value>Oh non ! Nous avons essayé de remplacer un fichier appartenant à un autre mod !
+
+Veuillez le signaler à :
+
+https://github.com/KSP-CKAN/NetKAN/issues/new/choose
+
+Veuillez inclure les informations suivantes dans votre rapport :
+
+Fichier : {0}
+Mod en cours d'installation : {1}
+Mod propriétaire : {2}</value>
+  </data>
+  <data name="KrakenFileExistsWithoutOwner" xml:space="preserve">
+    <value>Oh non ! Nous avons essayé de remplacer un fichier !
+
+Par précaution, CKAN ne va *jamais* remplacer ou modifier un fichier qu'il n'a pas installé lui-même.
+
+Si vous souhaitez installer {1} via CKAN, alors veuillez désinstaller manuellement le mod qui possède :
+
+{0}
+
+et essayez de nouveau.</value>
+  </data>
+  <data name="KrakenFileExistsWithoutInstalling" xml:space="preserve">
+    <value>Oh non ! Nous avons essayé de remplacer un fichier !
+
+Par précaution, CKAN ne va *jamais* remplacer ou modifier un fichier qu'il n'a pas installé lui-même.
+
+Veuillez désinstaller manuellement le mod qui possède :
+
+{0}
+
+et essayez de nouveau.</value>
+  </data>
+  <data name="KrakenBadMetadata" xml:space="preserve">
+    <value>Mauvaises métadonnées détectées pour le module {0} : {1}</value>
+  </data>
+  <data name="KrakenDownloadErrorsHeader" xml:space="preserve">
+    <value>Oh oh, Les choses suivantes se sont mal passées lors du téléchargement...</value>
+  </data>
+  <data name="KrakenModuleDownloadErrorsHeader" xml:space="preserve">
+    <value>Un ou plusieurs téléchargements ont échoué :</value>
+  </data>
+  <data name="KrakenModuleDownloadError" xml:space="preserve">
+    <value>Erreur lors du téléchargement de {0} : {1}</value>
+  </data>
+  <data name="KrakenNotInstalled" xml:space="preserve">
+    <value>Le module {0} n'est pas installé !</value>
+  </data>
+  <data name="KrakenMissingCertificateUnix" xml:space="preserve">
+    <value>Le téléchargement a échoué avec une erreur de certificat : {1}
+
+Consultez cette page pour obtenir de l'aide :
+{0}</value>
+  </data>
+  <data name="KrakenMissingCertificateNotUnix" xml:space="preserve">
+    <value>Le téléchargement a échoué avec une erreur de certificat : {0}</value>
+  </data>
+  <data name="KrakenRequestTimedOut" xml:space="preserve">
+    <value>L'adresse a mis trop de temps à répondre : {0}</value>
+  </data>
+  <data name="KrakenDownloadThrottled" xml:space="preserve">
+    <value>Requête à {0} restreinte</value>
+  </data>
+  <data name="KrakenAlreadyRunning" xml:space="preserve">
+    <value>Fichier verrou avec un ID de processus actif à {0}
+
+Un autre processus CKAN est probablement déjà en train d'accéder à ce dossier de jeu. Si vous êtes sûr que ce fichier verrou est périmé, vous pouvez supprimer ce fichier pour continuer. Mais si ce n'est pas le cas, les deux CKAN risque de rentrer en conflit et corrompre votre registre de mods et votre dossier de jeu. 
+
+Voulez-vous supprimez ce fichier verrou pour forcer l'accès ?</value>
+  </data>
+  <data name="KrakenIsDLC" xml:space="preserve">
+    <value>CKAN ne peut pas installer, mettre à jour ou retirer l'extension '{0}' pour vous.</value>
+  </data>
+  <data name="KrakenIsDLCStorePage" xml:space="preserve">
+    <value>Pour installer, mettre à jour ou supprimer cette extension, achetez-la depuis une boutique et suivez les instructions :
+{0}</value>
+  </data>
+  <data name="NotEnoughSpaceToCache" xml:space="preserve">
+    <value>Pas assez d'espace dans le dossier de cache pour enregistrer les modules !</value>
+  </data>
+  <data name="NotEnoughSpaceToInstall" xml:space="preserve">
+    <value>Pas assez d'espace dans le dossier de jeu pour installer des modules !</value>
+  </data>
+  <data name="KrakenNotEnoughSpace" xml:space="preserve">
+    <value>{0}
+Besoin d'enregistrer {3} dans {1}, mais seulement {2} est disponible !
+Libérez de l'espace sur cet appareil ou modifiez vos paramètres pour utiliser un autre emplacement.
+</value>
+  </data>
+  <data name="KrakenNotGameDir" xml:space="preserve">
+    <value>L'instance n'est pas valide : {0}</value>
+  </data>
+  <data name="KrakenInstanceNameTaken" xml:space="preserve">
+    <value>Ce nom d'instance est déjà pris : {0}</value>
+  </data>
+  <data name="KrakenNoInstance" xml:space="preserve">
+    <value>Aucune instance avec ce nom ou avec ce chemin : {0}</value>
+  </data>
+  <data name="DirectoryNotEmpty" xml:space="preserve">
+    <value>Le répertoire n'est pas vide : {0}</value>
+  </data>
+  <data name="RelationshipResolverConflictsWith" xml:space="preserve">
+    <value>{0} est en conflit avec {1}</value>
+  </data>
+  <data name="RelationshipResolverConflictingModDescription" xml:space="preserve">
+    <value>{0} (nécessaire pour : {1})</value>
+  </data>
+  <data name="RelationshipResolverRequiredButResolver" xml:space="preserve">
+    <value>{0} nécessaire, mais une version incompatible est dans le résolveur</value>
+  </data>
+  <data name="RelationshipResolverRequiredButInstalled" xml:space="preserve">
+    <value>{0} nécessaire, mais une version incompatible est installée</value>
+  </data>
+  <data name="RelationshipResolverAnUnmanaged" xml:space="preserve">
+    <value>un DLL ou un DLC non géré</value>
+  </data>
+  <data name="RelationshipResolverInstalledReason" xml:space="preserve">
+    <value>Installé actuellement</value>
+  </data>
+  <data name="RelationshipResolverUserReason" xml:space="preserve">
+    <value>Demandé par l'utilisateur</value>
+  </data>
+  <data name="RelationshipResolverDependencyRemoved" xml:space="preserve">
+    <value>Dépendance supprimée</value>
+  </data>
+  <data name="RelationshipResolverNoLongerUsedReason" xml:space="preserve">
+    <value>Auto-installé, les modules qui en dépendaient ont été désinstallés</value>
+  </data>
+  <data name="RelationshipResolverReplacementReason" xml:space="preserve">
+    <value>Remplacement de {0}</value>
+  </data>
+  <data name="RelationshipResolverSuggestedReason" xml:space="preserve">
+    <value>Suggéré par {0}</value>
+  </data>
+  <data name="RelationshipResolverDependsReason" xml:space="preserve">
+    <value>Pour satisfaire la dépendance de {0}</value>
+  </data>
+  <data name="RelationshipResolverRecommendedReason" xml:space="preserve">
+    <value>Recommandé par {0}</value>
+  </data>
+  <data name="ResolvedRelationshipsTreeUnsatisfied" xml:space="preserve">
+    <value>Impossible de satisfaire {0} lors de l'installation :
+{1}</value>
+  </data>
+  <data name="NetModuleCacheMetapackage" xml:space="preserve">
+    <value>{0} {1} (méta-paquet)</value>
+  </data>
+  <data name="NetModuleCacheModuleCached" xml:space="preserve">
+    <value>{0} {1} (en cache)</value>
+  </data>
+  <data name="NetModuleCacheModuleHostSize" xml:space="preserve">
+    <value>{0} {1} ({2}, {3})</value>
+  </data>
+  <data name="NetModuleCacheModuleResuming" xml:space="preserve">
+    <value>{0} {1} ({2}, {3} restant)</value>
+  </data>
+  <data name="ModuleInstallerUpgradeUpgradingResuming" xml:space="preserve">
+    <value> * Mise à jour : {0} {1} vers {2} ({3}, {4} restant)</value>
+  </data>
+  <data name="ModpackName" xml:space="preserve">
+    <value>installé-{0}</value>
+  </data>
+  <data name="InstalledModuleToString" xml:space="preserve">
+    <value>{0} ( {1} installé)</value>
+  </data>
+  <data name="InstalledModuleToStringAutoInstalled" xml:space="preserve">
+    <value>{0} ({1} installé en tant qu'auto-installé)</value>
+  </data>
+  <data name="ReleaseStatusStableName" xml:space="preserve">
+    <value>Stable</value>
+  </data>
+  <data name="ReleaseStatusStableDescription" xml:space="preserve">
+    <value>Versions normales</value>
+  </data>
+  <data name="ReleaseStatusTestingName" xml:space="preserve">
+    <value>En test</value>
+  </data>
+  <data name="ReleaseStatusTestingDescription" xml:space="preserve">
+    <value>Préversions pour les utilisateurs aventureux</value>
+  </data>
+  <data name="ReleaseStatusDevelopmentName" xml:space="preserve">
+    <value>Développement</value>
+  </data>
+  <data name="ReleaseStatusDevelopmentDescription" xml:space="preserve">
+    <value>À la pointe du développement, instable</value>
+  </data>
+  <data name="FoundDuplicatesConfirmation" xml:space="preserve">
+    <value>{0} fichiers redondants ont été trouvés. Dédupliquer ?</value>
+  </data>
+  <data name="DeduplicatedRelPath" xml:space="preserve">
+    <value>{0} exemplaires de {1} ont été dédupliqués</value>
+  </data>
+  <data name="DoneDeduplicatingFiles" xml:space="preserve">
+    <value>Déduplication terminée. Espace économisé : {0}</value>
+  </data>
+  <data name="NoDuplicatesFound" xml:space="preserve">
+    <value>Aucun fichier installé redondant trouvé.</value>
+  </data>
+  <data name="ModuleLabelListFavourites" xml:space="preserve">
+    <value>Favoris</value>
+  </data>
+  <data name="ModuleLabelListHidden" xml:space="preserve">
+    <value>Caché</value>
+  </data>
+  <data name="ModuleLabelListHeld" xml:space="preserve">
+    <value>Gelé</value>
+  </data>
+  <data name="RelationshipTypeProvides" xml:space="preserve">
+    <value>Fournit</value>
+  </data>
+  <data name="RelationshipTypeDepends" xml:space="preserve">
+    <value>Dépendance</value>
+  </data>
+  <data name="RelationshipTypeRecommends" xml:space="preserve">
+    <value>Recommandé</value>
+  </data>
+  <data name="RelationshipTypeSuggests" xml:space="preserve">
+    <value>Suggéré</value>
+  </data>
+  <data name="RelationshipTypeSupports" xml:space="preserve">
+    <value>Supporte</value>
+  </data>
+  <data name="RelationshipTypeConflicts" xml:space="preserve">
+    <value>Conflits</value>
+  </data>
+</root>

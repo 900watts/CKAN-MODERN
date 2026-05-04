@@ -1,0 +1,240 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg-surface);
+  border-left: 1px solid var(--color-border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* ─── Header ─── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerIcon {
+  color: var(--color-accent-secondary);
+}
+
+.headerTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.pointsBadge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent-secondary);
+  background: rgba(255, 179, 71, 0.15);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.closeBtn:hover {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+/* ─── Messages ─── */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── Individual Message ─── */
+.message {
+  display: flex;
+  gap: 10px;
+  max-width: 90%;
+}
+
+.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.assistant {
+  align-self: flex-start;
+}
+
+.messageAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.user .messageAvatar {
+  background: var(--color-accent-primary);
+  color: var(--color-bg-primary);
+}
+
+.assistant .messageAvatar {
+  background: var(--color-bg-elevated);
+  color: var(--color-accent-secondary);
+}
+
+.messageContent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.messageText {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ─── Typing Indicator ─── */
+.typingIndicator {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px;
+  background: var(--color-bg-elevated);
+  border-radius: 12px;
+  border-top-left-radius: 4px;
+}
+
+.typingIndicator span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  animation: typingBounce 1.2s infinite ease-in-out;
+}
+
+.typingIndicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typingIndicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+
+/* ─── Input Area ─── */
+.inputArea {
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+}
+
+.inputWrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 8px 8px 8px 14px;
+  transition: border-color 0.15s ease;
+}
+
+.inputWrapper:focus-within {
+  border-color: var(--color-accent-primary);
+}
+
+.input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  resize: none;
+  max-height: 100px;
+  font-family: inherit;
+}
+
+.input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.sendBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-accent-primary);
+  color: var(--color-bg-primary);
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sendBtn:hover:not(:disabled) {
+  opacity: 0.85;
+  transform: scale(1.05);
+}
+
+.sendBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sendBtn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.inputHint {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  margin-top: 6px;
+  text-align: center;
+  opacity: 0.7;
+}

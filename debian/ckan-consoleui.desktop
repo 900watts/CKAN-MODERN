@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=CKAN Console UI
+Comment=Comprehensive Kerbal Archive Network Console UI
+Keywords=Kerbal Space Program;KSP;Mod;Console;
+Icon=ckan
+Categories=Game;PackageManager;ConsoleOnly;
+Exec=/usr/bin/ckan consoleui
+Terminal=true
+Type=Application
+Version=1.0
+X-GNOME-SingleWindow=true

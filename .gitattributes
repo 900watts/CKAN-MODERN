@@ -1,0 +1,63 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Documents
+*.gitattributes text
+*.gitignore     text
+*.md            text
+*.txt           text
+
+# Java
+*.json          text
+*.sh            text
+*.xml           text
+*.yml           text
+
+# Perl
+*.pl            text
+*.pm            text
+
+# Python
+*.py            text
+
+# Visual studio
+*.cs            text diff=csharp
+*.in            text diff=csharp
+*.csproj        text eol=crlf
+*.sln           text eol=crlf
+*.config        text
+*.crt           text
+*.DotSettings   text
+*.resx          text eol=crlf
+*.settings      text
+
+# CKAN files
+*.ckan          text
+*.netkan        text
+*.schema        text
+*.version       text
+
+# Build files
+*.cake          text
+*.ps1           text
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+
+# Other
+*.ackrc         text
+*.t             text
+
+# Graphics
+*.icns          binary
+*.ico           binary
+*.png           binary
+*.svg           binary
+
+# Dynamic libraries
+*.dll           binary
+
+# Archives
+*.bin           binary
+*.gz            binary
+*.tar           binary
+*.zip           binary
