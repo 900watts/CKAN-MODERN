@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.InteropServices;
 using CKAN.Configuration;
 using CKAN.Games;
 using log4net;
@@ -37,6 +38,16 @@ internal static class Program
             return 0;
         }
 
+        // ── Install / Uninstall to PATH ──
+        if (args.Contains("--install"))
+        {
+            return InstallToPath();
+        }
+        if (args.Contains("--uninstall"))
+        {
+            return UninstallFromPath();
+        }
+
         // ── Resolve provider settings ──
         var providerName = ResolveArg(args, "--provider", "-p") ?? LoadSavedSetting("provider") ?? "siliconflow";
         var baseUrlOverride = ResolveArg(args, "--base-url", "-u");
@@ -48,7 +59,7 @@ internal static class Program
         {
             Console.WriteLine();
             ConsoleRenderer.PrintError("No API key found. Set one with:");
-            ConsoleRenderer.PrintInfo("  CKAN-CLI --api-key <your-key>");
+            ConsoleRenderer.PrintInfo("  ckan --api-key <your-key>");
             ConsoleRenderer.PrintInfo("  or set CKAN_AI_KEY environment variable");
             Console.WriteLine();
             ConsoleRenderer.PrintInfo("Providers (use --provider <name>):");
@@ -60,11 +71,11 @@ internal static class Program
             ConsoleRenderer.PrintInfo($"  {"custom",-16} Any OpenAI-compatible endpoint (requires --base-url)");
             Console.WriteLine();
             ConsoleRenderer.PrintInfo("Examples:");
-            ConsoleRenderer.PrintInfo("  CKAN-CLI --api-key sk-xxx                              (uses Silicon Flow)");
-            ConsoleRenderer.PrintInfo("  CKAN-CLI --api-key sk-xxx --provider openai             (uses OpenAI gpt-4o-mini)");
-            ConsoleRenderer.PrintInfo("  CKAN-CLI --api-key sk-xxx --provider deepseek            (uses DeepSeek)");
-            ConsoleRenderer.PrintInfo("  CKAN-CLI --api-key sk-xxx --provider openrouter          (uses OpenRouter free tier)");
-            ConsoleRenderer.PrintInfo("  CKAN-CLI --api-key sk-xxx --provider custom --base-url https://my-api.com/v1 --model my-model");
+            ConsoleRenderer.PrintInfo("  ckan --api-key sk-xxx                              (uses Silicon Flow)");
+            ConsoleRenderer.PrintInfo("  ckan --api-key sk-xxx --provider openai             (uses OpenAI gpt-4o-mini)");
+            ConsoleRenderer.PrintInfo("  ckan --api-key sk-xxx --provider deepseek            (uses DeepSeek)");
+            ConsoleRenderer.PrintInfo("  ckan --api-key sk-xxx --provider openrouter          (uses OpenRouter free tier)");
+            ConsoleRenderer.PrintInfo("  ckan --api-key sk-xxx --provider custom --base-url https://my-api.com/v1 --model my-model");
             Console.WriteLine();
             return 1;
         }
@@ -262,10 +273,9 @@ internal static class Program
                 ConsoleRenderer.PrintInfo("  --base-url <url>        Custom OpenAI-compatible endpoint URL");
                 ConsoleRenderer.PrintInfo("  --debug                 Enable debug logging");
                 Console.WriteLine();
-                ConsoleRenderer.PrintInfo("How to run from Command Prompt:");
-                ConsoleRenderer.PrintInfo("  1. Open the folder where CKAN-CLI.exe is located");
-                ConsoleRenderer.PrintInfo("  2. Run: .\\CKAN-CLI.exe --api-key <your-key>");
-                ConsoleRenderer.PrintInfo("  Or add the folder to your PATH and run: CKAN-CLI --api-key <your-key>");
+                ConsoleRenderer.PrintInfo("How to install the 'ckan' command:");
+                ConsoleRenderer.PrintInfo("  Run: CKAN-CLI.exe --install");
+                ConsoleRenderer.PrintInfo("  Then open a new CMD and type: ckan");
                 Console.WriteLine();
                 return true;
 
@@ -464,15 +474,135 @@ internal static class Program
         catch { }
     }
 
+    // ── Install / Uninstall to system PATH ──
+
+    private const string BIN_DIR = "bin";
+    private const string CMD_NAME = "ckan";
+
+    private static string GetBinDir()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            CONFIG_DIR,
+            BIN_DIR);
+    }
+
+    private static int InstallToPath()
+    {
+        try
+        {
+            var binDir = GetBinDir();
+            Directory.CreateDirectory(binDir);
+
+            var currentExe = Environment.ProcessPath
+                ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
+
+            if (string.IsNullOrEmpty(currentExe))
+            {
+                ConsoleRenderer.PrintError("Cannot determine current executable path.");
+                return 1;
+            }
+
+            var targetExe = Path.Combine(binDir, $"{CMD_NAME}.exe");
+
+            // Copy the exe
+            ConsoleRenderer.PrintInfo($"Copying to {targetExe}...");
+            File.Copy(currentExe, targetExe, overwrite: true);
+
+            // Add to user PATH if not already there
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var userPath = Environment.GetEnvironmentVariable("PATH",
+                    EnvironmentVariableTarget.User) ?? "";
+
+                if (!userPath.Split(';').Any(p =>
+                    p.Trim().Equals(binDir, StringComparison.OrdinalIgnoreCase)))
+                {
+                    var newPath = string.IsNullOrWhiteSpace(userPath)
+                        ? binDir
+                        : $"{userPath};{binDir}";
+                    Environment.SetEnvironmentVariable("PATH", newPath,
+                        EnvironmentVariableTarget.User);
+                    ConsoleRenderer.PrintInfo($"Added {binDir} to user PATH.");
+                }
+                else
+                {
+                    ConsoleRenderer.PrintInfo("PATH already contains the install directory.");
+                }
+            }
+
+            Console.WriteLine();
+            ConsoleRenderer.PrintSuccess("Installed successfully!");
+            Console.WriteLine();
+            ConsoleRenderer.PrintInfo("Open a NEW Command Prompt window, then type:");
+            Console.WriteLine();
+            ConsoleRenderer.PrintInfo("  ckan --api-key <your-key>       (first time)");
+            ConsoleRenderer.PrintInfo("  ckan                            (after key is saved)");
+            Console.WriteLine();
+            ConsoleRenderer.PrintInfo("To uninstall: ckan --uninstall");
+            Console.WriteLine();
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            ConsoleRenderer.PrintError($"Install failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static int UninstallFromPath()
+    {
+        try
+        {
+            var binDir = GetBinDir();
+            var targetExe = Path.Combine(binDir, $"{CMD_NAME}.exe");
+
+            if (File.Exists(targetExe))
+            {
+                File.Delete(targetExe);
+                ConsoleRenderer.PrintInfo($"Removed {targetExe}");
+            }
+
+            // Remove from user PATH
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var userPath = Environment.GetEnvironmentVariable("PATH",
+                    EnvironmentVariableTarget.User) ?? "";
+                var parts = userPath.Split(';')
+                    .Where(p => !p.Trim().Equals(binDir, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                Environment.SetEnvironmentVariable("PATH", string.Join(';', parts),
+                    EnvironmentVariableTarget.User);
+            }
+
+            Console.WriteLine();
+            ConsoleRenderer.PrintSuccess("Uninstalled. The 'ckan' command has been removed.");
+            Console.WriteLine();
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            ConsoleRenderer.PrintError($"Uninstall failed: {ex.Message}");
+            return 1;
+        }
+    }
+
     private static void PrintUsage()
     {
         Console.WriteLine();
         ConsoleRenderer.PrintInfo("CKAN AI CLI — AI-powered KSP mod manager");
         Console.WriteLine();
         ConsoleRenderer.PrintInfo("Usage:");
-        ConsoleRenderer.PrintInfo("  CKAN-CLI [options]");
+        ConsoleRenderer.PrintInfo("  ckan [options]");
+        Console.WriteLine();
+        ConsoleRenderer.PrintInfo("Quick Start:");
+        ConsoleRenderer.PrintInfo("  CKAN-CLI.exe --install                 Install 'ckan' command to PATH");
+        ConsoleRenderer.PrintInfo("  ckan --api-key <key>                   Start with your API key");
+        ConsoleRenderer.PrintInfo("  ckan                                   Start (after key is saved)");
         Console.WriteLine();
         ConsoleRenderer.PrintInfo("Options:");
+        ConsoleRenderer.PrintInfo("  --install                Install 'ckan' command to PATH (one-time setup)");
+        ConsoleRenderer.PrintInfo("  --uninstall              Remove 'ckan' command from PATH");
         ConsoleRenderer.PrintInfo("  --api-key, -k <key>      API key for your AI provider");
         ConsoleRenderer.PrintInfo("  --provider, -p <name>    AI provider preset (default: siliconflow)");
         ConsoleRenderer.PrintInfo("  --model, -m <model>      Override the default model for the provider");
@@ -489,18 +619,13 @@ internal static class Program
         ConsoleRenderer.PrintInfo($"  {"custom",-16} {"Custom Endpoint",-24} (requires --base-url)");
         Console.WriteLine();
         ConsoleRenderer.PrintInfo("Examples:");
-        ConsoleRenderer.PrintInfo("  CKAN-CLI --api-key sk-xxx");
-        ConsoleRenderer.PrintInfo("  CKAN-CLI --api-key sk-xxx --provider openai");
-        ConsoleRenderer.PrintInfo("  CKAN-CLI --api-key sk-xxx --provider deepseek --model deepseek-reasoner");
-        ConsoleRenderer.PrintInfo("  CKAN-CLI --api-key sk-xxx --base-url https://my-llm.com/v1 --model my-model");
+        ConsoleRenderer.PrintInfo("  ckan --api-key sk-xxx");
+        ConsoleRenderer.PrintInfo("  ckan --api-key sk-xxx --provider openai");
+        ConsoleRenderer.PrintInfo("  ckan --api-key sk-xxx --provider deepseek --model deepseek-reasoner");
+        ConsoleRenderer.PrintInfo("  ckan --api-key sk-xxx --base-url https://my-llm.com/v1 --model my-model");
         Console.WriteLine();
         ConsoleRenderer.PrintInfo("Environment variables:");
         ConsoleRenderer.PrintInfo("  CKAN_AI_KEY              API key (alternative to --api-key)");
-        Console.WriteLine();
-        ConsoleRenderer.PrintInfo("How to activate from Command Prompt:");
-        ConsoleRenderer.PrintInfo("  1. Navigate to the folder containing CKAN-CLI.exe");
-        ConsoleRenderer.PrintInfo("  2. Run: .\\CKAN-CLI.exe --api-key <your-key>");
-        ConsoleRenderer.PrintInfo("  Or: Add the folder to your system PATH, then run 'CKAN-CLI' from anywhere");
         Console.WriteLine();
     }
 }
