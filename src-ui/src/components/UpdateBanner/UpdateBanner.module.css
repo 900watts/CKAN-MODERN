@@ -1,0 +1,124 @@
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: linear-gradient(90deg, rgba(134, 59, 255, 0.15) 0%, rgba(71, 191, 255, 0.1) 100%);
+  border-bottom: 1px solid rgba(134, 59, 255, 0.25);
+  font-size: 13px;
+  gap: 12px;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.icon {
+  color: var(--color-accent-primary, #863bff);
+  flex-shrink: 0;
+}
+
+.text {
+  color: var(--color-text-primary, #e4e4ef);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.updateBtn {
+  background: var(--color-accent-primary, #863bff);
+  color: #fff;
+  border: none;
+  padding: 4px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s;
+  font-family: inherit;
+}
+
+.updateBtn:hover {
+  filter: brightness(1.15);
+}
+
+.releaseLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary, #8888a0);
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.releaseLink:hover {
+  color: var(--color-text-primary, #e4e4ef);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dismissBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary, #8888a0);
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.dismissBtn:hover {
+  color: var(--color-text-primary, #e4e4ef);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary, #8888a0);
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.progressBar {
+  width: 80px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-accent-primary, #863bff);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}

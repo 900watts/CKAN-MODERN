@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import AIChatPanel from '../AIChat/AIChatPanel';
+import UpdateBanner from '../UpdateBanner/UpdateBanner';
 import { registryService } from '../../services/registry';
 import ckanIpc from '../../services/ipc';
 import { useT } from '../../i18n';
@@ -79,6 +80,7 @@ export default function Layout({ children, activePage = 'available', onNavigate 
 
   return (
     <div className={styles.layout}>
+      <UpdateBanner />
       <div className={styles.body}>
         {/* Navigation Rail */}
         <nav className={`${styles.navRail} ${navExpanded ? '' : styles.navRailCollapsed}`}>

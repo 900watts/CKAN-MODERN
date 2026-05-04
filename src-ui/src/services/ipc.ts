@@ -29,11 +29,15 @@ export type IpcChannel =
   | 'dispatch:pair'
   | 'dispatch:status'
   | 'app:get-version'
+  | 'app:check-update'
+  | 'app:apply-update'
   | 'app:minimize'
   | 'app:maximize'
   | 'app:close'
   | 'app:browse-folder'
-  | 'repo:refresh';
+  | 'repo:refresh'
+  | 'repo:set-mirror'
+  | 'repo:get-mirror';
 
 export interface IpcRequest<T = unknown> {
   channel: IpcChannel;
@@ -191,6 +195,10 @@ class CkanIpc {
     switch (channel) {
       case 'app:get-version':
         return { version: '2.0.0-dev', build: 'modern' };
+      case 'app:check-update':
+        return { available: false };
+      case 'app:apply-update':
+        return { success: false, error: 'Dev mode' };
       case 'mod:list-installed':
         return { mods: [] };
       case 'mod:search':
