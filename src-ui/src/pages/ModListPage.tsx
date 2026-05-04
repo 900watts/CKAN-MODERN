@@ -3,12 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Filter, Grid3X3, List, Package, Download, ArrowDownWideNarrow,
   X, ExternalLink, Tag, User, Clock, HardDrive, Loader2, CheckCircle, AlertCircle,
-  FolderSearch, FolderOpen, ArrowUpCircle
+  FolderSearch, FolderOpen, ArrowUpCircle, ChevronDown
 } from 'lucide-react';
 import { registryService } from '../services/registry';
 import type { CkanModule, SearchFilters } from '../services/registry';
 import ckanIpc from '../services/ipc';
 import styles from './ModListPage.module.css';
+import { useT } from '../i18n';
 
 interface UnmanagedMod {
   folder: string;
@@ -34,7 +35,12 @@ interface UpdatableMod {
 
 const BATCH_SIZE = 60;
 
+// Track mods that have been updated this session so they don't reappear
+// after component remount (key={activePage} destroys + recreates state).
+const updatedThisSession = new Set<string>();
+
 export default function ModListPage({ view, onInstallChange, installTick }: ModListPageProps) {
+  const { t } = useT();
   const [search, setSearch] = useState('');
   const [gridView, setGridView] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,6 +58,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
   const [hasScanned, setHasScanned] = useState(false);
   const [updatableMods, setUpdatableMods] = useState<UpdatableMod[]>([]);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const [updatesExpanded, setUpdatesExpanded] = useState(false);
   const [providerChoice, setProviderChoice] = useState<{
     identifier: string;
     requested: string;
@@ -142,12 +149,87 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           });
         }
       } else {
+        // Available tab — try static registry first, fallback to backend
         mods = registryService.search(search, filters);
+
+        // If static registry returned nothing and backend is connected, try IPC
+        if (mods.length === 0 && ckanIpc.isConnected()) {
+          try {
+            const result = await ckanIpc.call<any, any>('mod:search', { query: search || '' });
+            if (result?.mods && Array.isArray(result.mods) && result.mods.length > 0) {
+              mods = result.mods.map((m: any) => ({
+                identifier: m.identifier || '',
+                name: m.name || m.identifier || '',
+                abstract: m.abstract || m.description || '',
+                author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
+                license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
+                tags: m.tags || [],
+                resources: m.resources || {},
+                version: m.version || '',
+                download_size: m.download_size || 0,
+                install_size: m.install_size || 0,
+                ksp_version: m.ksp_version || null,
+                ksp_version_min: m.ksp_version_min || null,
+                ksp_version_max: m.ksp_version_max || null,
+                release_date: m.release_date || null,
+                depends: m.depends || [],
+                recommends: m.recommends || [],
+                conflicts: m.conflicts || [],
+                description: m.description || m.abstract || '',
+                download: null,
+                download_count: m.download_count || 0,
+                version_count: m.version_count || 1,
+                all_versions: m.all_versions || [m.version || ''],
+              } as CkanModule));
+            }
+          } catch {
+            // Silent fail — keep whatever we have
+          }
+        }
       }
       setAllMods(mods);
       setDisplayCount(BATCH_SIZE);
       setTags(registryService.getAllTags().slice(0, 30));
       setIsLoading(false);
+    }).catch(() => {
+      // registry.json failed to load — try backend as fallback
+      if (ckanIpc.isConnected()) {
+        ckanIpc.call<any, any>('mod:search', { query: '' }).then((result) => {
+          if (result?.mods && Array.isArray(result.mods)) {
+            const mods = result.mods.map((m: any) => ({
+              identifier: m.identifier || '',
+              name: m.name || m.identifier || '',
+              abstract: m.abstract || m.description || '',
+              author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
+              license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
+              tags: m.tags || [],
+              resources: m.resources || {},
+              version: m.version || '',
+              download_size: m.download_size || 0,
+              install_size: m.install_size || 0,
+              ksp_version: m.ksp_version || null,
+              ksp_version_min: m.ksp_version_min || null,
+              ksp_version_max: m.ksp_version_max || null,
+              release_date: m.release_date || null,
+              depends: m.depends || [],
+              recommends: m.recommends || [],
+              conflicts: m.conflicts || [],
+              description: m.description || m.abstract || '',
+              download: null,
+              download_count: m.download_count || 0,
+              version_count: m.version_count || 1,
+              all_versions: m.all_versions || [m.version || ''],
+            } as CkanModule));
+            setAllMods(mods);
+            setTags([]);
+          }
+        }).catch(() => {
+          setAllMods([]);
+        }).finally(() => setIsLoading(false));
+      } else {
+        setAllMods([]);
+        setIsLoading(false);
+      }
     });
   }, [search, view, sortBy, activeTag, installTick]);
 
@@ -189,7 +271,9 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
     try {
       const result = await ckanIpc.call<any, any>('mod:check-updates', {});
       if (result?.updates && Array.isArray(result.updates)) {
-        setUpdatableMods(result.updates);
+        setUpdatableMods(result.updates.filter(
+          (u: UpdatableMod) => !updatedThisSession.has(u.identifier)
+        ));
       }
     } catch {
       // Silent fail — update check is best-effort
@@ -243,11 +327,30 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
     return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
   }, [onInstallChange]);
 
+  // Reload mod list when backend finishes a repository refresh (including auto-refresh on startup)
+  useEffect(() => {
+    const unsub = ckanIpc.on('repo:refresh-complete', () => {
+      loadMods();
+    });
+    return () => unsub();
+  }, [loadMods]);
+
+  // Clear stale state when switching instances
+  useEffect(() => {
+    const unsub = ckanIpc.on('instance:switched', () => {
+      updatedThisSession.clear();
+      setUpdatableMods([]);
+      setUnmanagedMods([]);
+      loadMods();
+    });
+    return () => unsub();
+  }, [loadMods]);
+
   // Auto-clear status toast after 4 seconds
   useEffect(() => {
     if (!installStatus) return;
-    const t = setTimeout(() => setInstallStatus(null), 4000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setInstallStatus(null), 4000);
+    return () => clearTimeout(timer);
   }, [installStatus]);
 
   const visibleMods = allMods.slice(0, displayCount);
@@ -320,7 +423,8 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
         const result = await ckanIpc.call<any, any>('mod:install', { identifier });
         if (result?.status === 'installed') {
           setInstallStatus({ id: identifier, msg: `${name} updated`, type: 'success' });
-          // Remove from updatable list
+          // Remove from updatable list and remember for this session
+          updatedThisSession.add(identifier);
           setUpdatableMods(prev => prev.filter(m => m.identifier !== identifier));
         } else if (result?.status === 'needs_provider_choice') {
           setProviderChoice({
@@ -340,6 +444,8 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
         });
       }
     } else {
+      updatedThisSession.add(identifier);
+      setUpdatableMods(prev => prev.filter(m => m.identifier !== identifier));
       setInstallStatus({ id: identifier, msg: `${name} updated (dev mode)`, type: 'success' });
     }
 
@@ -390,7 +496,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
       <div className={styles.header}>
         <div className={styles.titleRow}>
           <h1 className={styles.title}>
-            {view === 'available' ? 'Available Mods' : 'Installed Mods'}
+            {view === 'available' ? t('modlist.title.available') : t('modlist.title.installed')}
             {!isLoading && (
               <span className={styles.titleCount}>{allMods.length.toLocaleString()}</span>
             )}
@@ -403,23 +509,23 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                 onChange={(e) => setSortBy(e.target.value as SearchFilters['sortBy'])}
                 className={styles.select}
               >
-                <option value="downloads">Most Popular</option>
-                <option value="name">Name A-Z</option>
-                <option value="updated">Recently Updated</option>
+                <option value="downloads">{t('modlist.sort.popular')}</option>
+                <option value="name">{t('modlist.sort.name')}</option>
+                <option value="updated">{t('modlist.sort.updated')}</option>
               </select>
             </div>
             <div className={styles.viewToggle}>
               <button
                 className={`${styles.viewBtn} ${gridView ? styles.viewBtnActive : ''}`}
                 onClick={() => setGridView(true)}
-                title="Grid view"
+                title={t('modlist.view.grid')}
               >
                 <Grid3X3 size={15} />
               </button>
               <button
                 className={`${styles.viewBtn} ${!gridView ? styles.viewBtnActive : ''}`}
                 onClick={() => setGridView(false)}
-                title="List view"
+                title={t('modlist.view.list')}
               >
                 <List size={15} />
               </button>
@@ -434,7 +540,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
             <input
               type="text"
               className={styles.searchInput}
-              placeholder={view === 'available' ? 'Search mods...' : 'Search installed mods...'}
+              placeholder={view === 'available' ? t('modlist.search.available') : t('modlist.search.installed')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Escape' && setSearch('')}
@@ -450,7 +556,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
             onClick={() => setShowFilters(!showFilters)}
           >
             <Filter size={15} />
-            Tags
+            {t('modlist.tags')}
           </button>
         </div>
 
@@ -467,16 +573,16 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
               <div className={styles.tagList}>
                 {activeTag && (
                   <button className={styles.tagClear} onClick={() => setActiveTag(undefined)}>
-                    <X size={12} /> Clear
+                    <X size={12} /> {t('modlist.tags.clear')}
                   </button>
                 )}
-                {tags.map((t) => (
+                {tags.map((tagItem) => (
                   <button
-                    key={t.tag}
-                    className={`${styles.tagChip} ${activeTag === t.tag ? styles.tagChipActive : ''}`}
-                    onClick={() => setActiveTag(activeTag === t.tag ? undefined : t.tag)}
+                    key={tagItem.tag}
+                    className={`${styles.tagChip} ${activeTag === tagItem.tag ? styles.tagChipActive : ''}`}
+                    onClick={() => setActiveTag(activeTag === tagItem.tag ? undefined : tagItem.tag)}
                   >
-                    {t.tag} <span className={styles.tagCount}>{t.count}</span>
+                    {tagItem.tag} <span className={styles.tagCount}>{tagItem.count}</span>
                   </button>
                 ))}
               </div>
@@ -485,41 +591,55 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
         </AnimatePresence>
       </div>
 
-      {/* Updates Available Banner */}
+      {/* Updates Available Banner — collapsible */}
       {view === 'installed' && updatableMods.length > 0 && (
         <div className={styles.updatesSection}>
-          <div className={styles.updatesHeader}>
+          <div
+            className={styles.updatesHeader}
+            onClick={() => setUpdatesExpanded(!updatesExpanded)}
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+          >
             <ArrowUpCircle size={16} />
-            <h3>Updates Available</h3>
+            <h3>{t('modlist.updates.title')}</h3>
             <span className={styles.updatesCount}>{updatableMods.length}</span>
+            <ChevronDown
+              size={14}
+              style={{
+                marginLeft: 'auto',
+                transition: 'transform 0.2s ease',
+                transform: updatesExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              }}
+            />
           </div>
-          <div className={styles.updatesList}>
-            {updatableMods.map((um) => (
-              <div key={um.identifier} className={styles.updateCard}>
-                <div className={styles.updateInfo}>
-                  <span className={styles.updateName}>{um.name}</span>
-                  <span className={styles.updateVersions}>
-                    v{um.installed_version} <span className={styles.updateArrow}>&rarr;</span> v{um.latest_version}
-                  </span>
+          {updatesExpanded && (
+            <div className={styles.updatesList}>
+              {updatableMods.map((um) => (
+                <div key={um.identifier} className={styles.updateCard}>
+                  <div className={styles.updateInfo}>
+                    <span className={styles.updateName}>{um.name}</span>
+                    <span className={styles.updateVersions}>
+                      v{um.installed_version} <span className={styles.updateArrow}>&rarr;</span> v{um.latest_version}
+                    </span>
+                  </div>
+                  <button
+                    className={styles.updateBtn}
+                    onClick={() => handleUpdate(um.identifier, um.name)}
+                    disabled={installingIds.has(um.identifier)}
+                  >
+                    {installingIds.has(um.identifier) ? (
+                      <><Loader2 size={12} className={styles.spin} /> {t('modlist.updates.updating')}</>
+                    ) : t('modlist.updates.update')}
+                  </button>
                 </div>
-                <button
-                  className={styles.updateBtn}
-                  onClick={() => handleUpdate(um.identifier, um.name)}
-                  disabled={installingIds.has(um.identifier)}
-                >
-                  {installingIds.has(um.identifier) ? (
-                    <><Loader2 size={12} className={styles.spin} /> Updating...</>
-                  ) : 'Update'}
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {view === 'installed' && isCheckingUpdates && (
         <div className={styles.updatesChecking}>
           <Loader2 size={14} className={styles.spin} />
-          <span>Checking for updates...</span>
+          <span>{t('modlist.updates.checking')}</span>
         </div>
       )}
 
@@ -529,7 +649,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           {isLoading ? (
             <div className={styles.loading}>
               <Loader2 size={32} className={styles.spin} />
-              <span>Loading registry...</span>
+              <span>{t('modlist.loading')}</span>
             </div>
           ) : allMods.length === 0 ? (
             <motion.div
@@ -538,8 +658,8 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
               animate={{ opacity: 1, y: 0 }}
             >
               <Package size={48} className={styles.emptyIcon} />
-              <h2>{view === 'installed' ? 'No mods installed' : 'No mods found'}</h2>
-              <p>{view === 'installed' ? 'Browse available mods and install some' : 'Try a different search or clear filters'}</p>
+              <h2>{view === 'installed' ? t('modlist.empty.noInstalled') : t('modlist.empty.noResults')}</h2>
+              <p>{view === 'installed' ? t('modlist.empty.noInstalled.hint') : t('modlist.empty.noResults.hint')}</p>
             </motion.div>
           ) : gridView ? (
             <div className={styles.grid}>
@@ -554,9 +674,9 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                       <Package size={20} />
                     </div>
                     {installingIds.has(mod.identifier) ? (
-                      <span className={styles.installingBadge}><Loader2 size={10} className={styles.spin} /> Installing...</span>
+                      <span className={styles.installingBadge}><Loader2 size={10} className={styles.spin} /> {t('modlist.installing')}</span>
                     ) : registryService.isInstalled(mod.identifier) ? (
-                      <span className={styles.installedBadge}>Installed</span>
+                      <span className={styles.installedBadge}>{t('modlist.installed')}</span>
                     ) : null}
                   </div>
                   <h3 className={styles.modName}>{mod.name}</h3>
@@ -582,11 +702,11 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
             <div className={styles.list}>
               <div className={styles.listHeader}>
                 <span className={styles.listColIcon}></span>
-                <span className={styles.listColName}>Name</span>
-                <span className={styles.listColAuthor}>Author</span>
-                <span className={styles.listColVersion}>Version</span>
-                <span className={styles.listColDl}>Downloads</span>
-                <span className={styles.listColSize}>Size</span>
+                <span className={styles.listColName}>{t('modlist.col.name')}</span>
+                <span className={styles.listColAuthor}>{t('modlist.col.author')}</span>
+                <span className={styles.listColVersion}>{t('modlist.col.version')}</span>
+                <span className={styles.listColDl}>{t('modlist.col.downloads')}</span>
+                <span className={styles.listColSize}>{t('modlist.col.size')}</span>
                 <span className={styles.listColAction}></span>
               </div>
               {visibleMods.map((mod) => (
@@ -613,8 +733,8 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                       disabled={installingIds.has(mod.identifier)}
                     >
                       {installingIds.has(mod.identifier) ? (
-                        <><Loader2 size={12} className={styles.spin} /> Working...</>
-                      ) : registryService.isInstalled(mod.identifier) ? 'Remove' : 'Install'}
+                        <><Loader2 size={12} className={styles.spin} /> {t('modlist.working')}</>
+                      ) : registryService.isInstalled(mod.identifier) ? t('modlist.remove') : t('modlist.install')}
                     </button>
                   </span>
                 </div>
@@ -624,7 +744,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
 
           {displayCount < allMods.length && !isLoading && (
             <div className={styles.loadMore}>
-              Showing {displayCount.toLocaleString()} of {allMods.length.toLocaleString()} — scroll for more
+              {t('modlist.showMore', { shown: displayCount.toLocaleString(), total: allMods.length.toLocaleString() })}
             </div>
           )}
 
@@ -633,8 +753,8 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
             <div className={styles.unmanagedSection}>
               <div className={styles.unmanagedHeader}>
                 <FolderSearch size={16} />
-                <h3>Detected in GameData ({unmanagedMods.length})</h3>
-                <span className={styles.unmanagedHint}>Not managed by CKAN</span>
+                <h3>{t('modlist.unmanaged.title')} ({unmanagedMods.length})</h3>
+                <span className={styles.unmanagedHint}>{t('modlist.unmanaged.hint')}</span>
               </div>
               <div className={styles.unmanagedList}>
                 {unmanagedMods.map((mod) => (
@@ -648,7 +768,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                         {mod.file_count} files &middot; {registryService.formatSize(mod.size)}
                       </span>
                     </div>
-                    <span className={styles.unmanagedBadge}>Manual</span>
+                    <span className={styles.unmanagedBadge}>{t('modlist.unmanaged.badge')}</span>
                   </div>
                 ))}
               </div>
@@ -658,14 +778,14 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           {view === 'installed' && !hasScanned && isScanning && (
             <div className={styles.scanningBar}>
               <Loader2 size={14} className={styles.spin} />
-              <span>Scanning GameData for manually installed mods...</span>
+              <span>{t('modlist.unmanaged.scanning')}</span>
             </div>
           )}
 
           {view === 'installed' && hasScanned && unmanagedMods.length === 0 && allMods.length === 0 && (
             <div className={styles.scanResult}>
               <FolderSearch size={16} />
-              <span>No manually installed mods detected in GameData</span>
+              <span>{t('modlist.unmanaged.none')}</span>
             </div>
           )}
         </div>
@@ -703,11 +823,9 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
               <div className={styles.providerModalHeader}>
                 <Package size={18} />
                 <div>
-                  <h3>Choose a Provider</h3>
+                  <h3>{t('modlist.provider.title')}</h3>
                   <p>
-                    <strong>{providerChoice.requester}</strong> requires{' '}
-                    <strong>{providerChoice.requested}</strong>, which can be provided by
-                    multiple mods. Select one:
+                    {t('modlist.provider.desc', { requester: providerChoice.requester, requested: providerChoice.requested })}
                   </p>
                 </div>
                 <button className={styles.providerModalClose} onClick={() => setProviderChoice(null)}>
@@ -736,7 +854,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
               </div>
               <div className={styles.providerModalFooter}>
                 <button className={styles.providerCancelBtn} onClick={() => setProviderChoice(null)}>
-                  Cancel
+                  {t('modlist.provider.cancel')}
                 </button>
               </div>
             </motion.div>
@@ -770,6 +888,7 @@ function ModDetailPanel({
 }: {
   mod: CkanModule; onClose: () => void; onInstall: () => void; installing?: boolean;
 }) {
+  const { t } = useT();
   const installed = registryService.isInstalled(mod.identifier);
   return (
     <motion.aside
@@ -794,14 +913,14 @@ function ModDetailPanel({
         )}
         <div className={styles.detailStats}>
           <div className={styles.detailStat}>
-            <Download size={14} /><span>{mod.download_count.toLocaleString()} downloads</span>
+            <Download size={14} /><span>{mod.download_count.toLocaleString()} {t('modlist.detail.downloadPlural')}</span>
           </div>
           <div className={styles.detailStat}>
-            <HardDrive size={14} /><span>{registryService.formatSize(mod.download_size)} download</span>
+            <HardDrive size={14} /><span>{registryService.formatSize(mod.download_size)} {t('modlist.detail.download')}</span>
           </div>
           {mod.install_size > 0 && (
             <div className={styles.detailStat}>
-              <HardDrive size={14} /><span>{registryService.formatSize(mod.install_size)} installed</span>
+              <HardDrive size={14} /><span>{registryService.formatSize(mod.install_size)} {t('modlist.detail.installedSize')}</span>
             </div>
           )}
           <div className={styles.detailStat}>
@@ -817,13 +936,13 @@ function ModDetailPanel({
           <div className={styles.detailSection}>
             <h3><Tag size={14} /> Tags</h3>
             <div className={styles.detailTags}>
-              {mod.tags.map((t) => <span key={t} className={styles.detailTag}>{t}</span>)}
+              {mod.tags.map((tag) => <span key={tag} className={styles.detailTag}>{tag}</span>)}
             </div>
           </div>
         )}
         {(mod.ksp_version || mod.ksp_version_min || mod.ksp_version_max) && (
           <div className={styles.detailSection}>
-            <h3>Compatibility</h3>
+            <h3>{t('modlist.detail.compatibility')}</h3>
             <p className={styles.detailCompat}>
               {mod.ksp_version ? `KSP ${mod.ksp_version}` : `KSP ${mod.ksp_version_min || '?'} — ${mod.ksp_version_max || 'latest'}`}
             </p>
@@ -831,7 +950,7 @@ function ModDetailPanel({
         )}
         {mod.depends.length > 0 && (
           <div className={styles.detailSection}>
-            <h3>Dependencies ({mod.depends.length})</h3>
+            <h3>{t('modlist.detail.dependencies')} ({mod.depends.length})</h3>
             <div className={styles.depList}>
               {mod.depends.map((d, i) => <span key={i} className={styles.depItem}>{d.name}</span>)}
             </div>
@@ -839,7 +958,7 @@ function ModDetailPanel({
         )}
         {mod.conflicts.length > 0 && (
           <div className={styles.detailSection}>
-            <h3>Conflicts ({mod.conflicts.length})</h3>
+            <h3>{t('modlist.detail.conflicts')} ({mod.conflicts.length})</h3>
             <div className={styles.depList}>
               {mod.conflicts.map((d, i) => <span key={i} className={styles.depItemConflict}>{d.name}</span>)}
             </div>
@@ -847,7 +966,7 @@ function ModDetailPanel({
         )}
         {mod.version_count > 1 && (
           <div className={styles.detailSection}>
-            <h3>Versions ({mod.version_count})</h3>
+            <h3>{t('modlist.detail.versions')} ({mod.version_count})</h3>
             <div className={styles.versionList}>
               {mod.all_versions.slice(0, 10).map((v) => <span key={v} className={styles.versionItem}>{v}</span>)}
               {mod.all_versions.length > 10 && <span className={styles.versionMore}>+{mod.all_versions.length - 10} more</span>}
@@ -858,10 +977,10 @@ function ModDetailPanel({
           <div className={styles.detailSection}>
             <h3><ExternalLink size={14} /> Links</h3>
             <div className={styles.linkList}>
-              {mod.resources.homepage && <a href={mod.resources.homepage} target="_blank" rel="noopener" className={styles.link}>Homepage</a>}
-              {mod.resources.repository && <a href={mod.resources.repository} target="_blank" rel="noopener" className={styles.link}>Source Code</a>}
-              {mod.resources.spacedock && <a href={mod.resources.spacedock} target="_blank" rel="noopener" className={styles.link}>SpaceDock</a>}
-              {mod.resources.bugtracker && <a href={mod.resources.bugtracker} target="_blank" rel="noopener" className={styles.link}>Bug Tracker</a>}
+              {mod.resources.homepage && <a href={mod.resources.homepage} target="_blank" rel="noopener" className={styles.link}>{t('modlist.detail.homepage')}</a>}
+              {mod.resources.repository && <a href={mod.resources.repository} target="_blank" rel="noopener" className={styles.link}>{t('modlist.detail.source')}</a>}
+              {mod.resources.spacedock && <a href={mod.resources.spacedock} target="_blank" rel="noopener" className={styles.link}>{t('modlist.detail.spacedock')}</a>}
+              {mod.resources.bugtracker && <a href={mod.resources.bugtracker} target="_blank" rel="noopener" className={styles.link}>{t('modlist.detail.bugtracker')}</a>}
             </div>
           </div>
         )}
@@ -873,8 +992,8 @@ function ModDetailPanel({
           disabled={installing}
         >
           {installing ? (
-            <><Loader2 size={14} className={styles.spin} /> Working...</>
-          ) : installed ? 'Uninstall' : 'Install Mod'}
+            <><Loader2 size={14} className={styles.spin} /> {t('modlist.working')}</>
+          ) : installed ? t('modlist.uninstall') : t('modlist.installMod')}
         </button>
       </div>
     </motion.aside>

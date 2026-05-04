@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen, BookMarked } from 'lucide-react';
+import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import AIChatPanel from '../AIChat/AIChatPanel';
 import { registryService } from '../../services/registry';
+import ckanIpc from '../../services/ipc';
+import { useT } from '../../i18n';
 import styles from './Layout.module.css';
 
 export type NavItem = 'available' | 'installed' | 'downloads' | 'instances' | 'repos' | 'settings';
@@ -21,31 +23,58 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, activePage = 'available', onNavigate }: LayoutProps) {
+  const { t } = useT();
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [navExpanded, setNavExpanded] = useState(true);
   const [modCount, setModCount] = useState(0);
   const [installedCount, setInstalledCount] = useState(0);
 
+  // Fetch the real installed count from the backend
+  const refreshInstalledCount = () => {
+    if (!ckanIpc.isConnected()) return;
+    ckanIpc.call<any, any>('mod:list-installed', {}).then((result) => {
+      if (result?.mods && Array.isArray(result.mods)) {
+        setInstalledCount(result.mods.length);
+      }
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     registryService.load().then(() => {
       setModCount(registryService.getModuleCount());
-      setInstalledCount(registryService.getInstalledCount());
     });
+    refreshInstalledCount();
   }, []);
 
-  // Refresh installed count when navigating
+  // Listen for any event that changes counts and re-fetch from backend
   useEffect(() => {
-    setInstalledCount(registryService.getInstalledCount());
-  }, [activePage]);
+    const unsub1 = ckanIpc.on('instance:switched', (data: any) => {
+      registryService.clearInstalled();
+      if (data?.modCount != null) setModCount(data.modCount);
+      if (data?.installedCount != null) setInstalledCount(data.installedCount);
+    });
+    const unsub2 = ckanIpc.on('repo:refresh-complete', (data: any) => {
+      if (data?.modCount != null) setModCount(data.modCount);
+      // Installed count may also change after refresh
+      refreshInstalledCount();
+    });
+    // After install/uninstall completes, re-fetch the real count from backend
+    // (don't do naive +1/-1 — installs bring dependencies, count can jump)
+    const unsub3 = ckanIpc.on('install:complete', () => {
+      refreshInstalledCount();
+    });
+    const unsub4 = ckanIpc.on('uninstall:complete', () => {
+      refreshInstalledCount();
+    });
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
+  }, []);
 
   const navItems: NavItemDef[] = [
-    { id: 'available', label: 'Available', icon: <Package size={20} />, badge: modCount || undefined },
-    { id: 'installed', label: 'Installed', icon: <FolderOpen size={20} />, badge: installedCount || undefined },
-    { id: 'downloads', label: 'Downloads', icon: <Download size={20} /> },
-    { id: 'instances', label: 'Instances', icon: <Database size={20} /> },
-    // FIX: Added missing Repos nav item — ReposPage existed but was unreachable
-    { id: 'repos', label: 'Repositories', icon: <BookMarked size={20} /> },
-    { id: 'settings', label: 'Settings', icon: <Settings size={20} /> },
+    { id: 'available', label: t('nav.available'), icon: <Package size={20} />, badge: modCount || undefined },
+    { id: 'installed', label: t('nav.installed'), icon: <FolderOpen size={20} />, badge: installedCount || undefined },
+    { id: 'downloads', label: t('nav.downloads'), icon: <Download size={20} /> },
+    { id: 'instances', label: t('nav.instances'), icon: <Database size={20} /> },
+    { id: 'settings', label: t('nav.settings'), icon: <Settings size={20} /> },
   ];
 
   return (
@@ -81,21 +110,21 @@ export default function Layout({ children, activePage = 'available', onNavigate 
             <button
               className={`${styles.navItem} ${aiPanelOpen ? styles.navItemActive : ''}`}
               onClick={() => setAiPanelOpen(!aiPanelOpen)}
-              title="AI Assistant"
+              title={t('nav.aiAssistant')}
             >
               <span className={styles.navIcon}><Bot size={20} /></span>
-              {navExpanded && <span className={styles.navLabel}>AI Assistant</span>}
+              {navExpanded && <span className={styles.navLabel}>{t('nav.aiAssistant')}</span>}
             </button>
 
             <button
               className={styles.navItem}
               onClick={() => setNavExpanded(!navExpanded)}
-              title={navExpanded ? 'Collapse' : 'Expand'}
+              title={navExpanded ? t('nav.collapse') : t('nav.expand')}
             >
               <span className={styles.navIcon}>
                 {navExpanded ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
               </span>
-              {navExpanded && <span className={styles.navLabel}>Collapse</span>}
+              {navExpanded && <span className={styles.navLabel}>{t('nav.collapse')}</span>}
             </button>
           </div>
         </nav>
@@ -119,10 +148,10 @@ export default function Layout({ children, activePage = 'available', onNavigate 
       <footer className={styles.statusBar}>
         <div className={styles.statusLeft}>
           <span className={styles.statusDot} />
-          <span>{modCount > 0 ? `${modCount.toLocaleString()} mods loaded` : 'Loading registry...'}</span>
+          <span>{modCount > 0 ? t('nav.modsLoaded', { count: modCount.toLocaleString() }) : t('nav.loadingRegistry')}</span>
         </div>
         <div className={styles.statusRight}>
-          <span>{installedCount} installed</span>
+          <span>{t('nav.installed.count', { count: installedCount })}</span>
           <span className={styles.statusSep}>|</span>
           <span>v2.0.0-dev</span>
         </div>
