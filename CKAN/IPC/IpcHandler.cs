@@ -77,13 +77,6 @@ public sealed class IpcHandler : IDisposable
     /// </summary>
     public void AutoRefreshOnStartup()
     {
-        // Wire up download acceleration for CN users
-        NetAsyncDownloader.SetUriAccelerator(DownloadAccelerator.AccelerateUri);
-        if (DownloadAccelerator.ShouldAccelerate)
-        {
-            log.Info("[IPC] CN user detected — download acceleration enabled");
-        }
-
         if (_instanceManager == null || _registryManager == null)
         {
             log.Info("[IPC] Skipping auto-refresh: no active instance");
@@ -187,10 +180,6 @@ public sealed class IpcHandler : IDisposable
             "repo:refresh"        => await HandleRepoRefresh(request.Args),
             "repo:set-mirror"     => HandleSetMirror(request.Args),
             "repo:get-mirror"     => HandleGetMirror(),
-
-            // ─── Download Acceleration ───
-            "accel:get-status"    => HandleAccelGetStatus(),
-            "accel:set-enabled"   => HandleAccelSetEnabled(request.Args),
 
             _ => throw new InvalidOperationException($"Unknown IPC channel: {request.Channel}")
         };
@@ -1084,27 +1073,6 @@ public sealed class IpcHandler : IDisposable
     private object? HandleGetMirror()
     {
         return new { success = true, url = _customMirrorUrl ?? "" };
-    }
-
-    private object? HandleAccelGetStatus()
-    {
-        return DownloadAccelerator.GetStatus();
-    }
-
-    private object? HandleAccelSetEnabled(JToken? args)
-    {
-        var enabled = args?["enabled"]?.Value<bool>() ?? true;
-        DownloadAccelerator.Enabled = enabled;
-        if (!enabled)
-        {
-            // Also clear the accelerator hook
-            NetAsyncDownloader.SetUriAccelerator(null);
-        }
-        else
-        {
-            NetAsyncDownloader.SetUriAccelerator(DownloadAccelerator.AccelerateUri);
-        }
-        return DownloadAccelerator.GetStatus();
     }
 
     public void Dispose()

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Zap, Database, LogIn, LogOut, Mail, AlertCircle, Sun, Moon, Palette, Key, Check, X, Globe, Rocket } from 'lucide-react';
+import { User, Zap, Database, LogIn, LogOut, Mail, AlertCircle, Sun, Moon, Palette, Key, Check, X, Globe } from 'lucide-react';
 import { authService } from '../services/auth';
 import type { AuthState } from '../services/auth';
 import { isSupabaseConfigured } from '../services/supabase';
@@ -40,35 +40,21 @@ export default function SettingsPage() {
     github: 'https://github.com/KSP-CKAN/CKAN-meta/archive/master.tar.gz',
     gitee: 'https://gitee.com/KSP-CKAN-mirror/CKAN-meta/repository/archive/master.tar.gz',
   };
-  const [mirrorMode, setMirrorMode] = useState<'auto' | 'github' | 'gitee' | 'custom'>(() => {
+  const [mirrorMode, setMirrorMode] = useState<'github' | 'gitee' | 'custom'>(() => {
     const saved = localStorage.getItem('ckan_mirror_mode');
-    return (saved as 'auto' | 'github' | 'gitee' | 'custom') || 'auto';
+    return (saved as 'github' | 'gitee' | 'custom') || 'github';
   });
   const [customMirrorUrl, setCustomMirrorUrl] = useState(() => {
     return localStorage.getItem('ckan_mirror_custom') || '';
   });
   const [mirrorSaved, setMirrorSaved] = useState(false);
 
-  // Download acceleration state
-  const [accelEnabled, setAccelEnabled] = useState(true);
-  const [accelCnUser, setAccelCnUser] = useState(false);
-  const [accelProxy, setAccelProxy] = useState('');
-
-  const handleMirrorChange = (mode: 'auto' | 'github' | 'gitee' | 'custom') => {
+  const handleMirrorChange = (mode: 'github' | 'gitee' | 'custom') => {
     setMirrorMode(mode);
     localStorage.setItem('ckan_mirror_mode', mode);
-    if (mode === 'auto') {
-      // In auto mode, let the backend decide based on region
-      // If CN user, use Gitee; otherwise, use GitHub
-      const url = accelCnUser ? MIRROR_PRESETS.gitee : MIRROR_PRESETS.github;
-      if (ckanIpc.isConnected()) {
-        ckanIpc.call('repo:set-mirror', { url }).catch(() => {});
-      }
-    } else {
-      const url = mode === 'custom' ? customMirrorUrl : (MIRROR_PRESETS[mode] || '');
-      if (url && ckanIpc.isConnected()) {
-        ckanIpc.call('repo:set-mirror', { url }).catch(() => {});
-      }
+    const url = mode === 'custom' ? customMirrorUrl : (MIRROR_PRESETS[mode] || '');
+    if (url && ckanIpc.isConnected()) {
+      ckanIpc.call('repo:set-mirror', { url }).catch(() => {});
     }
     setMirrorSaved(true);
     setTimeout(() => setMirrorSaved(false), 2000);
@@ -99,23 +85,6 @@ export default function SettingsPage() {
               setMirrorMode('custom');
               setCustomMirrorUrl(result.url);
             }
-          }
-        }
-      }).catch(() => {});
-
-      // Load download acceleration status
-      ckanIpc.call<any, any>('accel:get-status', {}).then((status) => {
-        if (status) {
-          setAccelEnabled(status.enabled ?? true);
-          setAccelCnUser(status.isCnUser ?? false);
-          setAccelProxy(status.activeProxy ?? '');
-
-          // If in auto mode and we now know the region, set the right mirror
-          const saved = localStorage.getItem('ckan_mirror_mode');
-          if (!saved || saved === 'auto') {
-            setMirrorMode('auto');
-            const url = status.isCnUser ? MIRROR_PRESETS.gitee : MIRROR_PRESETS.github;
-            ckanIpc.call('repo:set-mirror', { url }).catch(() => {});
           }
         }
       }).catch(() => {});
@@ -406,9 +375,7 @@ export default function SettingsPage() {
                 <div>
                   <div className={styles.settingLabel}>{t('settings.mirror')}</div>
                   <div className={styles.settingDesc}>
-                    {mirrorMode === 'auto'
-                      ? (accelCnUser ? t('settings.mirror.autoDetectedCN') : t('settings.mirror.autoDetectedInt'))
-                      : t('settings.mirror.hint')}
+                    {t('settings.mirror.hint')}
                   </div>
                 </div>
                 {mirrorSaved && (
@@ -418,13 +385,6 @@ export default function SettingsPage() {
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button
-                  className={mirrorMode === 'auto' ? styles.btnPrimary : styles.btnSecondary}
-                  onClick={() => handleMirrorChange('auto')}
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                >
-                  {t('settings.mirror.auto')}
-                </button>
                 <button
                   className={mirrorMode === 'github' ? styles.btnPrimary : styles.btnSecondary}
                   onClick={() => handleMirrorChange('github')}
@@ -467,34 +427,6 @@ export default function SettingsPage() {
                   </button>
                 </div>
               )}
-            </div>
-            <div className={styles.divider} />
-            <div className={styles.settingRow}>
-              <div>
-                <div className={styles.settingLabel}>
-                  <Rocket size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />
-                  {t('settings.accel')}
-                </div>
-                <div className={styles.settingDesc}>
-                  {accelCnUser
-                    ? t('settings.accel.cnDetected')
-                    : t('settings.accel.intDetected')}
-                  {accelProxy && accelEnabled && ` · ${t('settings.accel.via')} ${accelProxy.replace('https://', '').replace('/', '')}`}
-                </div>
-              </div>
-              <button
-                className={accelEnabled ? styles.btnPrimary : styles.btnSecondary}
-                onClick={() => {
-                  const newVal = !accelEnabled;
-                  setAccelEnabled(newVal);
-                  if (ckanIpc.isConnected()) {
-                    ckanIpc.call('accel:set-enabled', { enabled: newVal }).catch(() => {});
-                  }
-                }}
-                style={{ padding: '6px 12px', fontSize: '12px', minWidth: 60 }}
-              >
-                {accelEnabled ? t('common.on') : t('common.off')}
-              </button>
             </div>
           </div>
         </div>

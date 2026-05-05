@@ -29,13 +29,6 @@ namespace CKAN
 
         private readonly object dlMutex = new object();
 
-        /// <summary>
-        /// Set a URI rewriter for download acceleration (e.g. GitHub proxy for CN users).
-        /// </summary>
-        public static void SetUriAccelerator(Func<Uri, Uri>? accelerator)
-        {
-            DownloadPart.UriAccelerator = accelerator;
-        }
         private readonly List<DownloadPart> downloads       = new List<DownloadPart>();
         private readonly List<DownloadPart> queuedDownloads = new List<DownloadPart>();
         private int completed_downloads;

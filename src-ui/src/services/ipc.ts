@@ -38,8 +38,7 @@ export type IpcChannel =
   | 'repo:refresh'
   | 'repo:set-mirror'
   | 'repo:get-mirror'
-  | 'accel:get-status'
-  | 'accel:set-enabled';
+;
 
 export interface IpcRequest<T = unknown> {
   channel: IpcChannel;

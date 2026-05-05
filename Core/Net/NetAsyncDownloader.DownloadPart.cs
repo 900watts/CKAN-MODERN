@@ -33,12 +33,6 @@ namespace CKAN
             private readonly HashAlgorithm?     hasher;
             private          ResumingWebClient? agent;
 
-            /// <summary>
-            /// Optional URL rewriter for download acceleration (e.g. CN proxy).
-            /// Set by the host application; null = no rewriting.
-            /// </summary>
-            public static Func<Uri, Uri>? UriAccelerator { get; set; }
-
             public DownloadPart(DownloadTarget target,
                                 string         userAgent,
                                 HashAlgorithm? hasher)
@@ -53,11 +47,6 @@ namespace CKAN
             public void Download(CancellationToken? cancelToken = default)
             {
                 var url = CurrentUri;
-                // Apply download acceleration (e.g. GitHub proxy for CN users)
-                if (UriAccelerator != null)
-                {
-                    url = UriAccelerator(url);
-                }
                 ResetAgent();
                 // Check whether to use an auth token for this host
                 if (agent != null)
