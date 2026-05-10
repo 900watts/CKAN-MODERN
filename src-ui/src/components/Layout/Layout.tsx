@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen, Rocket } from 'lucide-react';
 import AIChatPanel from '../AIChat/AIChatPanel';
 import UpdateBanner from '../UpdateBanner/UpdateBanner';
 import { registryService } from '../../services/registry';
@@ -8,7 +8,7 @@ import ckanIpc from '../../services/ipc';
 import { useT } from '../../i18n';
 import styles from './Layout.module.css';
 
-export type NavItem = 'available' | 'installed' | 'downloads' | 'instances' | 'repos' | 'settings';
+export type NavItem = 'available' | 'installed' | 'downloads' | 'instances' | 'mission-control' | 'repos' | 'settings';
 
 interface NavItemDef {
   id: NavItem;
@@ -31,14 +31,14 @@ export default function Layout({ children, activePage = 'available', onNavigate 
   const [installedCount, setInstalledCount] = useState(0);
 
   // Fetch the real installed count from the backend
-  const refreshInstalledCount = () => {
+  const refreshInstalledCount = useCallback(() => {
     if (!ckanIpc.isConnected()) return;
     ckanIpc.call<any, any>('mod:list-installed', {}).then((result) => {
       if (result?.mods && Array.isArray(result.mods)) {
         setInstalledCount(result.mods.length);
       }
     }).catch(() => {});
-  };
+  }, []);
 
   useEffect(() => {
     registryService.load().then(() => {
@@ -75,6 +75,7 @@ export default function Layout({ children, activePage = 'available', onNavigate 
     { id: 'installed', label: t('nav.installed'), icon: <FolderOpen size={20} />, badge: installedCount || undefined },
     { id: 'downloads', label: t('nav.downloads'), icon: <Download size={20} /> },
     { id: 'instances', label: t('nav.instances'), icon: <Database size={20} /> },
+    { id: 'mission-control', label: t('nav.missionControl'), icon: <Rocket size={20} /> },
     { id: 'settings', label: t('nav.settings'), icon: <Settings size={20} /> },
   ];
 

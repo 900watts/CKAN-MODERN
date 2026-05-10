@@ -29,7 +29,7 @@ interface LayoutProps {
 
 export default function Layout({ children, activePage = 'available', onNavigate }: LayoutProps) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
-  const [navExpanded, setNavExpanded] = useState(true);
+  const [navExpanded, _setNavExpanded] = useState(true);
 
   return (
     <div className={styles.layout}>

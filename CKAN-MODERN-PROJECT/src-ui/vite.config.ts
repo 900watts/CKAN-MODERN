@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: './',
   build: {
-    outDir: '../CKAN/wwwroot',
+    outDir: '../wwwroot',
     emptyOutDir: true,
   },
   server: {

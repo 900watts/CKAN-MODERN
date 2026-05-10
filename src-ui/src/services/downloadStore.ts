@@ -38,6 +38,8 @@ function upsert(id: string, patch: Partial<Operation>) {
 }
 
 function init() {
+  // Reset on init to prevent stale data from React StrictMode double-mounts
+  _ops = [];
   if (_initialized) return;
   _initialized = true;
 

@@ -5,8 +5,10 @@ import ModListPage from './pages/ModListPage';
 import SettingsPage from './pages/SettingsPage';
 import InstancesPage from './pages/InstancesPage';
 import DownloadsPage from './pages/DownloadsPage';
+import MissionControl from './kerbal-control/MissionControl';
 import { ckanIpc } from './services/ipc';
 import { downloadStore } from './services/downloadStore';
+import { worldContext } from './kerbal-control/WorldContext';
 
 // Initialize download store listeners early so events are captured
 // even before the Downloads tab is opened
@@ -27,6 +29,12 @@ function App() {
     setInstallTick((t) => t + 1);
   }, []);
 
+  const handleNavigate = useCallback((page: NavItem) => {
+    setActivePage(page);
+    worldContext.setPage(page);
+    worldContext.markActivity();
+  }, []);
+
   const renderPage = () => {
     switch (activePage) {
       case 'available':
@@ -38,13 +46,15 @@ function App() {
         return <InstancesPage />;
       case 'downloads':
         return <DownloadsPage />;
+      case 'mission-control':
+        return <MissionControl />;
       default:
         return <ModListPage view="available" onInstallChange={handleInstallChange} installTick={installTick} />;
     }
   };
 
   return (
-    <Layout activePage={activePage} onNavigate={setActivePage}>
+    <Layout activePage={activePage} onNavigate={handleNavigate}>
       {renderPage()}
     </Layout>
   );

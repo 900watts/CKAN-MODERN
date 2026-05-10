@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Filter, Grid3X3, List, Package, Download, Check, Trash2, Update, X } from 'lucide-react';
+import { Search, Filter, Grid3X3, List, Package, Download, Check, Trash2, RefreshCw, X } from 'lucide-react';
 import { ckanIpc } from '../services/ipc';
 import styles from './ModListPage.module.css';
 
@@ -276,7 +276,7 @@ export default function ModListPage({ view }: ModListPageProps) {
                   <div className={styles.modRowInfo}>
                     <span className={styles.modRowName}>
                       {mod.name}
-                      {mod.hasUpdate && <Update size={12} className={styles.updateIcon} />}
+                      {mod.hasUpdate && <RefreshCw size={12} className={styles.updateIcon} />}
                     </span>
                     <span className={styles.modRowAbstract}>{mod.abstract}</span>
                   </div>

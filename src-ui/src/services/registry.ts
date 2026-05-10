@@ -82,6 +82,12 @@ class RegistryService {
           if (saved) this.installedIds = new Set(JSON.parse(saved));
         } catch {}
         return data;
+      })
+      .catch((err) => {
+        // Reset loading on failure so subsequent calls retry instead of
+        // returning the same rejected promise forever.
+        this.loading = null;
+        throw err;
       });
 
     return this.loading;

@@ -22,7 +22,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsNotAsErrors>CS0618</WarningsNotAsErrors>
-    <NoWarn>IDE1006,NU1701,CS1591</NoWarn>
+    <NoWarn>IDE1006,NU1701,NU1901,NU1902,NU1903,NU1904,CS1591</NoWarn>
     <TargetFrameworks>net481;net8.0-windows</TargetFrameworks>
     <BaseTargetFramework>$(TargetFramework.Replace("-windows", ""))</BaseTargetFramework>
     <UseWindowsForms Condition=" '$(TargetFramework)' == 'net8.0-windows' ">true</UseWindowsForms>

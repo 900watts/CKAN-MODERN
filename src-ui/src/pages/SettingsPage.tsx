@@ -3,10 +3,13 @@ import { User, Zap, Database, LogIn, LogOut, Mail, AlertCircle, Sun, Moon, Palet
 import { authService } from '../services/auth';
 import type { AuthState } from '../services/auth';
 import { isSupabaseConfigured } from '../services/supabase';
-import { aiService, AI_PROVIDERS, getCustomApiKey, setApiKey, clearApiKeyFor } from '../services/ai';
+import { aiService, AI_PROVIDERS, getCustomApiKey, setApiKey, clearApiKeyFor, getKerbalModelOverride, setKerbalModelOverride } from '../services/ai';
 import type { CustomProvider } from '../services/ai';
 import { themeService } from '../services/theme';
 import type { Theme } from '../services/theme';
+import { i18n, t } from '../services/i18n';
+import type { Language } from '../services/i18n';
+import { idleBanter } from '../kerbal-control/Chat/IdleBanter';
 import styles from './SettingsPage.module.css';
 
 export default function SettingsPage() {
@@ -21,6 +24,16 @@ export default function SettingsPage() {
 
   // Theme state
   const [theme, setTheme] = useState<Theme>(themeService.getTheme());
+
+  const [idleChatEnabled, setIdleChatEnabled] = useState(() => idleBanter.getConfig().enabled);
+  const [kerbalModel, setKerbalModel] = useState(() => getKerbalModelOverride());
+  const [language, setLanguage] = useState<Language>(i18n.language);
+
+  const handleToggleIdleChat = () => {
+    const next = !idleChatEnabled;
+    setIdleChatEnabled(next);
+    idleBanter.updateConfig({ enabled: next });
+  };
 
   // API key state
   const providers = Object.keys(AI_PROVIDERS) as CustomProvider[];
@@ -50,6 +63,13 @@ export default function SettingsPage() {
 
   useEffect(() => {
     return themeService.onChange(setTheme);
+  }, []);
+
+  useEffect(() => {
+    return i18n.subscribe(() => setLanguage((prev) => {
+      const cur = i18n.language;
+      return prev === cur ? prev : cur;
+    }));
   }, []);
 
   const handleEmailAuth = async () => {
@@ -192,6 +212,29 @@ export default function SettingsPage() {
                 {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
               </button>
             </div>
+            <div className={styles.divider} />
+            <div className={styles.settingRow}>
+              <div>
+                <div className={styles.settingLabel}>{t('settings.language')}</div>
+                <div className={styles.settingDesc}>{t('settings.languageDesc')}</div>
+              </div>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  className={language === 'en' ? styles.btnPrimary : styles.btnSecondary}
+                  onClick={() => { setLanguage('en'); i18n.setLanguage('en'); }}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                >
+                  EN
+                </button>
+                <button
+                  className={language === 'zh' ? styles.btnPrimary : styles.btnSecondary}
+                  onClick={() => { setLanguage('zh'); i18n.setLanguage('zh'); }}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                >
+                  中文
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -210,6 +253,53 @@ export default function SettingsPage() {
                 </div>
               </div>
               <span className={styles.tierBadge}>FREE</span>
+            </div>
+            <div className={styles.divider} />
+            <div className={styles.settingRow}>
+              <div>
+                <div className={styles.settingLabel}>Mission Control Chatter</div>
+                <div className={styles.settingDesc}>
+                  {idleChatEnabled
+                    ? 'Kerbals chat with each other when you\'re idle'
+                    : 'Kerbals only respond when you message them'}
+                </div>
+              </div>
+              <button
+                className={idleChatEnabled ? styles.btnPrimary : styles.btnSecondary}
+                onClick={handleToggleIdleChat}
+                style={{ padding: '6px 14px', fontSize: '12px', minWidth: '70px' }}
+              >
+                {idleChatEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            {idleChatEnabled && (
+              <>
+                <div className={styles.divider} />
+                <div style={{ padding: '8px 0', fontSize: '11px', color: 'var(--color-warning)', lineHeight: '1.5' }}>
+                  Kerbals will autonomously chat with each other when you're idle. This consumes AI API calls. Disable anytime if you prefer kerbals only respond when spoken to.
+                </div>
+              </>
+            )}
+            <div className={styles.divider} />
+            <div className={styles.settingRow}>
+              <div>
+                <div className={styles.settingLabel}>Kerbal Chat Model</div>
+                <div className={styles.settingDesc}>
+                  Specific AI model for kerbals. Leave empty for system default. Example: kimi-k2.6:cloud
+                </div>
+              </div>
+              <input
+                className={styles.apiKeyInput}
+                type="text"
+                placeholder="Auto"
+                value={kerbalModel}
+                onChange={(e) => setKerbalModel(e.target.value)}
+                onBlur={() => setKerbalModelOverride(kerbalModel)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setKerbalModelOverride(kerbalModel);
+                }}
+                style={{ width: '140px', padding: '6px 10px', fontSize: '12px' }}
+              />
             </div>
             <div className={styles.divider} />
             <div className={styles.settingRow}>
@@ -239,12 +329,18 @@ export default function SettingsPage() {
             <div className={styles.settingDesc} style={{ marginBottom: 12 }}>
               Connect your own API keys to use custom AI providers. Keys are stored locally in your browser.
             </div>
-            {providers.map((provider, i) => (
+            {providers.map((provider, i) => {
+              const isOllama = provider === 'ollama';
+              return (
               <div key={provider}>
                 {i > 0 && <div className={styles.divider} />}
                 <div className={styles.apiKeyRow}>
                   <div className={styles.providerLabel}>{AI_PROVIDERS[provider].label}</div>
-                  {savedKeys[provider] ? (
+                  {isOllama ? (
+                    <div className={styles.settingDesc} style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Check size={14} /> Runs locally — no API key needed
+                    </div>
+                  ) : savedKeys[provider] ? (
                     <div className={styles.apiKeySaved}>
                       <Check size={14} /> Key saved
                       <button className={styles.btnDanger} onClick={() => handleClearApiKey(provider)}>
@@ -273,7 +369,7 @@ export default function SettingsPage() {
                   )}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </div>
 

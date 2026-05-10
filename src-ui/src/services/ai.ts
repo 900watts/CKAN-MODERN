@@ -165,7 +165,7 @@ class AiService {
 
   async chat(
     messages: ChatMessage[],
-    options?: { signal?: AbortSignal }
+    options?: { signal?: AbortSignal; temperature?: number; topP?: number }
   ): Promise<AiChatResult> {
     // 1. Check auth
     const { data: { session } } = await supabase.auth.getSession();
@@ -195,7 +195,8 @@ class AiService {
         model: FREE_MODEL,
         messages: fullMessages,
         max_tokens: 1024,
-        temperature: 0.7,
+        temperature: options?.temperature ?? 0.7,
+        ...(options?.topP !== undefined ? { top_p: options.topP } : {}),
         stream: false,
       }),
       signal: options?.signal,
@@ -295,11 +296,14 @@ class AiService {
 export const aiService = new AiService();
 export default aiService;
 
+/** Sentinel returned when all AI retries produce empty responses. */
+export const EMPTY_RESPONSE = '(no response)';
+
 // ────────────────────────────────────────────────────────────────
 // Custom AI Provider Support
 // ────────────────────────────────────────────────────────────────
 
-export type CustomProvider = 'openrouter' | 'google' | 'openai' | 'siliconflow-cn' | 'siliconflow-int';
+export type CustomProvider = 'openrouter' | 'google' | 'openai' | 'siliconflow-cn' | 'siliconflow-int' | 'ollama';
 
 export interface ProviderConfig {
   label: string;
@@ -367,6 +371,20 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
       { id: 'zai-org/GLM-4.6', label: 'GLM 4.6' },
     ],
   },
+  'ollama': {
+    label: 'Ollama (Local)',
+    baseUrl: 'http://localhost:11434/v1',
+    openaiCompat: true,
+    allowCustomModel: true,
+    models: [
+      { id: 'llama3.2:latest', label: 'Llama 3.2' },
+      { id: 'qwen3:latest', label: 'Qwen3' },
+      { id: 'deepseek-coder-v2:latest', label: 'DeepSeek Coder V2' },
+      { id: 'mistral:latest', label: 'Mistral' },
+      { id: 'codellama:latest', label: 'Code Llama' },
+      { id: 'gemma3:latest', label: 'Gemma 3' },
+    ],
+  },
 };
 
 // ── localStorage key management ──
@@ -374,6 +392,7 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
 const STORAGE_PREFIX = 'ckan_ai_';
 
 export function getCustomApiKey(provider: CustomProvider): string | null {
+  if (provider === 'ollama') return 'ollama'; // local, no key needed
   return localStorage.getItem(`${STORAGE_PREFIX}key_${provider}`);
 }
 
@@ -387,13 +406,13 @@ export function clearApiKeyFor(provider: CustomProvider): void {
 
 export function hasAnyCustomKey(): boolean {
   return (Object.keys(AI_PROVIDERS) as CustomProvider[]).some(
-    (p) => !!getCustomApiKey(p)
+    (p) => p === 'ollama' || !!getCustomApiKey(p)
   );
 }
 
 export function getConfiguredProviders(): CustomProvider[] {
   return (Object.keys(AI_PROVIDERS) as CustomProvider[]).filter(
-    (p) => !!getCustomApiKey(p)
+    (p) => p === 'ollama' || !!getCustomApiKey(p)
   );
 }
 
@@ -415,39 +434,60 @@ export function setSelectedModel(provider: CustomProvider, model: string): void 
   localStorage.setItem(`${STORAGE_PREFIX}model_${provider}`, model);
 }
 
+export function getKerbalModelOverride(): string {
+  return localStorage.getItem(`${STORAGE_PREFIX}kerbal_model`) || '';
+}
+
+export function setKerbalModelOverride(model: string): void {
+  localStorage.setItem(`${STORAGE_PREFIX}kerbal_model`, model);
+}
+
 // ── Custom provider chat ──
+
+export interface CustomChatOptions {
+  signal?: AbortSignal;
+  temperature?: number;
+  topP?: number;
+  /** If true, skips prepending the CKAN SYSTEM_PROMPT (kerbals provide their own). */
+  noSystemPrompt?: boolean;
+}
 
 export async function chatWithCustomProvider(
   provider: CustomProvider,
   model: string,
   messages: ChatMessage[],
-  signal?: AbortSignal
+  options?: CustomChatOptions,
 ): Promise<AiChatResult> {
-  const apiKey = getCustomApiKey(provider);
-  if (!apiKey) throw new Error(`No API key set for ${AI_PROVIDERS[provider].label}. Add it in Settings.`);
+  const apiKey = provider === 'ollama' ? 'ollama' : getCustomApiKey(provider);
+  if (!apiKey && provider !== 'ollama') throw new Error(`No API key set for ${AI_PROVIDERS[provider].label}. Add it in Settings.`);
 
   const config = AI_PROVIDERS[provider];
-  const fullMessages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    ...messages,
-  ];
+  const fullMessages: ChatMessage[] = options?.noSystemPrompt
+    ? messages
+    : [{ role: 'system', content: SYSTEM_PROMPT }, ...messages];
 
   if (config.openaiCompat) {
-    // OpenAI-compatible format (OpenRouter, OpenAI, Silicon Flow)
+    const baseTemp = options?.temperature ?? 0.7;
+    const body: Record<string, unknown> = {
+      model,
+      messages: fullMessages,
+      max_tokens: provider === 'ollama' ? 300 : 1024,
+      temperature: baseTemp,
+    };
+    if (options?.topP !== undefined) body.top_p = options.topP;
+    // Ollama-specific: ensure we get a response
+    if (provider === 'ollama') {
+      body.options = { num_predict: 300 };
+    }
+
     const res = await fetch(`${config.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages: fullMessages,
-        max_tokens: 1024,
-        temperature: 0.7,
-        stream: false,
-      }),
-      signal,
+      body: JSON.stringify(body),
+      signal: options?.signal,
     });
 
     if (!res.ok) {
@@ -456,8 +496,63 @@ export async function chatWithCustomProvider(
     }
 
     const data = await res.json();
+    let reply = data.choices?.[0]?.message?.content;
+
+    // Retry with different params if empty
+    if (!reply) {
+      console.warn(`[ai] Empty response from ${config.label}, retrying...`);
+      // Retry 1: higher temperature + no max_tokens limit
+      try {
+        const retryBody = { ...body, temperature: Math.min(baseTemp + 0.2, 1.2) };
+        delete retryBody.max_tokens;
+        if (provider === 'ollama' && retryBody.options) {
+          (retryBody.options as Record<string, unknown>).num_predict = 256;
+        }
+        const r1 = await fetch(`${config.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify(retryBody),
+          signal: options?.signal,
+        });
+        if (r1.ok) {
+          const d1 = await r1.json();
+          reply = d1.choices?.[0]?.message?.content;
+        }
+      } catch { /* continue */ }
+
+      // Retry 2: minimal prompt — just the last user message
+      if (!reply) {
+        console.warn(`[ai] Retry 2: minimal prompt...`);
+        try {
+          const lastUser = fullMessages.filter(m => m.role === 'user').slice(-1);
+          const r2 = await fetch(`${config.baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: 'system', content: 'You are a KSP kerbal. Respond briefly in character.' },
+                ...lastUser,
+              ],
+              temperature: baseTemp + 0.1,
+              max_tokens: 200,
+            }),
+            signal: options?.signal,
+          });
+          if (r2.ok) {
+            const d2 = await r2.json();
+            reply = d2.choices?.[0]?.message?.content;
+          }
+        } catch { /* continue */ }
+      }
+    }
+
+    if (!reply) {
+      console.error(`[ai] All attempts empty for ${config.label}/${model}`);
+    }
+
     return {
-      reply: data.choices?.[0]?.message?.content || 'No response from model.',
+      reply: reply || EMPTY_RESPONSE,
       model,
       usage: data.usage,
       tier: 'custom',
@@ -483,9 +578,12 @@ export async function chatWithCustomProvider(
           ...(systemInstruction
             ? { systemInstruction: { parts: [{ text: systemInstruction.content }] } }
             : {}),
-          generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
+          generationConfig: {
+            maxOutputTokens: 1024,
+            temperature: options?.temperature ?? 0.7,
+          },
         }),
-        signal,
+        signal: options?.signal,
       }
     );
 
@@ -498,4 +596,70 @@ export async function chatWithCustomProvider(
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from model.';
     return { reply: text, model, tier: 'custom' };
   }
+}
+
+// ── Provider-aware unified chat (routes to the selected provider) ──
+
+let ollamaDetected: boolean | null = null;
+let ollamaModels: string[] | null = null;
+
+async function detectOllama(): Promise<boolean> {
+  if (ollamaDetected !== null) return ollamaDetected;
+  try {
+    const res = await fetch('http://localhost:11434/api/tags', {
+      signal: AbortSignal.timeout(800),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      ollamaModels = (data.models ?? []).map((m: { name: string }) => m.name);
+      ollamaDetected = true;
+    } else {
+      ollamaDetected = false;
+    }
+  } catch {
+    ollamaDetected = false;
+  }
+  return ollamaDetected;
+}
+
+function getOllamaAvailableModels(): string[] {
+  return ollamaModels ?? [];
+}
+
+async function resolveProvider(): Promise<CustomProvider | 'ckan-cloud'> {
+  const selected = getSelectedProvider();
+  const stored = localStorage.getItem(`${STORAGE_PREFIX}provider`);
+  if (stored) return selected;
+  if (await detectOllama()) return 'ollama';
+  return selected;
+}
+
+export async function chatViaProvider(
+  messages: ChatMessage[],
+  options?: CustomChatOptions,
+): Promise<AiChatResult> {
+  const provider = await resolveProvider();
+  if (provider === 'ckan-cloud') {
+    return aiService.chat(messages, {
+      signal: options?.signal,
+      temperature: options?.temperature,
+      topP: options?.topP,
+    });
+  }
+  let model = getSelectedModel(provider);
+  if (options?.noSystemPrompt) {
+    const kerbalOverride = getKerbalModelOverride();
+    if (kerbalOverride) model = kerbalOverride;
+  }
+  // For Ollama, if the saved model isn't actually available, use first detected model
+  if (provider === 'ollama') {
+    const available = getOllamaAvailableModels();
+    if (available.length > 0 && !available.includes(model)) {
+      model = available[0];
+    }
+  }
+  return chatWithCustomProvider(provider, model, messages, {
+    ...options,
+    noSystemPrompt: true, // kerbals supply their own soul as system prompt
+  });
 }

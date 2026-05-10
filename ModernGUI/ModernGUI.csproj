@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>..\assets\ckan.ico</ApplicationIcon>
-    <AssemblyName>CKAN</AssemblyName>
+    <AssemblyName>CKAN-Modern</AssemblyName>
     <RootNamespace>CKAN.GUI</RootNamespace>
     <Title>CKAN</Title>
     <Version>2.0.0</Version>
