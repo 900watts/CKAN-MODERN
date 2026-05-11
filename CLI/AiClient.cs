@@ -23,19 +23,37 @@ You are CKAN-CLI, an AI assistant that helps users manage Kerbal Space Program m
 
 You can perform the following actions by embedding them in your response:
 
-- [INSTALL:mod_identifier] — Install a mod by its identifier
-- [UNINSTALL:mod_identifier] — Uninstall a mod by its identifier  
-- [SEARCH:query] — Search for mods matching a query
-- [REFRESH_REPO] — Refresh the mod repository metadata
-- [LIST_INSTALLED] — List all currently installed mods
+- [INSTALL:mod_identifier] - Install a mod by its identifier
+- [UNINSTALL:mod_identifier] - Uninstall a mod by its identifier  
+- [SEARCH:query] - Search for mods matching a query
+- [REFRESH_REPO] - Refresh the mod repository metadata
+- [LIST_INSTALLED] - List all currently installed mods
 
 Guidelines:
 1. When the user asks to install, search, or manage mods, include the appropriate action command.
 2. Always explain what you're doing in natural language before or after the action.
 3. If the user asks a general question, answer conversationally without action commands.
-4. For searches, be specific — use the mod name or part of it that the user mentioned.
+4. For searches, be specific - use the mod name or part of it that the user mentioned.
 5. Keep responses concise and helpful.
 ";
+
+    /// <summary>System prompt with CLAUDE.md project context appended, if present.</summary>
+    private static readonly string FullSystemPrompt = InitFullPrompt();
+    private static string InitFullPrompt()
+    {
+        try
+        {
+            var path = Path.Combine(Directory.GetCurrentDirectory(), "CLAUDE.md");
+            if (File.Exists(path))
+            {
+                var content = File.ReadAllText(path).Trim();
+                if (!string.IsNullOrEmpty(content))
+                    return FullSystemPrompt + $"\n\n## Project Context (from CLAUDE.md)\n\n{content}";
+            }
+        }
+        catch { }
+        return FullSystemPrompt;
+    }
 
     public string ProviderName => _provider.Name;
     public string ModelName    => _model;
@@ -181,7 +199,7 @@ Guidelines:
                     .Where(m => m.Role != "system")
                     .Select(m => new { role = m.Role, content = m.Content })
                     .ToArray(),
-                system = _history.FirstOrDefault(m => m.Role == "system")?.Content ?? SystemPrompt
+                system = _history.FirstOrDefault(m => m.Role == "system")?.Content ?? FullSystemPrompt
             },
 
             _ => throw new InvalidOperationException($"Unknown provider: {_provider.Type}")
@@ -286,7 +304,7 @@ Guidelines:
 
     private List<ChatMessage> BuildMessageList()
     {
-        var msgs = new List<ChatMessage> { new("system", SystemPrompt) };
+        var msgs = new List<ChatMessage> { new("system", FullSystemPrompt) };
         msgs.AddRange(_history);
         return msgs;
     }
