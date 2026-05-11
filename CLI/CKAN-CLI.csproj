@@ -1,24 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <AssemblyName>CKAN-MCLI</AssemblyName>
-    <RootNamespace>CKAN.CLI</RootNamespace>
-    <LangVersion>12</LangVersion>
-    <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <NoWarn>NU1901,NU1902,NU1903,NU1904</NoWarn>
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
+    <Nullable>enable</Nullable>
+    <AssemblyName>CKAN-CLI</AssemblyName>
+    <RootNamespace>CKAN.CLI</RootNamespace>
+    <NoWarn>NU1903;NU1902;NU1901;NU1900</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="log4net" Version="2.0.17" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Core\CKAN-core.csproj" />
   </ItemGroup>
+
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="log4net" Version="2.0.15" />
+    <None Update="log4net.xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-  <ItemGroup>
-    <Content Include="..\Core\log4net.xml" Link="log4net.xml" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
+
 </Project>
