@@ -183,94 +183,6 @@ function drawBackpack(ctx: CanvasRenderingContext2D, opts: RenderOpts): void {
 }
 
 // ---------------------------------------------------------------------------
-// Chair (used only when sitting) — office chair with armrests
-// ---------------------------------------------------------------------------
-
-function drawChair(ctx: CanvasRenderingContext2D, opts: RenderOpts): void {
-  const s = opts.scale;
-  const x = opts.x;
-  const seatY = opts.y - 3 * s;
-
-  // Centre pillar + base
-  ctx.fillStyle = '#222222';
-  ctx.fillRect(x - 0.8 * s, seatY, 1.6 * s, opts.y - seatY + 2 * s);
-  // Star base
-  ctx.strokeStyle = '#333333';
-  ctx.lineWidth = 1.6 * s;
-  ctx.lineCap = 'round';
-  for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 2.5) {
-    ctx.beginPath();
-    ctx.moveTo(x, opts.y + 1.5 * s);
-    ctx.lineTo(x + Math.cos(angle) * 5.5 * s, opts.y + 2.5 * s);
-    ctx.stroke();
-  }
-  // Caster wheels
-  ctx.fillStyle = '#1a1a1a';
-  for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 2.5) {
-    ctx.beginPath();
-    ctx.arc(x + Math.cos(angle) * 5.5 * s, opts.y + 2.5 * s, 0.9 * s, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Seat cushion
-  ctx.fillStyle = '#3a3a3e';
-  ctx.strokeStyle = '#1e1e22';
-  ctx.lineWidth = 0.6 * s;
-  roundRect(ctx, x - 7 * s, seatY - 1.5 * s, 14 * s, 3 * s, 1.5 * s);
-  ctx.fill();
-  ctx.stroke();
-  // Seat highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
-  roundRect(ctx, x - 5.5 * s, seatY - 1.2 * s, 11 * s, 1.2 * s, 0.8 * s);
-  ctx.fill();
-
-  // Armrest posts
-  ctx.strokeStyle = '#2a2a2e';
-  ctx.lineWidth = 1.2 * s;
-  ctx.lineCap = 'round';
-  [-1, 1].forEach((side) => {
-    ctx.beginPath();
-    ctx.moveTo(x + side * 6 * s, seatY - 1 * s);
-    ctx.lineTo(x + side * 6 * s, opts.y - 7 * s);
-    ctx.stroke();
-  });
-
-  // Armrest pads
-  ctx.fillStyle = '#2e2e32';
-  [-1, 1].forEach((side) => {
-    roundRect(ctx, x + side * 6 * s - 2 * s, opts.y - 7.5 * s, 4 * s, 1.8 * s, 0.8 * s);
-    ctx.fill();
-  });
-
-  // Backrest posts
-  ctx.strokeStyle = '#2a2a2e';
-  ctx.lineWidth = 1 * s;
-  [-1, 1].forEach((side) => {
-    ctx.beginPath();
-    ctx.moveTo(x + side * 4.5 * s, seatY - 1 * s);
-    ctx.lineTo(x + side * 4.5 * s, opts.y - 16 * s);
-    ctx.stroke();
-  });
-
-  // Backrest (tall, visible behind kerbal)
-  ctx.fillStyle = '#3a3a3e';
-  ctx.strokeStyle = '#1e1e22';
-  ctx.lineWidth = 0.6 * s;
-  roundRect(ctx, x - 6.5 * s, opts.y - 17 * s, 13 * s, 10 * s, 2 * s);
-  ctx.fill();
-  ctx.stroke();
-  // Mesh texture lines on backrest
-  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-  ctx.lineWidth = 0.4 * s;
-  for (let ly = opts.y - 16 * s; ly < opts.y - 8 * s; ly += 1.8 * s) {
-    ctx.beginPath();
-    ctx.moveTo(x - 5 * s, ly);
-    ctx.lineTo(x + 5 * s, ly);
-    ctx.stroke();
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Legs with chunky boots
 // ---------------------------------------------------------------------------
 
@@ -362,7 +274,6 @@ function drawSittingLegs(ctx: CanvasRenderingContext2D, opts: RenderOpts): void 
     const kneeX = hipX + side * 3 * s;
     const kneeY = hipY + thighLen;
     const footX = kneeX;
-    const footY = kneeY + shinLen;
 
     // Thigh
     ctx.beginPath();
@@ -791,7 +702,7 @@ function drawHelmet(
 function drawFace(
   ctx: CanvasRenderingContext2D,
   opts: RenderOpts,
-  headRx: number,
+  _headRx: number,
   s: number,
 ): void {
   const { courage, stupidity } = opts;

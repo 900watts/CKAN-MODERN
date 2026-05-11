@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { kerbalStore } from '../KerbalStore';
 import type { ShiftAssignment } from '../KerbalStore';
 import type { IdleConfig } from '../Chat/IdleBanter';
+import { useT } from '../../services/i18n';
 
 const DEFAULT_DAY_SHIFT: string[] = ['Jebediah', 'Bill', 'Valentina', 'Bob', 'Wernher'];
 const DEFAULT_NIGHT_SHIFT: string[] = ['Bobak', 'Gene', 'Mortimer', 'Linus', 'Walt'];
@@ -46,6 +47,7 @@ export default function ShiftConfig({
   onDelayChange,
   onFrequencyChange,
 }: ShiftConfigProps) {
+  const { t } = useT();
   const [dayShift, setDayShift] = useState<string[]>([]);
   const [nightShift, setNightShift] = useState<string[]>([]);
   const [movingKerbals, setMovingKerbals] = useState<Set<string>>(new Set());
@@ -126,7 +128,7 @@ export default function ShiftConfig({
         />
         <div className="min-w-0">
           <div className="text-sm font-medium text-gray-200 truncate">{name}</div>
-          <div className="text-xs text-gray-500">Kerbonaut</div>
+          <div className="text-xs text-gray-500">{t('shift.kerbonaut')}</div>
         </div>
       </div>
     );
@@ -136,9 +138,9 @@ export default function ShiftConfig({
     <div className="space-y-8">
       {/* Shift Assignment Section */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-100 mb-4">Shift Assignments</h3>
+        <h3 className="text-lg font-semibold text-gray-100 mb-4">{t('shift.assignments')}</h3>
         <p className="text-sm text-gray-400 mb-6">
-          Assign Kerbals to day or night shifts. Click a Kerbal to move them between shifts.
+          {t('shift.assignDesc')}
         </p>
 
         <div className="grid grid-cols-2 gap-6">
@@ -147,13 +149,13 @@ export default function ShiftConfig({
             <div className="flex items-center gap-2 mb-3">
               <div className="w-3 h-3 rounded-full bg-amber-400" />
               <h4 className="text-sm font-medium text-amber-400">
-                Day Shift (06:00 – 18:00)
+                {t('shift.dayShift')}
               </h4>
             </div>
             <div className="space-y-2 min-h-[100px] p-2 rounded-lg border border-dashed border-gray-700 bg-gray-900/50">
               {dayShift.length === 0 ? (
                 <div className="text-xs text-gray-600 text-center py-4">
-                  No Kerbals assigned
+                  {t('shift.noAssigned')}
                 </div>
               ) : (
                 dayShift.map((name) => renderKerbalCard(name, () => moveToNight(name)))
@@ -166,13 +168,13 @@ export default function ShiftConfig({
             <div className="flex items-center gap-2 mb-3">
               <div className="w-3 h-3 rounded-full bg-indigo-400" />
               <h4 className="text-sm font-medium text-indigo-400">
-                Night Shift (18:00 – 06:00)
+                {t('shift.nightShift')}
               </h4>
             </div>
             <div className="space-y-2 min-h-[100px] p-2 rounded-lg border border-dashed border-gray-700 bg-gray-900/50">
               {nightShift.length === 0 ? (
                 <div className="text-xs text-gray-600 text-center py-4">
-                  No Kerbals assigned
+                  {t('shift.noAssigned')}
                 </div>
               ) : (
                 nightShift.map((name) => renderKerbalCard(name, () => moveToDay(name)))
@@ -189,7 +191,7 @@ export default function ShiftConfig({
               text-white text-sm font-medium transition-colors
               focus:outline-none focus:ring-2 focus:ring-orange-500/50"
           >
-            {saved ? 'Saved!' : 'Save Changes'}
+            {saved ? t('shift.saved') : t('shift.saveChanges')}
           </button>
           <button
             onClick={handleReset}
@@ -197,7 +199,7 @@ export default function ShiftConfig({
               text-gray-300 text-sm font-medium transition-colors
               focus:outline-none focus:ring-2 focus:ring-gray-500/50"
           >
-            Reset to Defaults
+            {t('shift.resetDefaults')}
           </button>
         </div>
       </div>
@@ -207,17 +209,17 @@ export default function ShiftConfig({
 
       {/* Idle Banter Settings Section */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-100 mb-4">Idle Banter</h3>
+        <h3 className="text-lg font-semibold text-gray-100 mb-4">{t('shift.idleBanter')}</h3>
 
         <div className="space-y-5">
           {/* Enable Toggle */}
           <div className="flex items-center justify-between">
             <div>
               <label className="text-sm font-medium text-gray-200">
-                Enable idle Kerbal conversations
+                {t('shift.enableIdle')}
               </label>
               <p className="text-xs text-gray-500 mt-0.5">
-                Kerbals will chat among themselves when the player is inactive.
+                {t('shift.enableIdleDesc')}
               </p>
             </div>
             <button
@@ -244,7 +246,7 @@ export default function ShiftConfig({
           {/* Idle Delay Select */}
           <div>
             <label className="block text-sm font-medium text-gray-200 mb-2">
-              Idle delay
+              {t('shift.idleDelay')}
             </label>
             <select
               value={delayMinutes}
@@ -256,7 +258,7 @@ export default function ShiftConfig({
             >
               {IDLE_DELAY_OPTIONS.map((mins) => (
                 <option key={mins} value={mins}>
-                  {mins} minutes
+                  {t('shift.minutes', { n: mins })}
                 </option>
               ))}
             </select>
@@ -265,7 +267,7 @@ export default function ShiftConfig({
           {/* Frequency Select */}
           <div>
             <label className="block text-sm font-medium text-gray-200 mb-2">
-              Conversation frequency
+              {t('shift.frequency')}
             </label>
             <select
               value={frequency}
@@ -277,7 +279,7 @@ export default function ShiftConfig({
             >
               {FREQUENCY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
-                  {opt.label}
+                  {opt.value === 'occasional' ? t('shift.occasional') : t('shift.chatty')}
                 </option>
               ))}
             </select>
@@ -299,7 +301,7 @@ export default function ShiftConfig({
               />
             </svg>
             <p className="text-xs text-amber-400/80">
-              Idle conversations consume API tokens. Disable to save.
+              {t('shift.tokenWarning')}
             </p>
           </div>
         </div>

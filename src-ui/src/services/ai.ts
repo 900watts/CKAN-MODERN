@@ -165,7 +165,7 @@ class AiService {
 
   async chat(
     messages: ChatMessage[],
-    options?: { signal?: AbortSignal; temperature?: number; topP?: number }
+    options?: { signal?: AbortSignal; temperature?: number; topP?: number; noSystemPrompt?: boolean }
   ): Promise<AiChatResult> {
     // 1. Check auth
     const { data: { session } } = await supabase.auth.getSession();
@@ -180,10 +180,9 @@ class AiService {
     const remaining = await this.logUsageAndCheckLimit();
 
     // 4. Call Silicon Flow
-    const fullMessages: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...messages,
-    ];
+    const fullMessages: ChatMessage[] = options?.noSystemPrompt
+      ? messages
+      : [{ role: 'system', content: SYSTEM_PROMPT }, ...messages];
 
     const res = await fetch(`${SILICON_FLOW_BASE}/chat/completions`, {
       method: 'POST',
@@ -503,7 +502,7 @@ export async function chatWithCustomProvider(
       console.warn(`[ai] Empty response from ${config.label}, retrying...`);
       // Retry 1: higher temperature + no max_tokens limit
       try {
-        const retryBody = { ...body, temperature: Math.min(baseTemp + 0.2, 1.2) };
+        const retryBody: Record<string, unknown> = { ...body, temperature: Math.min(baseTemp + 0.2, 1.2) };
         delete retryBody.max_tokens;
         if (provider === 'ollama' && retryBody.options) {
           (retryBody.options as Record<string, unknown>).num_predict = 256;
@@ -626,12 +625,40 @@ function getOllamaAvailableModels(): string[] {
   return ollamaModels ?? [];
 }
 
+/** Pick the best Ollama model: use the saved one if available, otherwise the first detected. */
+function resolveOllamaModel(fallbackModel?: string): string {
+  const model = fallbackModel ?? getSelectedModel('ollama');
+  const available = getOllamaAvailableModels();
+  if (available.length > 0 && !available.includes(model)) {
+    return available[0];
+  }
+  return model;
+}
+
 async function resolveProvider(): Promise<CustomProvider | 'ckan-cloud'> {
   const selected = getSelectedProvider();
   const stored = localStorage.getItem(`${STORAGE_PREFIX}provider`);
   if (stored) return selected;
-  if (await detectOllama()) return 'ollama';
+  // No explicit provider chosen — default to ckan-cloud (Ollama is lazy-detected only when needed)
   return selected;
+}
+
+/** Cached auth state to avoid repeated Supabase getSession() calls on the hot path. */
+let cachedAuthState: { configured: boolean; checkedAt: number } | null = null;
+const AUTH_CACHE_MS = 30_000;
+
+async function isAuthConfiguredCached(): Promise<boolean> {
+  if (cachedAuthState && Date.now() - cachedAuthState.checkedAt < AUTH_CACHE_MS) {
+    return cachedAuthState.configured;
+  }
+  const configured = await aiService.isConfigured();
+  cachedAuthState = { configured, checkedAt: Date.now() };
+  return configured;
+}
+
+/** Clear the auth cache (call on sign-in / sign-out events). */
+export function clearAuthCache(): void {
+  cachedAuthState = null;
 }
 
 export async function chatViaProvider(
@@ -639,27 +666,44 @@ export async function chatViaProvider(
   options?: CustomChatOptions,
 ): Promise<AiChatResult> {
   const provider = await resolveProvider();
-  if (provider === 'ckan-cloud') {
+
+  if (provider !== 'ckan-cloud') {
+    let model = getSelectedModel(provider);
+    if (options?.noSystemPrompt) {
+      const kerbalOverride = getKerbalModelOverride();
+      if (kerbalOverride) model = kerbalOverride;
+    }
+    if (provider === 'ollama') {
+      model = resolveOllamaModel(model);
+    }
+    return chatWithCustomProvider(provider, model, messages, {
+      ...options,
+      noSystemPrompt: options?.noSystemPrompt ?? false,
+    });
+  }
+
+  // CKAN Cloud path — check auth (cached), fall back to Ollama if not configured
+  const configured = await isAuthConfiguredCached();
+  if (configured) {
     return aiService.chat(messages, {
       signal: options?.signal,
       temperature: options?.temperature,
       topP: options?.topP,
+      noSystemPrompt: options?.noSystemPrompt,
     });
   }
-  let model = getSelectedModel(provider);
-  if (options?.noSystemPrompt) {
-    const kerbalOverride = getKerbalModelOverride();
-    if (kerbalOverride) model = kerbalOverride;
+
+  const ollamaAvailable = await detectOllama();
+  if (ollamaAvailable) {
+    console.log('[ai] CKAN Cloud not available (not signed in), falling back to Ollama');
+    const model = resolveOllamaModel();
+    return chatWithCustomProvider('ollama', model, messages, {
+      ...options,
+      noSystemPrompt: options?.noSystemPrompt ?? false,
+    });
   }
-  // For Ollama, if the saved model isn't actually available, use first detected model
-  if (provider === 'ollama') {
-    const available = getOllamaAvailableModels();
-    if (available.length > 0 && !available.includes(model)) {
-      model = available[0];
-    }
-  }
-  return chatWithCustomProvider(provider, model, messages, {
-    ...options,
-    noSystemPrompt: true, // kerbals supply their own soul as system prompt
-  });
+
+  throw new Error(
+    'AI not available. Please sign in to CKAN Cloud (Settings > Account) or set up a local Ollama instance or custom API key (Settings > AI).',
+  );
 }

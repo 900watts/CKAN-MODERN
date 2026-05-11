@@ -4,6 +4,7 @@ import { SoulLoader } from '../SoulLoader';
 import type { KerbalSoul } from '../SoulLoader';
 import { statsToApiParams } from '../SoulLoader';
 import { chatViaProvider, EMPTY_RESPONSE } from '../../services/ai';
+import { t } from '../../services/i18n';
 import { worldContext } from '../WorldContext';
 import { moodSystem } from '../MoodSystem';
 import { relationshipGraph } from '../RelationshipGraph';
@@ -215,8 +216,10 @@ export class IdleBanter {
   private async runBanterRound(): Promise<void> {
     this.roundInProgress = true;
 
+    let participants: KerbalState[] = [];
+
     try {
-      const candidates = kerbalStore.getPresent();
+      const candidates = kerbalStore.getAvailable();
       if (candidates.length < 2) return; // need at least 2 Kerbals
 
       // Pick 2-3 Kerbals — bias toward high-affinity pairs for better chemistry
@@ -231,7 +234,7 @@ export class IdleBanter {
       const followers = compatible.length > 0
         ? compatible.slice(0, count - 1)
         : shuffled.slice(1, count).map(k => k.name);
-      const participants = [initiator, ...followers.map(name => kerbalStore.getByName(name)!).filter(Boolean)];
+      participants = [initiator, ...followers.map(name => kerbalStore.getByName(name)!).filter(Boolean)];
 
       // Pick a topic — mix story topics with banter topics
       const storyTopics = storyEngine.getStoryTopics();
@@ -239,7 +242,6 @@ export class IdleBanter {
       const topic = allTopics[Math.floor(Math.random() * allTopics.length)];
 
       // --- Initiate: first Kerbal comments on the topic ---
-      const initiator = participants[0];
       const opening = await this.generateMessage(initiator, topic, 'initiator');
 
       this.emit({
@@ -326,6 +328,7 @@ export class IdleBanter {
           signal: controller.signal,
           temperature: params.temperature,
           topP: params.topP,
+          noSystemPrompt: true,
         });
 
         if (!result.reply || result.reply === EMPTY_RESPONSE) {
@@ -352,17 +355,17 @@ export class IdleBanter {
   ): string {
     const templates: Record<typeof role, string[]> = {
       initiator: [
-        `Did you hear about "${context}"? That's wild.`,
-        `${context} — I have *thoughts* about this one.`,
-        `${context}? Honestly...`,
-        `Oh, you're not going to believe what I heard about "${context}".`,
+        t('banter.fallback.initiator.0', { context }),
+        t('banter.fallback.initiator.1', { context }),
+        t('banter.fallback.initiator.2', { context }),
+        t('banter.fallback.initiator.3', { context }),
       ],
       responder: [
-        'Oh, definitely! I completely agree.',
-        'Hmm, I see your point but I\'m not so sure...',
-        'That\'s exactly what I was thinking.',
-        'Wait, really? Tell me more.',
-        `I have a story about this actually.`,
+        t('banter.fallback.responder.0'),
+        t('banter.fallback.responder.1'),
+        t('banter.fallback.responder.2'),
+        t('banter.fallback.responder.3'),
+        t('banter.fallback.responder.4'),
       ],
     };
 
@@ -413,15 +416,5 @@ export class IdleBanter {
 /** Pre-configured singleton instance for easy importing by components. */
 export const idleBanter = new IdleBanter();
 
-// ---------------------------------------------------------------------------
-// Time-of-day helper (re-exported for convenience)
-// ---------------------------------------------------------------------------
-
-export function getTimeOfDayDescription(hour: number): string {
-  if (hour >= 5 && hour < 8) return 'early morning';
-  if (hour >= 8 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 17) return 'afternoon';
-  if (hour >= 17 && hour < 20) return 'evening';
-  if (hour >= 20 && hour < 23) return 'late night';
-  return 'middle of the night';
-}
+// Re-export TimeSystem helper for consumers that previously imported from here
+export { getTimeOfDayDescription } from '../TimeSystem';

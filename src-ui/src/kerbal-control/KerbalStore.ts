@@ -192,6 +192,49 @@ export const kerbalStore = {
     return { day, night };
   },
 
+  /** Returns true if the kerbal is currently away on a rest break. */
+  isOnBreak(name: string): boolean {
+    const k = kerbals.find((k) => k.name === name);
+    if (!k) return false;
+    return (
+      (k.position === 'break' || k.position === 'bathroom' || k.position === 'lunch' || k.position === 'snack') &&
+      typeof k.returnFromBreakAt === 'number' &&
+      k.returnFromBreakAt > Date.now()
+    );
+  },
+
+  /** Returns ms until the kerbal returns from break, or 0 if not on break. */
+  breakRemaining(name: string): number {
+    const k = kerbals.find((k) => k.name === name);
+    if (!k || typeof k.returnFromBreakAt !== 'number') return 0;
+    return Math.max(0, k.returnFromBreakAt - Date.now());
+  },
+
+  /** Send a kerbal on a rest break for `durationMs` milliseconds. */
+  goOnBreak(name: string, position: KerbalState['position'], durationMs: number): void {
+    kerbals = kerbals.map((k) =>
+      k.name === name
+        ? { ...k, position, returnFromBreakAt: Date.now() + durationMs }
+        : k,
+    );
+    notify();
+  },
+
+  /** Bring a kerbal back from break to their desk. */
+  returnFromBreak(name: string): void {
+    kerbals = kerbals.map((k) =>
+      k.name === name
+        ? { ...k, position: 'desk' as const, returnFromBreakAt: null }
+        : k,
+    );
+    notify();
+  },
+
+  /** Returns only present kerbals who are NOT currently on break. */
+  getAvailable(): KerbalState[] {
+    return kerbals.filter((k) => k.present && !this.isOnBreak(k.name));
+  },
+
   subscribe(fn: () => void): () => void {
     subscribers.push(fn);
     return () => {

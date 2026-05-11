@@ -19,7 +19,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Build", "build\Build.csproj", "{B3D22D01-132E-4D78-BA9E-FAC2AD02F2E1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CKAN-MCLI", "CLI\CKAN-CLI.csproj", "{42B84AF5-925C-46E0-BF8E-C73A2C609934}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CKAN-Modern", "CKAN\CKAN-Modern.csproj", "{42B84AF5-925C-46E0-BF8E-C73A2C609934}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

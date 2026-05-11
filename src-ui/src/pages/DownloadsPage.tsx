@@ -1,9 +1,12 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { Download, Loader2, CheckCircle, AlertCircle, Trash2, RotateCcw } from 'lucide-react';
 import { downloadStore } from '../services/downloadStore';
+import { useT } from '../services/i18n';
 import styles from './DownloadsPage.module.css';
 
 export default function DownloadsPage() {
+  const { t } = useT();
+
   // Initialize store listeners (idempotent)
   useEffect(() => { downloadStore.init(); }, []);
 
@@ -23,13 +26,13 @@ export default function DownloadsPage() {
     return (
       <div className={styles.page}>
         <div className={styles.header}>
-          <h1 className={styles.title}>Downloads</h1>
+          <h1 className={styles.title}>{t('downloads.title')}</h1>
         </div>
         <div className={styles.content}>
           <div className={styles.empty}>
             <Download size={48} className={styles.emptyIcon} />
-            <h2>No active downloads</h2>
-            <p>Start installing mods to see them here</p>
+            <h2>{t('downloads.empty')}</h2>
+            <p>{t('downloads.emptyHint')}</p>
           </div>
         </div>
       </div>
@@ -39,20 +42,19 @@ export default function DownloadsPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Downloads</h1>
+        <h1 className={styles.title}>{t('downloads.title')}</h1>
         {hasHistory && (
           <button className={styles.clearBtn} onClick={() => downloadStore.clearHistory()}>
-            <Trash2 size={14} /> Clear History
+            <Trash2 size={14} /> {t('downloads.clearHistory')}
           </button>
         )}
       </div>
       <div className={styles.content}>
-        {/* Active Operations */}
         {active.length > 0 && (
           <div className={styles.section}>
             <div className={styles.sectionTitle}>
               <Loader2 size={14} className={styles.spin} />
-              Active ({active.length})
+              {t('downloads.active')} ({active.length})
             </div>
             {active.map((op) => (
               <div key={op.id} className={styles.opCard}>
@@ -62,7 +64,7 @@ export default function DownloadsPage() {
                 <div className={styles.opInfo}>
                   <span className={styles.opName}>{op.name || op.identifier}</span>
                   <span className={styles.opMeta}>
-                    {op.type === 'install' ? 'Installing' : 'Uninstalling'} · Started {formatTime(op.startedAt)}
+                    {op.type === 'install' ? t('downloads.installing') : t('downloads.uninstalling')} · {t('downloads.started')} {formatTime(op.startedAt)}
                   </span>
                 </div>
               </div>
@@ -70,12 +72,11 @@ export default function DownloadsPage() {
           </div>
         )}
 
-        {/* Failed Operations */}
         {failed.length > 0 && (
           <div className={styles.section}>
             <div className={styles.sectionTitle + ' ' + styles.sectionFailed}>
               <AlertCircle size={14} />
-              Failed ({failed.length})
+              {t('downloads.failed')} ({failed.length})
             </div>
             {failed.map((op) => (
               <div key={op.id} className={styles.opCard + ' ' + styles.opCardFailed}>
@@ -86,23 +87,22 @@ export default function DownloadsPage() {
                   <span className={styles.opName}>{op.name || op.identifier}</span>
                   <span className={styles.opError}>{op.error}</span>
                   <span className={styles.opMeta}>
-                    {op.type === 'install' ? 'Install' : 'Uninstall'} failed · {formatTime(op.finishedAt || op.startedAt)}
+                    {op.type === 'install' ? t('downloads.installFailed') : t('downloads.uninstallFailed')} · {formatTime(op.finishedAt || op.startedAt)}
                   </span>
                 </div>
                 <button className={styles.retryBtn} onClick={() => downloadStore.retry(op)}>
-                  <RotateCcw size={12} /> Retry
+                  <RotateCcw size={12} /> {t('downloads.retry')}
                 </button>
               </div>
             ))}
           </div>
         )}
 
-        {/* Completed Operations */}
         {completed.length > 0 && (
           <div className={styles.section}>
             <div className={styles.sectionTitle + ' ' + styles.sectionCompleted}>
               <CheckCircle size={14} />
-              Completed ({completed.length})
+              {t('downloads.completed')} ({completed.length})
             </div>
             {completed.map((op) => (
               <div key={op.id} className={styles.opCard}>
@@ -112,7 +112,7 @@ export default function DownloadsPage() {
                 <div className={styles.opInfo}>
                   <span className={styles.opName}>{op.name || op.identifier}</span>
                   <span className={styles.opMeta}>
-                    {op.type === 'install' ? 'Installed' : 'Uninstalled'} · {formatTime(op.finishedAt || op.startedAt)}
+                    {op.type === 'install' ? t('downloads.installed') : t('downloads.uninstalled')} · {formatTime(op.finishedAt || op.startedAt)}
                   </span>
                 </div>
               </div>

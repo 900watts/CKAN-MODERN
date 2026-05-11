@@ -59,7 +59,7 @@ type DerivedStatus = 'on-shift' | 'on-break' | 'off-shift';
 
 function deriveStatus(kerbal: KerbalState): DerivedStatus {
   if (!kerbal.present) return 'off-shift';
-  if (kerbal.position === 'break' || kerbal.position === 'bathroom' || kerbal.position === 'lunch' || kerbal.position === 'snack') return 'on-break';
+  if (kerbalStore.isOnBreak(kerbal.name)) return 'on-break';
   return 'on-shift';
 }
 
@@ -249,7 +249,7 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
         topP: params.topP,
       });
 
-      let reply = (result.reply && result.reply !== EMPTY_RESPONSE) ? result.reply : `*${activeKerbal.name} ${t('mc.stares')}*`;
+      let reply = (result.reply && result.reply !== EMPTY_RESPONSE) ? result.reply : `*${activeKerbal.name} ${t('mc.aiUnavailable')}*`;
       const toolCalls = parseToolCalls(reply);
       for (const tc of toolCalls.slice(0, 2)) {
         try {
@@ -283,7 +283,7 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
       const kerbalMsg: ThreadMessage = {
         id: `msg-${Date.now()}-${activeKerbal.name}`,
         sender: activeKerbal.name,
-        content: `*${activeKerbal.name} ${t('mc.stares')}*`,
+        content: `*${activeKerbal.name} ${t('mc.aiUnavailable')}*`,
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, kerbalMsg]);
@@ -378,7 +378,7 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
                 type="button"
                 className="text-blue-400 hover:text-blue-300 text-sm leading-none shrink-0 w-6 h-6 flex items-center justify-center"
                 onClick={backToContacts}
-                aria-label="Back to contacts"
+                aria-label={t('mc.backToContacts')}
               >
                 &#8592;
               </button>
@@ -386,13 +386,13 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
               <div className="w-6 shrink-0" />
             )}
             <h2 className="text-sm font-semibold flex-1 truncate text-center">
-              {view === 'contacts' ? t('mc.contacts') : activeKerbal?.name ?? 'Chat'}
+              {view === 'contacts' ? t('mc.contacts') : activeKerbal?.name ?? t('mc.chat')}
             </h2>
             <button
               type="button"
               className="text-zinc-400 hover:text-white text-sm leading-none shrink-0 w-6 h-6 flex items-center justify-center"
               onClick={handleClose}
-              aria-label="Close"
+              aria-label={t('mc.close')}
             >
               &#10005;
             </button>
@@ -521,7 +521,7 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
                     className="flex-shrink-0 w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-500 disabled:opacity-40 transition-colors"
                     onClick={sendMessage}
                     disabled={isSummoning || isGenerating || !inputValue.trim()}
-                    aria-label="Send"
+                    aria-label={t('mc.sendMessage')}
                   >
                     <svg
                       className="w-3.5 h-3.5"

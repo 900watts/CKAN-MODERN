@@ -7,6 +7,7 @@ import { chatStore } from '../../services/chatStore';
 import type { ChatMsg } from '../../services/chatStore';
 import { supabase } from '../../services/supabase';
 import ckanIpc from '../../services/ipc';
+import { useT } from '../../services/i18n';
 import styles from './AIChatPanel.module.css';
 
 const DAILY_LIMIT = 20;
@@ -16,6 +17,7 @@ interface AIChatPanelProps {
 }
 
 export default function AIChatPanel({ onClose }: AIChatPanelProps) {
+  const { t } = useT();
   // Use persistent chat store
   const messages = useSyncExternalStore(chatStore.subscribe, chatStore.get);
 
@@ -123,7 +125,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       } else {
         // Use CKAN Cloud (Silicon Flow via Supabase)
         if (!(await aiService.isConfigured())) {
-          throw new Error('Sign in to use CKAN AI. Go to Settings > Account to create a free account.');
+          throw new Error(t('ai.signInRequired'));
         }
         const response = await aiService.chat(chatHistory);
         if (response.remaining_today !== undefined) {
@@ -145,7 +147,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       chatStore.push({
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: `Sorry, I ran into an issue: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
+        content: t('ai.errorOccurred', { error: err instanceof Error ? err.message : t('common.unknownError') }),
         timestamp: Date.now(),
       });
     } finally {
@@ -217,7 +219,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
                 ckanIpc.call('mod:install', { identifier: modId });
               }}
             >
-              <Download size={12} /> Install {modId}
+              <Download size={12} /> {t('ai.action.install', { modId })}
             </button>
           );
         } else if (match[6]) {
@@ -231,7 +233,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
                 ckanIpc.call('mod:uninstall', { identifier: modId });
               }}
             >
-              <Trash2 size={12} /> Uninstall {modId}
+              <Trash2 size={12} /> {t('ai.action.uninstall', { modId })}
             </button>
           );
         } else if (match[7]) {
@@ -245,7 +247,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
                 // Will be handled by parent — for now just visual
               }}
             >
-              <Search size={12} /> Search: {query}
+              <Search size={12} /> {t('ai.action.search', { query })}
             </button>
           );
         } else if (match[0] === '[REFRESH_REPO]') {
@@ -258,7 +260,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
                 ckanIpc.call('repo:refresh', {});
               }}
             >
-              <RefreshCw size={12} /> Refresh Repository
+              <RefreshCw size={12} /> {t('ai.action.refreshRepo')}
             </button>
           );
         }
@@ -310,13 +312,13 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       <div className={styles.header}>
         <div className={styles.headerLeft}>
           <Sparkles size={16} className={styles.headerIcon} />
-          <span className={styles.headerTitle}>CKAN AI</span>
+          <span className={styles.headerTitle}>{t('ai.title')}</span>
           <span className={styles.tierBadge}>{userTier.toUpperCase()}</span>
           {curProvider === 'ckan-cloud' && (
             <span className={styles.pointsBadge}>{remainingToday ?? DAILY_LIMIT}/{DAILY_LIMIT}</span>
           )}
         </div>
-        <button className={styles.closeBtn} onClick={onClose} title="Close">
+        <button className={styles.closeBtn} onClick={onClose} title={t('ai.close')}>
           <X size={16} />
         </button>
       </div>
@@ -324,15 +326,15 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       {/* Model Selector — always visible */}
       <div className={styles.modelBar}>
         <div className={styles.modelSelect}>
-          <label className={styles.modelLabel}>Provider</label>
+          <label className={styles.modelLabel}>{t('ai.provider')}</label>
           <select
             value={curProvider}
             onChange={(e) => handleProviderChange(e.target.value)}
           >
-            <option value="ckan-cloud">CKAN Cloud</option>
+            <option value="ckan-cloud">{t('ai.ckanCloud')}</option>
             {allProviders.map((p) => (
               <option key={p} value={p}>
-                {AI_PROVIDERS[p].label}{getCustomApiKey(p) ? '' : ' (no key)'}
+                {AI_PROVIDERS[p].label}{getCustomApiKey(p) ? '' : ` ${t('ai.noKey')}`}
               </option>
             ))}
           </select>
@@ -340,7 +342,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         {curProvider !== 'ckan-cloud' && (
           <>
             <div className={styles.modelSelect}>
-              <label className={styles.modelLabel}>Model</label>
+              <label className={styles.modelLabel}>{t('ai.model')}</label>
               <select
                 value={curModel}
                 onChange={(e) => handleModelChange(e.target.value)}
@@ -352,21 +354,21 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             </div>
             {AI_PROVIDERS[curProvider].allowCustomModel && (
               <div className={styles.modelSelect}>
-                <label className={styles.modelLabel}>Or type model ID</label>
+                <label className={styles.modelLabel}>{t('ai.customModel')}</label>
                 <input
                   className={styles.customModelInput}
                   value={customModelInput}
                   onChange={(e) => setCustomModelInput(e.target.value)}
                   onBlur={handleCustomModelCommit}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleCustomModelCommit(); }}
-                  placeholder="e.g. anthropic/claude-3.5-sonnet"
+                  placeholder={t('ai.customModelPlaceholder')}
                   spellCheck={false}
                 />
               </div>
             )}
             {!getCustomApiKey(curProvider) && (
               <div className={styles.noKeyWarning}>
-                No API key set. Add one in Settings.
+                {t('ai.noApiKey')}
               </div>
             )}
           </>
@@ -421,7 +423,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask me anything..."
+            placeholder={t('ai.askAnything')}
             rows={1}
             disabled={isLoading}
           />
@@ -435,8 +437,8 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         </div>
         <div className={styles.inputHint}>
           {curProvider === 'ckan-cloud'
-            ? 'Powered by CKAN Cloud · GLM-Z1-9B'
-            : `Using ${AI_PROVIDERS[curProvider].label}`}
+            ? `${t('ai.poweredBy')} · ${aiService.getModelName()}`
+            : t('ai.using', { provider: AI_PROVIDERS[curProvider].label })}
         </div>
       </div>
     </motion.aside>

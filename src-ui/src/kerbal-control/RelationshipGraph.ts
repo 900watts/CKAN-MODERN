@@ -110,7 +110,6 @@ class RelationshipGraph {
    * whether they agreed (positive) or argued (negative).
    */
   recordInteraction(a: string, b: string, agreed: boolean): void {
-    const key = pairKey(a, b);
     const pair = this.get(a, b);
     const drift = agreed ? 0.02 : -0.02;
     pair.affinity = Math.max(-1, Math.min(1, pair.affinity + drift));

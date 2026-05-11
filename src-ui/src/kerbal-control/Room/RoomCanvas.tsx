@@ -33,12 +33,7 @@ const MAX_COFFEE_CUPS = 4;
 // Background rendering helpers
 // ---------------------------------------------------------------------------
 
-/** Return the floor Y position (feet contact point) for a given display height. */
 const FLOOR_Y_RATIO = 0.72;
-
-function getFloorY(displayH: number): number {
-  return displayH * FLOOR_Y_RATIO;
-}
 
 /** Draw the room background: solid walls, flat floor, baseboard trim, big screen, posters. */
 function drawBackground(
@@ -201,7 +196,7 @@ function drawPosters(ctx: CanvasRenderingContext2D, w: number, h: number): void 
 }
 
 /** Shift badge in the top-right corner showing current shift + crew count. */
-function drawShiftBadge(ctx: CanvasRenderingContext2D, w: number, h: number, timeOfDay: number): void {
+function drawShiftBadge(ctx: CanvasRenderingContext2D, w: number, h: number, _timeOfDay: number): void {
   const timeState = timeSystem.getTime();
   const isDay = timeState.shiftType === 'day';
   const present = kerbalStore.getPresent();
@@ -357,7 +352,6 @@ function drawMonitor(
 
 /** Draw an office chair at a desk position (static, doesn't move with kerbal). */
 function drawChairAtDesk(ctx: CanvasRenderingContext2D, deskX: number, deskY: number): void {
-  const s = 1; // scale
   const x = deskX;
   const seatY = deskY - 3;
 
@@ -885,7 +879,7 @@ const RoomCanvas: React.FC = () => {
           spritesRef.current.set(name, sprite);
           transitioningRef.current.set(name, 'entering');
           awayStatesRef.current.delete(name);
-          kerbalStore.updateKerbal(name, { position: 'desk' });
+          kerbalStore.returnFromBreak(name);
         }
       }
     }
@@ -1006,7 +1000,7 @@ const RoomCanvas: React.FC = () => {
                 // Kerbal arrived at entrance, remove sprite (they leave the room)
                 if (elapsed < 100) {
                   toRemove.push(item.sprite.name);
-                  kerbalStore.updateKerbal(item.sprite.name, { position: away.activity });
+                  kerbalStore.goOnBreak(item.sprite.name, away.activity as 'bathroom' | 'lunch', away.activityDuration);
                 }
                 // Do not do activity animations for bathroom/lunch
                 // The return-from-away check earlier in the render loop handles re-entry

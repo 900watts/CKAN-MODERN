@@ -13,7 +13,6 @@ import type { KerbalSoul } from './SoulLoader';
 import { statsToApiParams } from './SoulLoader';
 import { chatViaProvider, EMPTY_RESPONSE } from '../services/ai';
 import { moodSystem } from './MoodSystem';
-import { relationshipGraph } from './RelationshipGraph';
 import { storyEngine } from './StoryEngine';
 import { buildToolsPrompt, parseToolCalls, executeToolCall, stripToolCalls } from './AgentSkills';
 
@@ -48,7 +47,7 @@ const TRIGGERS: ProactiveTrigger[] = [
     id: 'window_return',
     condition: (ctx) => ctx.windowFocused && ctx.focusAwayDuration > 120_000,
     selectKerbal: (k) => k[Math.floor(Math.random() * k.length)],
-    buildPrompt: (ctx, kerbal) =>
+    buildPrompt: (ctx, _kerbal) =>
       `[PROACTIVE: user just returned after being away for ${Math.round(ctx.focusAwayDuration / 60_000)} min. Greet them casually, ask if everything's OK, or joke about what you were discussing while they were gone. Be warm and natural — no formal greetings.]`,
     cooldownMs: 300_000,
   },
@@ -73,7 +72,7 @@ const TRIGGERS: ProactiveTrigger[] = [
       const wernher = k.find((x) => x.name.toLowerCase() === 'wernher');
       return wernher || k[Math.floor(Math.random() * k.length)];
     },
-    buildPrompt: (ctx, kerbal) =>
+    buildPrompt: (ctx, _kerbal) =>
       `[PROACTIVE: The user has been on the "${ctx.currentPage}" page for ${Math.round(ctx.currentPageDuration / 60_000)} minutes. They might be stuck or deeply researching. Offer relevant help. Reference the page they're on naturally.]`,
     cooldownMs: 600_000,
   },
@@ -146,6 +145,7 @@ class ProactiveAgent {
   private listeners: Set<ProactiveListener> = new Set();
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private lastFireTime = 0;
+  private processing = false;
   private triggerCooldowns = new Map<string, number>();
   private isRunning = false;
 
@@ -173,13 +173,15 @@ class ProactiveAgent {
   // ---- tick -----------------------------------------------------------------
 
   private async tick(): Promise<void> {
-    if (!this.isRunning) return;
+    if (!this.isRunning || this.processing) return;
 
     // Global minimum 2 min between any proactive messages
     if (Date.now() - this.lastFireTime < 120_000) return;
 
+    this.processing = true;
+
     const ctx = worldContext.getSnapshot();
-    const presentKerbals = kerbalStore.getPresent();
+    const presentKerbals = kerbalStore.getAvailable();
     if (presentKerbals.length === 0) return;
 
     // Check each trigger
@@ -206,6 +208,7 @@ class ProactiveAgent {
         const result = await chatViaProvider(messages, {
           temperature: params.temperature,
           topP: params.topP,
+          noSystemPrompt: true,
         });
 
         const reply = (result.reply && result.reply !== EMPTY_RESPONSE)
@@ -250,13 +253,15 @@ class ProactiveAgent {
         this.lastFireTime = Date.now();
         this.triggerCooldowns.set(trigger.id, Date.now());
         break;
+      } finally {
+        this.processing = false;
       }
     }
   }
 
   // ---- fallback templates ---------------------------------------------------
 
-  private getFallback(triggerId: string, kerbalName: string): string {
+  private getFallback(triggerId: string, _kerbalName: string): string {
     const templates: Record<string, string[]> = {
       window_return: [
         'Oh hey, welcome back! We were just talking about rocket designs.',

@@ -1,0 +1,1502 @@
+diff --git a/src-ui/src/components/Layout/Layout.tsx b/src-ui/src/components/Layout/Layout.tsx
+index d5d3ce2..cd08621 100644
+--- a/src-ui/src/components/Layout/Layout.tsx
++++ b/src-ui/src/components/Layout/Layout.tsx
+@@ -5,7 +5,7 @@ import AIChatPanel from '../AIChat/AIChatPanel';
+ import UpdateBanner from '../UpdateBanner/UpdateBanner';
+ import { registryService } from '../../services/registry';
+ import ckanIpc from '../../services/ipc';
+-import { useT } from '../../i18n';
++import { useT } from '../../services/i18n';
+ import styles from './Layout.module.css';
+ 
+ export type NavItem = 'available' | 'installed' | 'downloads' | 'instances' | 'mission-control' | 'repos' | 'settings';
+diff --git a/src-ui/src/components/UpdateBanner/UpdateBanner.tsx b/src-ui/src/components/UpdateBanner/UpdateBanner.tsx
+index d7014f9..e44c46d 100644
+--- a/src-ui/src/components/UpdateBanner/UpdateBanner.tsx
++++ b/src-ui/src/components/UpdateBanner/UpdateBanner.tsx
+@@ -1,7 +1,7 @@
+ import { useState, useEffect } from 'react';
+ import { Download, X, ExternalLink, Loader2 } from 'lucide-react';
+ import ckanIpc from '../../services/ipc';
+-import { useT } from '../../i18n';
++import { useT } from '../../services/i18n';
+ import styles from './UpdateBanner.module.css';
+ 
+ interface UpdateData {
+diff --git a/src-ui/src/i18n.ts b/src-ui/src/i18n.ts
+deleted file mode 100644
+index e265cef..0000000
+--- a/src-ui/src/i18n.ts
++++ /dev/null
+@@ -1,49 +0,0 @@
+-/**
+- * Minimal i18n module — provides a `useT()` hook and a `t()` function
+- * for the CKAN Modern frontend.
+- *
+- * Translations are inline for now; this can be swapped for a full
+- * i18n library (i18next, react-intl, etc.) later.
+- */
+-
+-export type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
+-
+-const fallback: Record<string, string> = {
+-  'nav.available': 'Available',
+-  'nav.installed': 'Installed',
+-  'nav.downloads': 'Downloads',
+-  'nav.instances': 'Instances',
+-  'nav.settings': 'Settings',
+-  'nav.aiAssistant': 'AI Assistant',
+-  'nav.collapse': 'Collapse',
+-  'nav.expand': 'Expand',
+-  'nav.modsLoaded': '{count} mods loaded',
+-  'nav.loadingRegistry': 'Loading registry…',
+-  'nav.installed.count': '{count} installed',
+-  'nav.missionControl': 'Mission Control',
+-};
+-
+-function lookup(key: string, params?: Record<string, string | number>): string {
+-  let value = fallback[key] ?? key;
+-  if (params) {
+-    for (const [k, v] of Object.entries(params)) {
+-      value = value.replace(`{${k}}`, String(v));
+-    }
+-  }
+-  return value;
+-}
+-
+-/**
+- * Simple translation function. Returns the translated string,
+- * or the key itself if no translation is found.
+- */
+-export const t: TranslateFn = lookup;
+-
+-/**
+- * React hook that returns `{ t }` — a stable translation function.
+- * In the current implementation it returns the same value every render,
+- * but a real i18n solution would make it reactive to locale changes.
+- */
+-export function useT(): { t: TranslateFn } {
+-  return { t: lookup };
+-}
+diff --git a/src-ui/src/kerbal-control/Chat/ChatBar.tsx b/src-ui/src/kerbal-control/Chat/ChatBar.tsx
+index f52d4ce..fa1d528 100644
+--- a/src-ui/src/kerbal-control/Chat/ChatBar.tsx
++++ b/src-ui/src/kerbal-control/Chat/ChatBar.tsx
+@@ -10,7 +10,6 @@ import type { RoutedMessage, RouteReason } from './MessageRouter';
+ import type { BanterMessage } from './IdleBanter';
+ import { KerbalMemory } from '../KerbalMemory';
+ import { moodSystem } from '../MoodSystem';
+-import { relationshipGraph } from '../RelationshipGraph';
+ import { storyEngine } from '../StoryEngine';
+ import { buildToolsPrompt, parseToolCalls, executeToolCall, stripToolCalls } from '../AgentSkills';
+ import type { ProactiveMessage } from '../ProactiveAgent';
+@@ -598,6 +597,7 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
+       }
+ 
+       console.error(`[ChatBar] Failed to get response from ${kerbalState.name}:`, err);
++      addSystemMessage('mc.kerbalCantRespond', kerbalState.name);
+       return null;
+     }
+   }
+diff --git a/src-ui/src/kerbal-control/Chat/IdleBanter.ts b/src-ui/src/kerbal-control/Chat/IdleBanter.ts
+index b7f8d94..eba4a32 100644
+--- a/src-ui/src/kerbal-control/Chat/IdleBanter.ts
++++ b/src-ui/src/kerbal-control/Chat/IdleBanter.ts
+@@ -215,6 +215,8 @@ export class IdleBanter {
+   private async runBanterRound(): Promise<void> {
+     this.roundInProgress = true;
+ 
++    let participants: KerbalState[] = [];
++
+     try {
+       const candidates = kerbalStore.getPresent();
+       if (candidates.length < 2) return; // need at least 2 Kerbals
+@@ -231,7 +233,7 @@ export class IdleBanter {
+       const followers = compatible.length > 0
+         ? compatible.slice(0, count - 1)
+         : shuffled.slice(1, count).map(k => k.name);
+-      const participants = [initiator, ...followers.map(name => kerbalStore.getByName(name)!).filter(Boolean)];
++      participants = [initiator, ...followers.map(name => kerbalStore.getByName(name)!).filter(Boolean)];
+ 
+       // Pick a topic — mix story topics with banter topics
+       const storyTopics = storyEngine.getStoryTopics();
+@@ -239,7 +241,6 @@ export class IdleBanter {
+       const topic = allTopics[Math.floor(Math.random() * allTopics.length)];
+ 
+       // --- Initiate: first Kerbal comments on the topic ---
+-      const initiator = participants[0];
+       const opening = await this.generateMessage(initiator, topic, 'initiator');
+ 
+       this.emit({
+diff --git a/src-ui/src/kerbal-control/Chat/SmartphoneModal.tsx b/src-ui/src/kerbal-control/Chat/SmartphoneModal.tsx
+index eb0227a..6430fd6 100644
+--- a/src-ui/src/kerbal-control/Chat/SmartphoneModal.tsx
++++ b/src-ui/src/kerbal-control/Chat/SmartphoneModal.tsx
+@@ -249,7 +249,7 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
+         topP: params.topP,
+       });
+ 
+-      let reply = (result.reply && result.reply !== EMPTY_RESPONSE) ? result.reply : `*${activeKerbal.name} ${t('mc.stares')}*`;
++      let reply = (result.reply && result.reply !== EMPTY_RESPONSE) ? result.reply : `*${activeKerbal.name} ${t('mc.aiUnavailable')}*`;
+       const toolCalls = parseToolCalls(reply);
+       for (const tc of toolCalls.slice(0, 2)) {
+         try {
+@@ -283,7 +283,7 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
+       const kerbalMsg: ThreadMessage = {
+         id: `msg-${Date.now()}-${activeKerbal.name}`,
+         sender: activeKerbal.name,
+-        content: `*${activeKerbal.name} ${t('mc.stares')}*`,
++        content: `*${activeKerbal.name} ${t('mc.aiUnavailable')}*`,
+         timestamp: Date.now(),
+       };
+       setMessages((prev) => [...prev, kerbalMsg]);
+diff --git a/src-ui/src/kerbal-control/MissionControl.tsx b/src-ui/src/kerbal-control/MissionControl.tsx
+index 424a6ce..5415dd2 100644
+--- a/src-ui/src/kerbal-control/MissionControl.tsx
++++ b/src-ui/src/kerbal-control/MissionControl.tsx
+@@ -14,7 +14,6 @@ import { worldContext } from './WorldContext';
+ import { moodSystem } from './MoodSystem';
+ import { proactiveAgent } from './ProactiveAgent';
+ import type { ProactiveMessage } from './ProactiveAgent';
+-import { storyEngine } from './StoryEngine';
+ import NotificationBanner from './NotificationBanner';
+ import type { BannerMessage } from './NotificationBanner';
+ 
+@@ -146,8 +145,8 @@ export default function MissionControl() {
+             exit={{ opacity: 0 }}
+             className="absolute inset-0 z-40 flex items-center justify-center bg-gray-950"
+           >
+-            <div className="text-center w-full">
+-              <div className="w-10 h-10 rounded-full border-2 border-orange-500 border-t-transparent animate-spin mx-auto mb-4" />
++            <div className="flex flex-col items-center justify-center">
++              <div className="w-10 h-10 rounded-full border-2 border-orange-500 border-t-transparent animate-spin mb-4" />
+               <p className="text-gray-400 text-sm">{t('mc.loading')}</p>
+             </div>
+           </motion.div>
+diff --git a/src-ui/src/kerbal-control/ProactiveAgent.ts b/src-ui/src/kerbal-control/ProactiveAgent.ts
+index a4f168c..1a86bb4 100644
+--- a/src-ui/src/kerbal-control/ProactiveAgent.ts
++++ b/src-ui/src/kerbal-control/ProactiveAgent.ts
+@@ -13,7 +13,6 @@ import type { KerbalSoul } from './SoulLoader';
+ import { statsToApiParams } from './SoulLoader';
+ import { chatViaProvider, EMPTY_RESPONSE } from '../services/ai';
+ import { moodSystem } from './MoodSystem';
+-import { relationshipGraph } from './RelationshipGraph';
+ import { storyEngine } from './StoryEngine';
+ import { buildToolsPrompt, parseToolCalls, executeToolCall, stripToolCalls } from './AgentSkills';
+ 
+@@ -48,7 +47,7 @@ const TRIGGERS: ProactiveTrigger[] = [
+     id: 'window_return',
+     condition: (ctx) => ctx.windowFocused && ctx.focusAwayDuration > 120_000,
+     selectKerbal: (k) => k[Math.floor(Math.random() * k.length)],
+-    buildPrompt: (ctx, kerbal) =>
++    buildPrompt: (ctx, _kerbal) =>
+       `[PROACTIVE: user just returned after being away for ${Math.round(ctx.focusAwayDuration / 60_000)} min. Greet them casually, ask if everything's OK, or joke about what you were discussing while they were gone. Be warm and natural — no formal greetings.]`,
+     cooldownMs: 300_000,
+   },
+@@ -73,7 +72,7 @@ const TRIGGERS: ProactiveTrigger[] = [
+       const wernher = k.find((x) => x.name.toLowerCase() === 'wernher');
+       return wernher || k[Math.floor(Math.random() * k.length)];
+     },
+-    buildPrompt: (ctx, kerbal) =>
++    buildPrompt: (ctx, _kerbal) =>
+       `[PROACTIVE: The user has been on the "${ctx.currentPage}" page for ${Math.round(ctx.currentPageDuration / 60_000)} minutes. They might be stuck or deeply researching. Offer relevant help. Reference the page they're on naturally.]`,
+     cooldownMs: 600_000,
+   },
+@@ -256,7 +255,7 @@ class ProactiveAgent {
+ 
+   // ---- fallback templates ---------------------------------------------------
+ 
+-  private getFallback(triggerId: string, kerbalName: string): string {
++  private getFallback(triggerId: string, _kerbalName: string): string {
+     const templates: Record<string, string[]> = {
+       window_return: [
+         'Oh hey, welcome back! We were just talking about rocket designs.',
+diff --git a/src-ui/src/kerbal-control/RelationshipGraph.ts b/src-ui/src/kerbal-control/RelationshipGraph.ts
+index 990736f..65c439c 100644
+--- a/src-ui/src/kerbal-control/RelationshipGraph.ts
++++ b/src-ui/src/kerbal-control/RelationshipGraph.ts
+@@ -110,7 +110,6 @@ class RelationshipGraph {
+    * whether they agreed (positive) or argued (negative).
+    */
+   recordInteraction(a: string, b: string, agreed: boolean): void {
+-    const key = pairKey(a, b);
+     const pair = this.get(a, b);
+     const drift = agreed ? 0.02 : -0.02;
+     pair.affinity = Math.max(-1, Math.min(1, pair.affinity + drift));
+diff --git a/src-ui/src/kerbal-control/Room/KerbalSprite.ts b/src-ui/src/kerbal-control/Room/KerbalSprite.ts
+index 18f7adb..3b12d94 100644
+--- a/src-ui/src/kerbal-control/Room/KerbalSprite.ts
++++ b/src-ui/src/kerbal-control/Room/KerbalSprite.ts
+@@ -182,94 +182,6 @@ function drawBackpack(ctx: CanvasRenderingContext2D, opts: RenderOpts): void {
+   ctx.fill();
+ }
+ 
+-// ---------------------------------------------------------------------------
+-// Chair (used only when sitting) — office chair with armrests
+-// ---------------------------------------------------------------------------
+-
+-function drawChair(ctx: CanvasRenderingContext2D, opts: RenderOpts): void {
+-  const s = opts.scale;
+-  const x = opts.x;
+-  const seatY = opts.y - 3 * s;
+-
+-  // Centre pillar + base
+-  ctx.fillStyle = '#222222';
+-  ctx.fillRect(x - 0.8 * s, seatY, 1.6 * s, opts.y - seatY + 2 * s);
+-  // Star base
+-  ctx.strokeStyle = '#333333';
+-  ctx.lineWidth = 1.6 * s;
+-  ctx.lineCap = 'round';
+-  for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 2.5) {
+-    ctx.beginPath();
+-    ctx.moveTo(x, opts.y + 1.5 * s);
+-    ctx.lineTo(x + Math.cos(angle) * 5.5 * s, opts.y + 2.5 * s);
+-    ctx.stroke();
+-  }
+-  // Caster wheels
+-  ctx.fillStyle = '#1a1a1a';
+-  for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 2.5) {
+-    ctx.beginPath();
+-    ctx.arc(x + Math.cos(angle) * 5.5 * s, opts.y + 2.5 * s, 0.9 * s, 0, Math.PI * 2);
+-    ctx.fill();
+-  }
+-
+-  // Seat cushion
+-  ctx.fillStyle = '#3a3a3e';
+-  ctx.strokeStyle = '#1e1e22';
+-  ctx.lineWidth = 0.6 * s;
+-  roundRect(ctx, x - 7 * s, seatY - 1.5 * s, 14 * s, 3 * s, 1.5 * s);
+-  ctx.fill();
+-  ctx.stroke();
+-  // Seat highlight
+-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+-  roundRect(ctx, x - 5.5 * s, seatY - 1.2 * s, 11 * s, 1.2 * s, 0.8 * s);
+-  ctx.fill();
+-
+-  // Armrest posts
+-  ctx.strokeStyle = '#2a2a2e';
+-  ctx.lineWidth = 1.2 * s;
+-  ctx.lineCap = 'round';
+-  [-1, 1].forEach((side) => {
+-    ctx.beginPath();
+-    ctx.moveTo(x + side * 6 * s, seatY - 1 * s);
+-    ctx.lineTo(x + side * 6 * s, opts.y - 7 * s);
+-    ctx.stroke();
+-  });
+-
+-  // Armrest pads
+-  ctx.fillStyle = '#2e2e32';
+-  [-1, 1].forEach((side) => {
+-    roundRect(ctx, x + side * 6 * s - 2 * s, opts.y - 7.5 * s, 4 * s, 1.8 * s, 0.8 * s);
+-    ctx.fill();
+-  });
+-
+-  // Backrest posts
+-  ctx.strokeStyle = '#2a2a2e';
+-  ctx.lineWidth = 1 * s;
+-  [-1, 1].forEach((side) => {
+-    ctx.beginPath();
+-    ctx.moveTo(x + side * 4.5 * s, seatY - 1 * s);
+-    ctx.lineTo(x + side * 4.5 * s, opts.y - 16 * s);
+-    ctx.stroke();
+-  });
+-
+-  // Backrest (tall, visible behind kerbal)
+-  ctx.fillStyle = '#3a3a3e';
+-  ctx.strokeStyle = '#1e1e22';
+-  ctx.lineWidth = 0.6 * s;
+-  roundRect(ctx, x - 6.5 * s, opts.y - 17 * s, 13 * s, 10 * s, 2 * s);
+-  ctx.fill();
+-  ctx.stroke();
+-  // Mesh texture lines on backrest
+-  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+-  ctx.lineWidth = 0.4 * s;
+-  for (let ly = opts.y - 16 * s; ly < opts.y - 8 * s; ly += 1.8 * s) {
+-    ctx.beginPath();
+-    ctx.moveTo(x - 5 * s, ly);
+-    ctx.lineTo(x + 5 * s, ly);
+-    ctx.stroke();
+-  }
+-}
+-
+ // ---------------------------------------------------------------------------
+ // Legs with chunky boots
+ // ---------------------------------------------------------------------------
+@@ -362,7 +274,6 @@ function drawSittingLegs(ctx: CanvasRenderingContext2D, opts: RenderOpts): void
+     const kneeX = hipX + side * 3 * s;
+     const kneeY = hipY + thighLen;
+     const footX = kneeX;
+-    const footY = kneeY + shinLen;
+ 
+     // Thigh
+     ctx.beginPath();
+@@ -791,7 +702,7 @@ function drawHelmet(
+ function drawFace(
+   ctx: CanvasRenderingContext2D,
+   opts: RenderOpts,
+-  headRx: number,
++  _headRx: number,
+   s: number,
+ ): void {
+   const { courage, stupidity } = opts;
+diff --git a/src-ui/src/kerbal-control/Room/RoomCanvas.tsx b/src-ui/src/kerbal-control/Room/RoomCanvas.tsx
+index fe3f288..9fb4b93 100644
+--- a/src-ui/src/kerbal-control/Room/RoomCanvas.tsx
++++ b/src-ui/src/kerbal-control/Room/RoomCanvas.tsx
+@@ -33,13 +33,8 @@ const MAX_COFFEE_CUPS = 4;
+ // Background rendering helpers
+ // ---------------------------------------------------------------------------
+ 
+-/** Return the floor Y position (feet contact point) for a given display height. */
+ const FLOOR_Y_RATIO = 0.72;
+ 
+-function getFloorY(displayH: number): number {
+-  return displayH * FLOOR_Y_RATIO;
+-}
+-
+ /** Draw the room background: solid walls, flat floor, baseboard trim, big screen, posters. */
+ function drawBackground(
+   ctx: CanvasRenderingContext2D,
+@@ -201,7 +196,7 @@ function drawPosters(ctx: CanvasRenderingContext2D, w: number, h: number): void
+ }
+ 
+ /** Shift badge in the top-right corner showing current shift + crew count. */
+-function drawShiftBadge(ctx: CanvasRenderingContext2D, w: number, h: number, timeOfDay: number): void {
++function drawShiftBadge(ctx: CanvasRenderingContext2D, w: number, h: number, _timeOfDay: number): void {
+   const timeState = timeSystem.getTime();
+   const isDay = timeState.shiftType === 'day';
+   const present = kerbalStore.getPresent();
+@@ -357,7 +352,6 @@ function drawMonitor(
+ 
+ /** Draw an office chair at a desk position (static, doesn't move with kerbal). */
+ function drawChairAtDesk(ctx: CanvasRenderingContext2D, deskX: number, deskY: number): void {
+-  const s = 1; // scale
+   const x = deskX;
+   const seatY = deskY - 3;
+ 
+diff --git a/src-ui/src/kerbal-control/SoulLoader.ts b/src-ui/src/kerbal-control/SoulLoader.ts
+index f7c6b01..bfb905f 100644
+--- a/src-ui/src/kerbal-control/SoulLoader.ts
++++ b/src-ui/src/kerbal-control/SoulLoader.ts
+@@ -128,7 +128,7 @@ export class SoulLoader {
+    * Returns a fully populated KerbalSoul object.
+    */
+   static async load(name: string): Promise<KerbalSoul> {
+-    const response = await fetch(`/src/kerbal-control/Souls/${name}.md`);
++    const response = await fetch(`/kerbal-souls/${name}.md`);
+     if (!response.ok) {
+       throw new Error(`Failed to load soul for "${name}": ${response.status} ${response.statusText}`);
+     }
+diff --git a/src-ui/src/kerbal-control/WorldContext.ts b/src-ui/src/kerbal-control/WorldContext.ts
+index 2e0de8b..80d2d10 100644
+--- a/src-ui/src/kerbal-control/WorldContext.ts
++++ b/src-ui/src/kerbal-control/WorldContext.ts
+@@ -30,7 +30,6 @@ type ContextListener = () => void;
+ class WorldContext {
+   private windowFocused = true;
+   private focusChangedAt = Date.now();
+-  private focusAwayDuration = 0;
+   private currentPage = 'available';
+   private pageEnteredAt = Date.now();
+   private lastActivityTime = Date.now();
+@@ -216,9 +215,6 @@ class WorldContext {
+   };
+ 
+   private onFocus = (): void => {
+-    if (!this.windowFocused) {
+-      this.focusAwayDuration = Date.now() - this.focusChangedAt;
+-    }
+     this.windowFocused = true;
+     this.focusChangedAt = Date.now();
+     this.markActivity();
+diff --git a/src-ui/src/pages/InstancesPage.tsx b/src-ui/src/pages/InstancesPage.tsx
+index 4b0c6f0..e81f23b 100644
+--- a/src-ui/src/pages/InstancesPage.tsx
++++ b/src-ui/src/pages/InstancesPage.tsx
+@@ -1,6 +1,6 @@
+-import { useState } from 'react';
++import { useState, useEffect } from 'react';
+ import { motion, AnimatePresence } from 'framer-motion';
+-import { Plus, Gamepad2, Folder, X, Trash2, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
++import { Plus, Gamepad2, Folder, X, Trash2, AlertCircle, RefreshCw, Loader2, Search } from 'lucide-react';
+ import ckanIpc from '../services/ipc';
+ import styles from './InstancesPage.module.css';
+ 
+@@ -36,6 +36,50 @@ export default function InstancesPage() {
+   const [error, setError] = useState('');
+   const [isRefreshing, setIsRefreshing] = useState(false);
+   const [refreshStatus, setRefreshStatus] = useState('');
++  const [isScanning, setIsScanning] = useState(false);
++
++  // On mount, load instances from the backend (discover existing KSP installations)
++  useEffect(() => {
++    const loadBackendInstances = async () => {
++      try {
++        const result = await ckanIpc.call<any, { instances?: GameInstance[] }>('game:list-instances', {});
++        if (result?.instances && result.instances.length > 0) {
++          // Backend instances are the source of truth; merge them into state and persist
++          setInstances(result.instances);
++          saveInstances(result.instances);
++        }
++      } catch (err) {
++        console.warn('[CKAN] Failed to load instances from backend, falling back to localStorage:', err);
++      }
++    };
++
++    if (ckanIpc.isConnected()) {
++      loadBackendInstances();
++    }
++  }, []);
++
++  const handleScan = async () => {
++    setError('');
++    setIsScanning(true);
++    setRefreshStatus('Scanning for KSP installations...');
++    try {
++      const result = await ckanIpc.call<any, { success?: boolean; instances?: GameInstance[]; error?: string }>('game:scan', {});
++      if (result?.success && result.instances && result.instances.length > 0) {
++        setInstances(result.instances);
++        saveInstances(result.instances);
++        setRefreshStatus(`Scan complete — ${result.instances.length} instance(s) found`);
++      } else if (result?.instances && result.instances.length === 0) {
++        setRefreshStatus('Scan complete — no KSP installations found');
++      } else {
++        setRefreshStatus(`Scan failed: ${result?.error || 'No results'}`);
++      }
++    } catch (err) {
++      setRefreshStatus(`Scan failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
++    } finally {
++      setIsScanning(false);
++      setTimeout(() => setRefreshStatus(''), 5000);
++    }
++  };
+ 
+   const handleRefreshRepo = async () => {
+     setIsRefreshing(true);
+@@ -121,6 +165,15 @@ export default function InstancesPage() {
+             {isRefreshing ? <Loader2 size={16} className={styles.spin} /> : <RefreshCw size={16} />}
+             {isRefreshing ? 'Refreshing...' : 'Refresh Repository'}
+           </button>
++          <button
++            className={styles.addBtn}
++            onClick={handleScan}
++            disabled={isScanning}
++            title="Scan for existing KSP installations on your system"
++          >
++            {isScanning ? <Loader2 size={16} className={styles.spin} /> : <Search size={16} />}
++            {isScanning ? 'Scanning...' : 'Scan for Games'}
++          </button>
+           <button className={styles.addBtn} onClick={() => setShowAddForm(true)}>
+             <Plus size={16} />
+             Add Instance
+@@ -182,6 +235,11 @@ export default function InstancesPage() {
+                       type="button"
+                       className={styles.browseBtn}
+                       onClick={async () => {
++                        setError('');
++                        if (!ckanIpc.isConnected()) {
++                          setError('App is still loading. Please wait a moment and try again.');
++                          return;
++                        }
+                         try {
+                           const result = await ckanIpc.call<{ title: string }, { selected: boolean; path: string | null }>(
+                             'app:browse-folder',
+@@ -190,8 +248,8 @@ export default function InstancesPage() {
+                           if (result.selected && result.path) {
+                             setPath(result.path);
+                           }
+-                        } catch {
+-                          // Fallback: just let them type
++                        } catch (err) {
++                          setError(err instanceof Error ? err.message : 'Failed to open folder browser');
+                         }
+                       }}
+                     >
+diff --git a/src-ui/src/pages/ModListPage.tsx b/src-ui/src/pages/ModListPage.tsx
+index 8b8ce7e..282145d 100644
+--- a/src-ui/src/pages/ModListPage.tsx
++++ b/src-ui/src/pages/ModListPage.tsx
+@@ -1,7 +1,7 @@
+ import { useState, useEffect, useCallback, useRef } from 'react';
+ import { motion, AnimatePresence } from 'framer-motion';
+ import {
+-  Search, Filter, Grid3X3, List, Package, Download, ArrowDownWideNarrow,
++  Search, Filter, Grid3x3, List, Package, Download, ArrowDownWideNarrow,
+   X, ExternalLink, Tag, User, Clock, HardDrive, Loader2, CheckCircle, AlertCircle,
+   FolderSearch, FolderOpen, ArrowUpCircle, ChevronDown
+ } from 'lucide-react';
+@@ -9,7 +9,7 @@ import { registryService } from '../services/registry';
+ import type { CkanModule, SearchFilters } from '../services/registry';
+ import ckanIpc from '../services/ipc';
+ import styles from './ModListPage.module.css';
+-import { useT } from '../i18n';
++import { useT } from '../services/i18n';
+ 
+ interface UnmanagedMod {
+   folder: string;
+@@ -35,6 +35,60 @@ interface UpdatableMod {
+ 
+ const BATCH_SIZE = 60;
+ 
++/** Map a backend mod DTO (raw IPC response item) to the CkanModule shape the UI expects. */
++function mapModDto(m: any): CkanModule {
++  return {
++    identifier: m.identifier || '',
++    name: m.name || m.identifier || '',
++    abstract: m.abstract || m.description || '',
++    author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
++    license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
++    tags: m.tags || [],
++    resources: m.resources || {},
++    version: m.version || '',
++    download_size: m.download_size || 0,
++    install_size: m.install_size || 0,
++    ksp_version: m.ksp_version || null,
++    ksp_version_min: m.ksp_version_min || null,
++    ksp_version_max: m.ksp_version_max || null,
++    release_date: m.release_date || null,
++    depends: m.depends || [],
++    recommends: m.recommends || [],
++    conflicts: m.conflicts || [],
++    description: m.description || m.abstract || '',
++    download: null,
++    download_count: m.download_count || 0,
++    version_count: m.version_count || 1,
++    all_versions: m.all_versions || [m.version || ''],
++  } as CkanModule;
++}
++
++/** Apply client-side search, tag filter, and sort to a mod list. */
++function applyFilters(mods: CkanModule[], search: string, activeTag: string | undefined, sortBy: SearchFilters['sortBy']): CkanModule[] {
++  let result = mods;
++  if (search.trim()) {
++    const q = search.toLowerCase();
++    result = result.filter(m =>
++      m.name.toLowerCase().includes(q) ||
++      m.identifier.toLowerCase().includes(q)
++    );
++  }
++  if (activeTag) {
++    result = result.filter(m => m.tags.includes(activeTag));
++  }
++  if (sortBy) {
++    result = [...result].sort((a, b) => {
++      switch (sortBy) {
++        case 'name': return a.name.localeCompare(b.name);
++        case 'downloads': return b.download_count - a.download_count;
++        case 'updated': return (b.release_date ?? '').localeCompare(a.release_date ?? '');
++        default: return 0;
++      }
++    });
++  }
++  return result;
++}
++
+ // Track mods that have been updated this session so they don't reappear
+ // after component remount (key={activePage} destroys + recreates state).
+ const updatedThisSession = new Set<string>();
+@@ -79,77 +133,30 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
+           try {
+             const result = await ckanIpc.call<any, any>('mod:list-installed', {});
+             if (result?.mods && Array.isArray(result.mods) && result.mods.length > 0) {
+-              // Map backend DTOs to CkanModule shape, filling missing fields with defaults
+-              mods = result.mods.map((m: any) => ({
+-                identifier: m.identifier || '',
+-                name: m.name || m.identifier || '',
+-                abstract: m.abstract || m.description || '',
+-                author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
+-                license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
+-                tags: m.tags || [],
+-                resources: m.resources || {},
+-                version: m.version || '',
+-                download_size: m.download_size || 0,
+-                install_size: m.install_size || 0,
+-                ksp_version: m.ksp_version || null,
+-                ksp_version_min: m.ksp_version_min || null,
+-                ksp_version_max: m.ksp_version_max || null,
+-                release_date: m.release_date || null,
+-                depends: m.depends || [],
+-                recommends: m.recommends || [],
+-                conflicts: m.conflicts || [],
+-                description: m.description || m.abstract || '',
+-                download: null,
+-                download_count: m.download_count || 0,
+-                version_count: m.version_count || 1,
+-                all_versions: m.all_versions || [m.version || ''],
+-              } as CkanModule));
++              mods = result.mods.map(mapModDto);
+ 
+               // Sync installed state to registryService so badges work
+               for (const m of mods) {
+                 registryService.install(m.identifier);
+               }
+             } else {
+-              // Backend returned empty — no mods installed, clear stale state
++              // Backend returned empty -- no mods installed, clear stale state
+               registryService.clearInstalled();
+               mods = [];
+             }
+           } catch {
+-            // IPC call failed — no mods installed, clear stale state
++            // IPC call failed -- no mods installed, clear stale state
+             registryService.clearInstalled();
+             mods = [];
+           }
+         } else {
+-          // Dev mode — use localStorage
++          // Dev mode -- use localStorage
+           mods = registryService.getInstalledModules();
+         }
+ 
+-        if (search.trim()) {
+-          const q = search.toLowerCase();
+-          mods = mods.filter(m =>
+-            m.name.toLowerCase().includes(q) ||
+-            m.identifier.toLowerCase().includes(q)
+-          );
+-        }
+-
+-        // Apply tag filter
+-        if (activeTag) {
+-          mods = mods.filter(m => m.tags.includes(activeTag));
+-        }
+-
+-        // Apply sorting
+-        if (sortBy) {
+-          mods = [...mods].sort((a, b) => {
+-            switch (sortBy) {
+-              case 'name': return a.name.localeCompare(b.name);
+-              case 'downloads': return b.download_count - a.download_count;
+-              case 'updated': return (b.release_date ?? '').localeCompare(a.release_date ?? '');
+-              default: return 0;
+-            }
+-          });
+-        }
++        mods = applyFilters(mods, search, activeTag, sortBy);
+       } else {
+-        // Available tab — try static registry first, fallback to backend
++        // Available tab -- try static registry first, fallback to backend
+         mods = registryService.search(search, filters);
+ 
+         // If static registry returned nothing and backend is connected, try IPC
+@@ -157,33 +164,10 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
+           try {
+             const result = await ckanIpc.call<any, any>('mod:search', { query: search || '' });
+             if (result?.mods && Array.isArray(result.mods) && result.mods.length > 0) {
+-              mods = result.mods.map((m: any) => ({
+-                identifier: m.identifier || '',
+-                name: m.name || m.identifier || '',
+-                abstract: m.abstract || m.description || '',
+-                author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
+-                license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
+-                tags: m.tags || [],
+-                resources: m.resources || {},
+-                version: m.version || '',
+-                download_size: m.download_size || 0,
+-                install_size: m.install_size || 0,
+-                ksp_version: m.ksp_version || null,
+-                ksp_version_min: m.ksp_version_min || null,
+-                ksp_version_max: m.ksp_version_max || null,
+-                release_date: m.release_date || null,
+-                depends: m.depends || [],
+-                recommends: m.recommends || [],
+-                conflicts: m.conflicts || [],
+-                description: m.description || m.abstract || '',
+-                download: null,
+-                download_count: m.download_count || 0,
+-                version_count: m.version_count || 1,
+-                all_versions: m.all_versions || [m.version || ''],
+-              } as CkanModule));
++              mods = result.mods.map(mapModDto);
+             }
+           } catch {
+-            // Silent fail — keep whatever we have
++            // Silent fail -- keep whatever we have
+           }
+         }
+       }
+@@ -192,40 +176,42 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
+       setTags(registryService.getAllTags().slice(0, 30));
+       setIsLoading(false);
+     }).catch(() => {
+-      // registry.json failed to load — try backend as fallback
++      // registry.json failed to load -- try backend as fallback
+       if (ckanIpc.isConnected()) {
+-        ckanIpc.call<any, any>('mod:search', { query: '' }).then((result) => {
+-          if (result?.mods && Array.isArray(result.mods)) {
+-            const mods = result.mods.map((m: any) => ({
+-              identifier: m.identifier || '',
+-              name: m.name || m.identifier || '',
+-              abstract: m.abstract || m.description || '',
+-              author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
+-              license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
+-              tags: m.tags || [],
+-              resources: m.resources || {},
+-              version: m.version || '',
+-              download_size: m.download_size || 0,
+-              install_size: m.install_size || 0,
+-              ksp_version: m.ksp_version || null,
+-              ksp_version_min: m.ksp_version_min || null,
+-              ksp_version_max: m.ksp_version_max || null,
+-              release_date: m.release_date || null,
+-              depends: m.depends || [],
+-              recommends: m.recommends || [],
+-              conflicts: m.conflicts || [],
+-              description: m.description || m.abstract || '',
+-              download: null,
+-              download_count: m.download_count || 0,
+-              version_count: m.version_count || 1,
+-              all_versions: m.all_versions || [m.version || ''],
+-            } as CkanModule));
+-            setAllMods(mods);
+-            setTags([]);
++        const fallbackToBackend = async () => {
++          try {
++            if (view === 'installed') {
++              const result = await ckanIpc.call<any, any>('mod:list-installed', {});
++              if (result?.mods && Array.isArray(result.mods)) {
++                const mods = result.mods.map(mapModDto);
++                for (const m of mods) {
++                  registryService.install(m.identifier);
++                }
++                setAllMods(applyFilters(mods, search, activeTag, sortBy));
++                setTags([]);
++                return;
++              }
++              registryService.clearInstalled();
++              setAllMods([]);
++            } else {
++              const result = await ckanIpc.call<any, any>('mod:search', { query: search || '' });
++              if (result?.mods && Array.isArray(result.mods)) {
++                setAllMods(result.mods.map(mapModDto));
++                setTags([]);
++              } else {
++                setAllMods([]);
++              }
++            }
++          } catch {
++            if (view === 'installed') {
++              registryService.clearInstalled();
++            }
++            setAllMods([]);
++          } finally {
++            setIsLoading(false);
+           }
+-        }).catch(() => {
+-          setAllMods([]);
+-        }).finally(() => setIsLoading(false));
++        };
++        fallbackToBackend();
+       } else {
+         setAllMods([]);
+         setIsLoading(false);
+@@ -520,7 +506,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
+                 onClick={() => setGridView(true)}
+                 title={t('modlist.view.grid')}
+               >
+-                <Grid3X3 size={15} />
++                <Grid3x3 size={15} />
+               </button>
+               <button
+                 className={`${styles.viewBtn} ${!gridView ? styles.viewBtnActive : ''}`}
+diff --git a/src-ui/src/services/ai.ts b/src-ui/src/services/ai.ts
+index e9519c8..afcb15b 100644
+--- a/src-ui/src/services/ai.ts
++++ b/src-ui/src/services/ai.ts
+@@ -503,7 +503,7 @@ export async function chatWithCustomProvider(
+       console.warn(`[ai] Empty response from ${config.label}, retrying...`);
+       // Retry 1: higher temperature + no max_tokens limit
+       try {
+-        const retryBody = { ...body, temperature: Math.min(baseTemp + 0.2, 1.2) };
++        const retryBody: Record<string, unknown> = { ...body, temperature: Math.min(baseTemp + 0.2, 1.2) };
+         delete retryBody.max_tokens;
+         if (provider === 'ollama' && retryBody.options) {
+           (retryBody.options as Record<string, unknown>).num_predict = 256;
+@@ -640,6 +640,26 @@ export async function chatViaProvider(
+ ): Promise<AiChatResult> {
+   const provider = await resolveProvider();
+   if (provider === 'ckan-cloud') {
++    // Check if the user is authenticated; if not, try Ollama as fallback
++    const configured = await aiService.isConfigured();
++    if (!configured) {
++      const ollamaAvailable = await detectOllama();
++      if (ollamaAvailable) {
++        console.log('[ai] CKAN Cloud not available (not signed in), falling back to Ollama');
++        let model = getSelectedModel('ollama');
++        const available = getOllamaAvailableModels();
++        if (available.length > 0 && !available.includes(model)) {
++          model = available[0];
++        }
++        return chatWithCustomProvider('ollama', model, messages, {
++          ...options,
++          noSystemPrompt: true,
++        });
++      }
++      throw new Error(
++        'AI not available. Please sign in to CKAN Cloud (Settings > Account) or set up a local Ollama instance or custom API key (Settings > AI).',
++      );
++    }
+     return aiService.chat(messages, {
+       signal: options?.signal,
+       temperature: options?.temperature,
+diff --git a/src-ui/src/services/i18n.ts b/src-ui/src/services/i18n.ts
+index e00c41a..5cebc65 100644
+--- a/src-ui/src/services/i18n.ts
++++ b/src-ui/src/services/i18n.ts
+@@ -1,17 +1,45 @@
+ /**
+  * i18n — Lightweight internationalization for CKAN-M.
+  * Supports English (en) and Chinese (zh).
+- * Uses React context for reactive language switching.
++ * Uses React context for reactive language switching via useSyncExternalStore.
++ *
++ * This is the SINGLE source of truth for all UI translations.
++ * All components should import `t` or `useT` from this module.
+  */
+ 
++import { useSyncExternalStore } from 'react';
++
++// ---------------------------------------------------------------------------
++// Types
++// ---------------------------------------------------------------------------
++
+ export type Language = 'en' | 'zh';
+ 
++export type TranslateFn = (
++  key: string,
++  params?: Record<string, string | number>,
++) => string;
++
+ // ---------------------------------------------------------------------------
+ // Translation map
+ // ---------------------------------------------------------------------------
+ 
+ const translations: Record<Language, Record<string, string>> = {
+   en: {
++    // Navigation
++    'nav.available': 'Available',
++    'nav.installed': 'Installed',
++    'nav.downloads': 'Downloads',
++    'nav.instances': 'Instances',
++    'nav.settings': 'Settings',
++    'nav.aiAssistant': 'AI Assistant',
++    'nav.collapse': 'Collapse',
++    'nav.expand': 'Expand',
++    'nav.modsLoaded': '{count} mods loaded',
++    'nav.loadingRegistry': 'Loading registry…',
++    'nav.installed.count': '{count} installed',
++    'nav.missionControl': 'Mission Control',
++
+     // Settings
+     'settings.title': 'Settings',
+     'settings.account': 'Account',
+@@ -32,14 +60,22 @@ const translations: Record<Language, Record<string, string>> = {
+     'settings.runsLocally': 'Runs locally — no API key needed',
+     'settings.keySaved': 'Key saved',
+     'settings.missionChatter': 'Mission Control Chatter',
+-    'settings.missionChatterOn': 'Kerbals chat with each other when you\'re idle',
++    'settings.missionChatterOn': "Kerbals chat with each other when you're idle",
+     'settings.missionChatterOff': 'Kerbals only respond when you message them',
+-    'settings.chatterDisclaimer': 'Kerbals will autonomously chat with each other when you\'re idle. This consumes AI API calls. Disable anytime if you prefer kerbals only respond when spoken to.',
++    'settings.chatterDisclaimer': "Kerbals will autonomously chat with each other when you're idle. This consumes AI API calls. Disable anytime if you prefer kerbals only respond when spoken to.",
+     'settings.kerbalModel': 'Kerbal Chat Model',
+     'settings.kerbalModelDesc': 'Specific AI model for kerbals. Leave empty for system default.',
++    'settings.kerbalModelExample': 'Example: kimi-k2.6:cloud',
+     'settings.registry': 'CKAN Registry',
+     'settings.language': 'Language',
+     'settings.languageDesc': 'Interface display language',
++    'settings.supabaseNotConfigured': 'Supabase Not Configured',
++    'settings.supabaseConfigHint': 'Add your anon key in src/services/supabase.ts to enable auth',
++    'settings.signInPrompt': 'Sign in to CKAN',
++    'settings.signInPromptDesc': 'Sync mods and AI points across devices',
++    'settings.authSuccess': 'Account created! Check your email inbox and click the verification link to activate your account.',
++    'settings.repository': 'Repository',
++    'settings.manage': 'Manage',
+ 
+     // Mission Control
+     'mc.loading': 'Loading Kerbal souls...',
+@@ -85,6 +121,7 @@ const translations: Record<Language, Record<string, string>> = {
+     'route.checkin': 'check-in',
+ 
+     // Common
++    'common.unknownError': 'Unknown error',
+     'common.on': 'ON',
+     'common.off': 'OFF',
+     'common.save': 'Save',
+@@ -92,13 +129,207 @@ const translations: Record<Language, Record<string, string>> = {
+     'common.cancel': 'Cancel',
+     'common.signIn': 'Sign In',
+     'common.signOut': 'Sign Out',
++    'common.signUp': 'Sign Up',
+     'common.soon': 'SOON',
+     'common.free': 'FREE',
+     'common.auto': 'Auto',
+     'common.placeholder': 'Paste API key...',
+     'common.search': 'Search',
++    'common.signInEmail': 'Sign In with Email',
++    'common.createAccount': 'Create Account',
++    'common.email': 'Email',
++    'common.password': 'Password',
++    'common.close': 'Close',
++    'common.saved': 'Saved!',
++    'common.tags': 'Tags',
++    'common.links': 'Links',
++
++    // Mod List
++    'modlist.title.available': 'Available Mods',
++    'modlist.title.installed': 'Installed Mods',
++    'modlist.sort.popular': 'Most Popular',
++    'modlist.sort.name': 'Name',
++    'modlist.sort.updated': 'Recently Updated',
++    'modlist.view.grid': 'Grid view',
++    'modlist.view.list': 'List view',
++    'modlist.search.available': 'Search available mods...',
++    'modlist.search.installed': 'Search installed mods...',
++    'modlist.tags': 'Tags',
++    'modlist.tags.clear': 'Clear filter',
++    'modlist.updates.title': 'Updates Available',
++    'modlist.updates.updating': 'Updating...',
++    'modlist.updates.update': 'Update',
++    'modlist.updates.checking': 'Checking for updates...',
++    'modlist.loading': 'Loading mods...',
++    'modlist.empty.noInstalled': 'No mods installed',
++    'modlist.empty.noResults': 'No mods found',
++    'modlist.empty.noInstalled.hint': 'Browse the Available tab to discover mods for your game',
++    'modlist.empty.noResults.hint': 'Try a different search term or check your filters',
++    'modlist.installing': 'Installing...',
++    'modlist.installed': 'Installed',
++    'modlist.col.name': 'Name',
++    'modlist.col.author': 'Author',
++    'modlist.col.version': 'Version',
++    'modlist.col.downloads': 'Downloads',
++    'modlist.col.size': 'Size',
++    'modlist.working': 'Working...',
++    'modlist.remove': 'Remove',
++    'modlist.install': 'Install',
++    'modlist.showMore': 'Showing {shown} of {total}',
++    'modlist.unmanaged.title': 'Unmanaged Mods',
++    'modlist.unmanaged.hint': 'Detected in GameData but not tracked by CKAN',
++    'modlist.unmanaged.badge': 'Unmanaged',
++    'modlist.unmanaged.scanning': 'Scanning GameData folder...',
++    'modlist.unmanaged.none': 'No unmanaged mods detected',
++    'modlist.provider.title': 'Choose Provider',
++    'modlist.provider.desc': '{requester} depends on {requested}. Select a provider to install:',
++    'modlist.provider.cancel': 'Cancel',
++    'modlist.detail.downloadPlural': 'downloads',
++    'modlist.detail.download': 'download',
++    'modlist.detail.installedSize': 'installed',
++    'modlist.detail.compatibility': 'Compatibility',
++    'modlist.detail.dependencies': 'Dependencies',
++    'modlist.detail.conflicts': 'Conflicts',
++    'modlist.detail.versions': 'Versions',
++    'modlist.detail.homepage': 'Homepage',
++    'modlist.detail.source': 'Source Code',
++    'modlist.detail.spacedock': 'SpaceDock',
++    'modlist.detail.bugtracker': 'Bug Tracker',
++    'modlist.uninstall': 'Uninstall',
++    'modlist.installMod': 'Install Mod',
++    'modlist.detail.more': '+{count} more',
++
++    // ModList status toasts
++    'modlist.status.installed': '{name} installed',
++    'modlist.status.removed': '{name} removed',
++    'modlist.status.updated': '{name} updated',
++    'modlist.status.installFailed': 'Install failed: {error}',
++    'modlist.status.uninstallFailed': 'Uninstall failed: {error}',
++    'modlist.status.updateFailed': 'Update failed: {error}',
++    'modlist.status.genericError': 'Error: {error}',
++    'modlist.status.success': 'Installed successfully',
++    'modlist.status.devMode': '(dev mode)',
++
++    // Downloads
++    'downloads.title': 'Downloads',
++    'downloads.empty': 'No active downloads',
++    'downloads.emptyHint': 'Start installing mods to see them here',
++    'downloads.clearHistory': 'Clear History',
++    'downloads.active': 'Active',
++    'downloads.failed': 'Failed',
++    'downloads.completed': 'Completed',
++    'downloads.installing': 'Installing',
++    'downloads.uninstalling': 'Uninstalling',
++    'downloads.started': 'Started',
++    'downloads.installFailed': 'Install failed',
++    'downloads.uninstallFailed': 'Uninstall failed',
++    'downloads.installed': 'Installed',
++    'downloads.uninstalled': 'Uninstalled',
++    'downloads.retry': 'Retry',
++
++    // Instances
++    'instances.title': 'Game Instances',
++    'instances.refreshing': 'Refreshing...',
++    'instances.refreshRepo': 'Refresh Repository',
++    'instances.addInstance': 'Add Instance',
++    'instances.addGameInstance': 'Add Game Instance',
++    'instances.instanceName': 'Instance Name',
++    'instances.instanceNamePlaceholder': 'e.g. KSP 1.12 Modded',
++    'instances.gamePath': 'Game Path',
++    'instances.browse': 'Browse',
++    'instances.pathHint': 'Paste the full path to your KSP installation folder',
++    'instances.kspVersion': 'KSP Version',
++    'instances.empty': 'No game instances found',
++    'instances.emptyHint': 'Add a Kerbal Space Program installation to get started',
++    'instances.addFirstGame': 'Add Your First Game',
++    'instances.added': 'Added',
++    'instances.downloadingRepo': 'Downloading mod repository...',
++    'instances.repoUpdated': 'Repository updated — {modCount} compatible mods found',
++    'instances.repoRefreshFailed': 'Refresh failed',
++    'instances.syncing': 'Syncing mod repository for new instance...',
++    'instances.selectKspFolder': 'Select KSP Installation Folder',
++    'instances.nameRequired': 'Name is required',
++    'instances.pathRequired': 'Game path is required',
++    'instances.failedToAdd': 'Failed to add instance',
++    'instances.removeInstance': 'Remove instance',
++    'instances.refreshRepoTooltip': 'Download latest mod data from CKAN repository',
++
++    // FAQ
++    'faq.title': 'FAQ & Help',
++    'faq.subtitle': 'Frequently asked questions and known issues',
++    'faq.sectionTitle': 'Frequently Asked Questions',
++    'faq.knownIssues': 'Known Issues',
++    'faq.knownBadge': 'Known',
++    'faq.workaround': 'Workaround:',
++    'faq.resources': 'Resources',
++    'faq.githubRepo': 'GitHub Repository',
++    'faq.kspForums': 'KSP Forums',
++    'faq.officialCKAN': 'Official CKAN Project',
++
++    // Repos
++    'repos.title': 'Repositories',
++    'repos.defaultConfigured': 'Default repository configured',
++    'repos.defaultDesc': 'CKAN-meta at github.com/KSP-CKAN/CKAN-meta',
++
++    // AI Chat Panel
++    'ai.title': 'CKAN AI',
++    'ai.close': 'Close',
++    'ai.provider': 'Provider',
++    'ai.model': 'Model',
++    'ai.customModel': 'Or type model ID',
++    'ai.customModelPlaceholder': 'e.g. anthropic/claude-3.5-sonnet',
++    'ai.noApiKey': 'No API key set. Add one in Settings.',
++    'ai.askAnything': 'Ask me anything...',
++    'ai.poweredBy': 'Powered by CKAN Cloud',
++    'ai.using': 'Using {provider}',
++    'ai.ckanCloud': 'CKAN Cloud',
++    'ai.noKey': '(no key)',
++    'ai.errorOccurred': 'Sorry, I ran into an issue: {error}. Please try again.',
++    'ai.signInRequired': 'Sign in to use CKAN AI. Go to Settings > Account to create a free account.',
++
++    // Update Banner
++    'update.available': 'A new version is available',
++    'update.install': 'Update Now',
++    'update.updating': 'Updating...',
++    'update.viewNotes': 'View release notes',
++
++    // Shift Config (Kerbal)
++    'shift.assignments': 'Shift Assignments',
++    'shift.assignDesc': 'Assign Kerbals to day or night shifts. Click a Kerbal to move them between shifts.',
++    'shift.dayShift': 'Day Shift (06:00 – 18:00)',
++    'shift.nightShift': 'Night Shift (18:00 – 06:00)',
++    'shift.noAssigned': 'No Kerbals assigned',
++    'shift.kerbonaut': 'Kerbonaut',
++    'shift.saveChanges': 'Save Changes',
++    'shift.saved': 'Saved!',
++    'shift.resetDefaults': 'Reset to Defaults',
++    'shift.idleBanter': 'Idle Banter',
++    'shift.enableIdle': 'Enable idle Kerbal conversations',
++    'shift.enableIdleDesc': 'Kerbals will chat among themselves when the player is inactive.',
++    'shift.idleDelay': 'Idle delay',
++    'shift.minutes': '{n} minutes',
++    'shift.frequency': 'Conversation frequency',
++    'shift.occasional': 'Occasional',
++    'shift.chatty': 'Chatty',
++    'shift.tokenWarning': 'Idle conversations consume API tokens. Disable to save.',
++    'shift.noResponse': 'No response.',
+   },
++
+   zh: {
++    // Navigation
++    'nav.available': '可用模组',
++    'nav.installed': '已安装',
++    'nav.downloads': '下载',
++    'nav.instances': '游戏实例',
++    'nav.settings': '设置',
++    'nav.aiAssistant': 'AI 助手',
++    'nav.collapse': '收起',
++    'nav.expand': '展开',
++    'nav.modsLoaded': '已加载 {count} 个模组',
++    'nav.loadingRegistry': '正在加载注册表…',
++    'nav.installed.count': '已安装 {count} 个',
++    'nav.missionControl': '任务控制中心',
++
+     // Settings
+     'settings.title': '设置',
+     'settings.account': '账户',
+@@ -124,9 +355,17 @@ const translations: Record<Language, Record<string, string>> = {
+     'settings.chatterDisclaimer': 'Kerbal 会在您空闲时自主聊天。这会消耗 AI API 调用次数。如果不希望 Kerbal 主动聊天，可随时禁用。',
+     'settings.kerbalModel': 'Kerbal 聊天模型',
+     'settings.kerbalModelDesc': '为 Kerbal 指定的 AI 模型。留空则使用系统默认。',
++    'settings.kerbalModelExample': '示例：kimi-k2.6:cloud',
+     'settings.registry': 'CKAN 注册表',
+     'settings.language': '语言',
+     'settings.languageDesc': '界面显示语言',
++    'settings.supabaseNotConfigured': 'Supabase 未配置',
++    'settings.supabaseConfigHint': '在 src/services/supabase.ts 中添加 anon key 以启用登录功能',
++    'settings.signInPrompt': '登录 CKAN',
++    'settings.signInPromptDesc': '跨设备同步模组和 AI 积分',
++    'settings.authSuccess': '账户已创建！请检查邮箱收件箱，点击验证链接激活账户。',
++    'settings.repository': '仓库',
++    'settings.manage': '管理',
+ 
+     // Mission Control
+     'mc.loading': '正在加载 Kerbal 灵魂...',
+@@ -139,7 +378,7 @@ const translations: Record<Language, Record<string, string>> = {
+     'mc.inputPlaceholder': '向任务控制中心发送消息...',
+     'mc.waitingPlaceholder': '等待人员回复...',
+     'mc.pressEnter': '按 Enter 发送',
+-    'mc.kerbalsOnShift': '人在值班',
++    'mc.kerbalsOnShift': '{count} 人在值班',
+     'mc.contacts': '联系人',
+     'mc.startConversation': '开始对话',
+     'mc.messageThem': '发送消息',
+@@ -172,6 +411,7 @@ const translations: Record<Language, Record<string, string>> = {
+     'route.checkin': '主动问候',
+ 
+     // Common
++    'common.unknownError': '未知错误',
+     'common.on': '开',
+     'common.off': '关',
+     'common.save': '保存',
+@@ -179,56 +419,280 @@ const translations: Record<Language, Record<string, string>> = {
+     'common.cancel': '取消',
+     'common.signIn': '登录',
+     'common.signOut': '退出',
++    'common.signUp': '注册',
+     'common.soon': '即将',
+     'common.free': '免费',
+     'common.auto': '自动',
+     'common.placeholder': '粘贴 API 密钥...',
+     'common.search': '搜索',
++    'common.signInEmail': '使用邮箱登录',
++    'common.createAccount': '创建账户',
++    'common.email': '邮箱',
++    'common.password': '密码',
++    'common.close': '关闭',
++    'common.saved': '已保存！',
++    'common.tags': '标签',
++    'common.links': '链接',
++
++    // Mod List
++    'modlist.title.available': '可用模组',
++    'modlist.title.installed': '已安装模组',
++    'modlist.sort.popular': '最受欢迎',
++    'modlist.sort.name': '名称',
++    'modlist.sort.updated': '最近更新',
++    'modlist.view.grid': '网格视图',
++    'modlist.view.list': '列表视图',
++    'modlist.search.available': '搜索可用模组...',
++    'modlist.search.installed': '搜索已安装模组...',
++    'modlist.tags': '标签',
++    'modlist.tags.clear': '清除筛选',
++    'modlist.updates.title': '可用更新',
++    'modlist.updates.updating': '更新中...',
++    'modlist.updates.update': '更新',
++    'modlist.updates.checking': '正在检查更新...',
++    'modlist.loading': '正在加载模组...',
++    'modlist.empty.noInstalled': '未安装任何模组',
++    'modlist.empty.noResults': '未找到模组',
++    'modlist.empty.noInstalled.hint': '浏览"可用模组"标签页来发现适合你游戏的模组',
++    'modlist.empty.noResults.hint': '尝试不同的搜索词或更改筛选条件',
++    'modlist.installing': '安装中...',
++    'modlist.installed': '已安装',
++    'modlist.col.name': '名称',
++    'modlist.col.author': '作者',
++    'modlist.col.version': '版本',
++    'modlist.col.downloads': '下载量',
++    'modlist.col.size': '大小',
++    'modlist.working': '处理中...',
++    'modlist.remove': '移除',
++    'modlist.install': '安装',
++    'modlist.showMore': '显示 {shown} / {total}',
++    'modlist.unmanaged.title': '未管理的模组',
++    'modlist.unmanaged.hint': '在 GameData 中检测到，但未被 CKAN 追踪',
++    'modlist.unmanaged.badge': '未管理',
++    'modlist.unmanaged.scanning': '正在扫描 GameData 文件夹...',
++    'modlist.unmanaged.none': '未检测到未管理的模组',
++    'modlist.provider.title': '选择提供者',
++    'modlist.provider.desc': '{requester} 依赖于 {requested}。请选择要安装的提供者：',
++    'modlist.provider.cancel': '取消',
++    'modlist.detail.downloadPlural': '次下载',
++    'modlist.detail.download': '下载',
++    'modlist.detail.installedSize': '安装大小',
++    'modlist.detail.compatibility': '兼容性',
++    'modlist.detail.dependencies': '依赖项',
++    'modlist.detail.conflicts': '冲突',
++    'modlist.detail.versions': '版本',
++    'modlist.detail.homepage': '主页',
++    'modlist.detail.source': '源代码',
++    'modlist.detail.spacedock': 'SpaceDock',
++    'modlist.detail.bugtracker': '问题追踪',
++    'modlist.uninstall': '卸载',
++    'modlist.installMod': '安装模组',
++    'modlist.detail.more': '还有 {count} 个',
++
++    // ModList status toasts
++    'modlist.status.installed': '{name} 已安装',
++    'modlist.status.removed': '{name} 已移除',
++    'modlist.status.updated': '{name} 已更新',
++    'modlist.status.installFailed': '安装失败：{error}',
++    'modlist.status.uninstallFailed': '卸载失败：{error}',
++    'modlist.status.updateFailed': '更新失败：{error}',
++    'modlist.status.genericError': '错误：{error}',
++    'modlist.status.success': '安装成功',
++    'modlist.status.devMode': '（开发模式）',
++
++    // Downloads
++    'downloads.title': '下载',
++    'downloads.empty': '没有进行中的下载',
++    'downloads.emptyHint': '开始安装模组后，会在这里显示',
++    'downloads.clearHistory': '清除历史',
++    'downloads.active': '进行中',
++    'downloads.failed': '失败',
++    'downloads.completed': '已完成',
++    'downloads.installing': '安装中',
++    'downloads.uninstalling': '卸载中',
++    'downloads.started': '开始于',
++    'downloads.installFailed': '安装失败',
++    'downloads.uninstallFailed': '卸载失败',
++    'downloads.installed': '已安装',
++    'downloads.uninstalled': '已卸载',
++    'downloads.retry': '重试',
++
++    // Instances
++    'instances.title': '游戏实例',
++    'instances.refreshing': '刷新中...',
++    'instances.refreshRepo': '刷新仓库',
++    'instances.addInstance': '添加实例',
++    'instances.addGameInstance': '添加游戏实例',
++    'instances.instanceName': '实例名称',
++    'instances.instanceNamePlaceholder': '例如：KSP 1.12 Modded',
++    'instances.gamePath': '游戏路径',
++    'instances.browse': '浏览',
++    'instances.pathHint': '粘贴 KSP 安装文件夹的完整路径',
++    'instances.kspVersion': 'KSP 版本',
++    'instances.empty': '未找到游戏实例',
++    'instances.emptyHint': '添加 Kerbal Space Program 安装以开始使用',
++    'instances.addFirstGame': '添加第一个游戏',
++    'instances.added': '添加于',
++    'instances.downloadingRepo': '正在下载模组仓库...',
++    'instances.repoUpdated': '仓库已更新 — 找到 {modCount} 个兼容模组',
++    'instances.repoRefreshFailed': '刷新失败',
++    'instances.syncing': '正在为新实例同步模组仓库...',
++    'instances.selectKspFolder': '选择 KSP 安装文件夹',
++    'instances.nameRequired': '名称为必填项',
++    'instances.pathRequired': '游戏路径为必填项',
++    'instances.failedToAdd': '添加实例失败',
++    'instances.removeInstance': '移除实例',
++    'instances.refreshRepoTooltip': '从 CKAN 仓库下载最新模组数据',
++
++    // FAQ
++    'faq.title': '常见问题与帮助',
++    'faq.subtitle': '常见问题与已知问题',
++    'faq.sectionTitle': '常见问题',
++    'faq.knownIssues': '已知问题',
++    'faq.knownBadge': '已知',
++    'faq.workaround': '临时解决方法：',
++    'faq.resources': '相关资源',
++    'faq.githubRepo': 'GitHub 仓库',
++    'faq.kspForums': 'KSP 论坛',
++    'faq.officialCKAN': '官方 CKAN 项目',
++
++    // Repos
++    'repos.title': '仓库',
++    'repos.defaultConfigured': '默认仓库已配置',
++    'repos.defaultDesc': 'CKAN-meta 位于 github.com/KSP-CKAN/CKAN-meta',
++
++    // AI Chat Panel
++    'ai.title': 'CKAN AI',
++    'ai.close': '关闭',
++    'ai.provider': '提供商',
++    'ai.model': '模型',
++    'ai.customModel': '或输入模型 ID',
++    'ai.customModelPlaceholder': '例如 anthropic/claude-3.5-sonnet',
++    'ai.noApiKey': '未设置 API 密钥。请在设置中添加。',
++    'ai.askAnything': '随便问...',
++    'ai.poweredBy': '由 CKAN Cloud 提供支持',
++    'ai.using': '使用 {provider}',
++    'ai.ckanCloud': 'CKAN Cloud',
++    'ai.noKey': '（无密钥）',
++    'ai.errorOccurred': '抱歉，遇到问题：{error}。请重试。',
++    'ai.signInRequired': '请登录以使用 CKAN AI。前往 设置 > 账户 创建免费账户。',
++
++    // Update Banner
++    'update.available': '有新版本可用',
++    'update.install': '立即更新',
++    'update.updating': '更新中...',
++    'update.viewNotes': '查看更新日志',
++
++    // Shift Config (Kerbal)
++    'shift.assignments': '排班安排',
++    'shift.assignDesc': '将 Kerbal 分配到白班或夜班。点击 Kerbal 可在两班之间移动。',
++    'shift.dayShift': '白班 (06:00 – 18:00)',
++    'shift.nightShift': '夜班 (18:00 – 06:00)',
++    'shift.noAssigned': '未分配 Kerbal',
++    'shift.kerbonaut': '航天员',
++    'shift.saveChanges': '保存更改',
++    'shift.saved': '已保存！',
++    'shift.resetDefaults': '恢复默认',
++    'shift.idleBanter': '空闲闲聊',
++    'shift.enableIdle': '启用 Kerbal 空闲对话',
++    'shift.enableIdleDesc': '玩家不活跃时，Kerbal 会互相聊天。',
++    'shift.idleDelay': '空闲等待时间',
++    'shift.minutes': '{n} 分钟',
++    'shift.frequency': '对话频率',
++    'shift.occasional': '偶尔',
++    'shift.chatty': '频繁',
++    'shift.tokenWarning': '空闲对话会消耗 API 额度。关闭可节省用量。',
++    'shift.noResponse': '无响应。',
+   },
+ };
+ 
+ // ---------------------------------------------------------------------------
+-// i18n Service
++// Store (reactive language state)
+ // ---------------------------------------------------------------------------
+ 
+ type Listener = () => void;
+ 
+-class I18nService {
+-  private lang: Language;
+-  private listeners: Set<Listener> = new Set();
++let currentLang: Language = 'en';
++const listeners = new Set<Listener>();
+ 
+-  constructor() {
+-    const saved = localStorage.getItem('ckan_language') as Language | null;
+-    this.lang = saved === 'zh' ? 'zh' : 'en';
+-  }
++function getStoredLang(): Language {
++  try {
++    const saved = localStorage.getItem('ckan_language');
++    if (saved === 'zh') return 'zh';
++  } catch {}
++  return 'en';
++}
+ 
+-  get language(): Language {
+-    return this.lang;
+-  }
++currentLang = getStoredLang();
+ 
+-  /** Translate a key to the current language. Falls back to English. */
+-  t(key: string): string {
+-    return translations[this.lang]?.[key] ?? translations.en[key] ?? key;
+-  }
++function emitChange() {
++  for (const fn of listeners) fn();
++}
+ 
+-  /** Switch language and persist. */
+-  setLanguage(lang: Language): void {
+-    this.lang = lang;
+-    try {
+-      localStorage.setItem('ckan_language', lang);
+-    } catch {}
+-    for (const fn of this.listeners) fn();
+-  }
++/** Translate with parameter interpolation. Falls back to English, then raw key. */
++function translate(key: string, params?: Record<string, string | number>): string {
++  let value =
++    translations[currentLang]?.[key] ??
++    translations.en[key] ??
++    key;
+ 
+-  subscribe(fn: Listener): () => void {
+-    this.listeners.add(fn);
+-    return () => this.listeners.delete(fn);
++  if (params) {
++    for (const [k, v] of Object.entries(params)) {
++      value = value.replace(`{${k}}`, String(v));
++    }
+   }
++
++  return value;
++}
++
++/** The exported t function — works outside React. */
++export const t: TranslateFn = translate;
++
++export function getLanguage(): Language {
++  return currentLang;
++}
++
++export function setLanguage(lang: Language): void {
++  if (lang === currentLang) return;
++  currentLang = lang;
++  try {
++    localStorage.setItem('ckan_language', lang);
++  } catch {}
++  emitChange();
++}
++
++export function subscribe(callback: Listener): () => void {
++  listeners.add(callback);
++  return () => listeners.delete(callback);
+ }
+ 
+-export const i18n = new I18nService();
++/** i18n service object for compat with code that imports `i18n` */
++export const i18n = {
++  get language(): Language {
++    return currentLang;
++  },
++  t: translate,
++  setLanguage(lang: Language) {
++    setLanguage(lang);
++  },
++  subscribe(callback: Listener) {
++    return subscribe(callback);
++  },
++};
++
++// ---------------------------------------------------------------------------
++// React hook — reactive via useSyncExternalStore
++// ---------------------------------------------------------------------------
++
++function getSnapshot(): Language {
++  return currentLang;
++}
++
++function getServerSnapshot(): Language {
++  return 'en';
++}
+ 
+-/** Shorthand for i18n.t() */
+-export function t(key: string): string {
+-  return i18n.t(key);
++export function useT(): { t: TranslateFn; lang: Language } {
++  useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
++  return { t: translate, lang: currentLang };
+ }
+diff --git a/src-ui/src/services/ipc.ts b/src-ui/src/services/ipc.ts
+index 8dc664f..153c018 100644
+--- a/src-ui/src/services/ipc.ts
++++ b/src-ui/src/services/ipc.ts
+@@ -20,6 +20,7 @@ export type IpcChannel =
+   | 'game:add-instance'
+   | 'game:remove-instance'
+   | 'game:set-active'
++  | 'game:scan'
+   | 'ai:chat'
+   | 'ai:points-balance'
+   | 'auth:login'
+@@ -213,6 +214,8 @@ class CkanIpc {
+         return { success: true };
+       case 'game:remove-instance':
+         return { success: true };
++      case 'game:scan':
++        return { success: true, instances: [] };
+       case 'app:browse-folder':
+         return { selected: false, path: null };
+       case 'mod:scan-gamedata':

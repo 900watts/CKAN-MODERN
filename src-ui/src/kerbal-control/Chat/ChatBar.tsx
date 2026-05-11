@@ -10,7 +10,6 @@ import type { RoutedMessage, RouteReason } from './MessageRouter';
 import type { BanterMessage } from './IdleBanter';
 import { KerbalMemory } from '../KerbalMemory';
 import { moodSystem } from '../MoodSystem';
-import { relationshipGraph } from '../RelationshipGraph';
 import { storyEngine } from '../StoryEngine';
 import { buildToolsPrompt, parseToolCalls, executeToolCall, stripToolCalls } from '../AgentSkills';
 import type { ProactiveMessage } from '../ProactiveAgent';
@@ -428,7 +427,7 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
       return;
     }
 
-    const presentKerbals = kerbalStore.getPresent();
+    const presentKerbals = kerbalStore.getAvailable();
     const routed = MessageRouter.route(userText, presentKerbals);
 
     if (routed.length === 0) {
@@ -478,8 +477,8 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
     const kerbalState = kerbalStore.getByName(kerbalId);
     if (!kerbalState) return null;
 
-    // Skip kerbals who are on bathroom/lunch break (they're away)
-    if (kerbalState.position === 'bathroom' || kerbalState.position === 'lunch') {
+    // Skip kerbals who are on break (they're away)
+    if (kerbalStore.isOnBreak(kerbalState.name)) {
       addMessage({
         id: uid(),
         role: 'system',
@@ -527,6 +526,7 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
         signal,
         temperature: params.temperature,
         topP: params.topP,
+        noSystemPrompt: true,
       });
 
       let rawReply = (result.reply && result.reply !== EMPTY_RESPONSE) ? result.reply : '...';
@@ -545,6 +545,7 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
             signal,
             temperature: params.temperature,
             topP: params.topP,
+            noSystemPrompt: true,
           });
           if (followUp.reply && followUp.reply !== EMPTY_RESPONSE) {
             rawReply = stripToolCalls(followUp.reply);
@@ -598,6 +599,7 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
       }
 
       console.error(`[ChatBar] Failed to get response from ${kerbalState.name}:`, err);
+      addSystemMessage('mc.kerbalCantRespond', kerbalState.name);
       return null;
     }
   }
@@ -771,7 +773,7 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
             className="flex-1 bg-transparent text-white placeholder-gray-500 text-sm
                        outline-none border-none focus:ring-0 disabled:opacity-50
                        disabled:cursor-not-allowed"
-            aria-label="Message input"
+            aria-label={t('mc.messageInput')}
             autoComplete="off"
             spellCheck={false}
           />
@@ -787,8 +789,8 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
                             ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                             : 'bg-orange-600 hover:bg-orange-500 active:scale-95 text-white cursor-pointer shadow-md shadow-orange-600/20'
                         }`}
-            aria-label="Send message"
-            title="Send message (Enter)"
+            aria-label={t('mc.sendMessage')}
+            title={t('mc.sendHint')}
           >
             {/* Up-arrow / send icon */}
             <svg

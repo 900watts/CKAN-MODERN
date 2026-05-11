@@ -47,18 +47,20 @@ const TICK_INTERVAL_MS = 10_000;
 // Helpers
 // ---------------------------------------------------------------------------
 
+import { t } from '../services/i18n';
+
 /**
  * Returns a human-readable description of the time of day.
  */
 export function getTimeOfDayDescription(hour: number): string {
-  if (hour >= 5 && hour < 7) return 'early morning';
-  if (hour >= 7 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 14) return 'early afternoon';
-  if (hour >= 14 && hour < 17) return 'afternoon';
-  if (hour >= 17 && hour < 19) return 'evening';
-  if (hour >= 19 && hour < 22) return 'night';
-  if (hour >= 22 || hour < 4) return 'late night';
-  return 'pre-dawn';
+  if (hour >= 5 && hour < 7) return t('time.earlyMorning');
+  if (hour >= 7 && hour < 12) return t('time.morning');
+  if (hour >= 12 && hour < 14) return t('time.earlyAfternoon');
+  if (hour >= 14 && hour < 17) return t('time.afternoon');
+  if (hour >= 17 && hour < 19) return t('time.evening');
+  if (hour >= 19 && hour < 22) return t('time.night');
+  if (hour >= 22 || hour < 4) return t('time.lateNight');
+  return t('time.preDawn');
 }
 
 // ---------------------------------------------------------------------------

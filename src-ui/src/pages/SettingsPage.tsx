@@ -89,7 +89,7 @@ export default function SettingsPage() {
       if (result.error) {
         setAuthError(result.error);
       } else {
-        setAuthSuccess('Account created! Check your email inbox and click the verification link to activate your account.');
+        setAuthSuccess(t('settings.authSuccess'));
         setEmail('');
         setPassword('');
       }
@@ -101,14 +101,14 @@ export default function SettingsPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Settings</h1>
+        <h1 className={styles.title}>{t('settings.title')}</h1>
       </div>
       <div className={styles.content}>
         {/* Account Section */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>
             <User size={16} />
-            Account
+            {t('settings.account')}
           </div>
           <div className={styles.card}>
             {!configured ? (
@@ -116,10 +116,10 @@ export default function SettingsPage() {
                 <div>
                   <div className={styles.settingLabel}>
                     <AlertCircle size={14} style={{ color: 'var(--color-warning)', marginRight: 6 }} />
-                    Supabase Not Configured
+                    {t('settings.supabaseNotConfigured')}
                   </div>
                   <div className={styles.settingDesc}>
-                    Add your anon key in src/services/supabase.ts to enable auth
+                    {t('settings.supabaseConfigHint')}
                   </div>
                 </div>
               </div>
@@ -131,7 +131,7 @@ export default function SettingsPage() {
                     <div className={styles.settingDesc}>{auth.user.email}</div>
                   </div>
                   <button className={styles.btnSecondary} onClick={() => authService.signOut()}>
-                    <LogOut size={14} /> Sign Out
+                    <LogOut size={14} /> {t('common.signOut')}
                   </button>
                 </div>
               </>
@@ -141,24 +141,24 @@ export default function SettingsPage() {
                   <button
                     className={`${styles.authTab} ${authMode === 'signin' ? styles.authTabActive : ''}`}
                     onClick={() => setAuthMode('signin')}
-                  >Sign In</button>
+                  >{t('common.signIn')}</button>
                   <button
                     className={`${styles.authTab} ${authMode === 'signup' ? styles.authTabActive : ''}`}
                     onClick={() => setAuthMode('signup')}
-                  >Sign Up</button>
+                  >{t('common.signUp')}</button>
                 </div>
 
                 <input
                   className={styles.authInput}
                   type="email"
-                  placeholder="Email"
+                  placeholder={t('common.email')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
                 <input
                   className={styles.authInput}
                   type="password"
-                  placeholder="Password"
+                  placeholder={t('common.password')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleEmailAuth()}
@@ -169,21 +169,21 @@ export default function SettingsPage() {
 
                 <button className={styles.btnPrimary} onClick={handleEmailAuth}>
                   <Mail size={14} />
-                  {authMode === 'signin' ? 'Sign In with Email' : 'Create Account'}
+                  {authMode === 'signin' ? t('common.signInEmail') : t('common.createAccount')}
                 </button>
 
                 <button className={styles.btnSecondary} onClick={() => setShowAuthForm(false)} style={{ marginTop: 8 }}>
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             ) : (
               <div className={styles.settingRow}>
                 <div>
-                  <div className={styles.settingLabel}>Sign in to CKAN</div>
-                  <div className={styles.settingDesc}>Sync mods and AI points across devices</div>
+                  <div className={styles.settingLabel}>{t('settings.signInPrompt')}</div>
+                  <div className={styles.settingDesc}>{t('settings.signInPromptDesc')}</div>
                 </div>
                 <button className={styles.btnPrimary} onClick={() => setShowAuthForm(true)}>
-                  <LogIn size={14} /> Sign In
+                  <LogIn size={14} /> {t('common.signIn')}
                 </button>
               </div>
             )}
@@ -194,14 +194,14 @@ export default function SettingsPage() {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>
             <Palette size={16} />
-            Appearance
+            {t('settings.appearance')}
           </div>
           <div className={styles.card}>
             <div className={styles.settingRow}>
               <div>
-                <div className={styles.settingLabel}>Theme</div>
+                <div className={styles.settingLabel}>{t('settings.theme')}</div>
                 <div className={styles.settingDesc}>
-                  {theme === 'dark' ? 'Dark mode active' : 'Light mode active'}
+                  {theme === 'dark' ? t('settings.darkMode') : t('settings.lightMode')}
                 </div>
               </div>
               <button
@@ -209,7 +209,7 @@ export default function SettingsPage() {
                 onClick={() => themeService.toggle()}
               >
                 {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-                {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                {theme === 'dark' ? t('settings.light') : t('settings.dark')}
               </button>
             </div>
             <div className={styles.divider} />
@@ -242,26 +242,26 @@ export default function SettingsPage() {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>
             <Zap size={16} />
-            AI Assistant
+            {t('settings.aiAssistant')}
           </div>
           <div className={styles.card}>
             <div className={styles.settingRow}>
               <div>
-                <div className={styles.settingLabel}>Model</div>
+                <div className={styles.settingLabel}>{t('settings.model')}</div>
                 <div className={styles.settingDesc}>
                   {aiService.getModelName()}
                 </div>
               </div>
-              <span className={styles.tierBadge}>FREE</span>
+              <span className={styles.tierBadge}>{t('common.free')}</span>
             </div>
             <div className={styles.divider} />
             <div className={styles.settingRow}>
               <div>
-                <div className={styles.settingLabel}>Mission Control Chatter</div>
+                <div className={styles.settingLabel}>{t('settings.missionChatter')}</div>
                 <div className={styles.settingDesc}>
                   {idleChatEnabled
-                    ? 'Kerbals chat with each other when you\'re idle'
-                    : 'Kerbals only respond when you message them'}
+                    ? t('settings.missionChatterOn')
+                    : t('settings.missionChatterOff')}
                 </div>
               </div>
               <button
@@ -269,29 +269,29 @@ export default function SettingsPage() {
                 onClick={handleToggleIdleChat}
                 style={{ padding: '6px 14px', fontSize: '12px', minWidth: '70px' }}
               >
-                {idleChatEnabled ? 'ON' : 'OFF'}
+                {idleChatEnabled ? t('common.on') : t('common.off')}
               </button>
             </div>
             {idleChatEnabled && (
               <>
                 <div className={styles.divider} />
                 <div style={{ padding: '8px 0', fontSize: '11px', color: 'var(--color-warning)', lineHeight: '1.5' }}>
-                  Kerbals will autonomously chat with each other when you're idle. This consumes AI API calls. Disable anytime if you prefer kerbals only respond when spoken to.
+                  {t('settings.chatterDisclaimer')}
                 </div>
               </>
             )}
             <div className={styles.divider} />
             <div className={styles.settingRow}>
               <div>
-                <div className={styles.settingLabel}>Kerbal Chat Model</div>
+                <div className={styles.settingLabel}>{t('settings.kerbalModel')}</div>
                 <div className={styles.settingDesc}>
-                  Specific AI model for kerbals. Leave empty for system default. Example: kimi-k2.6:cloud
+                  {t('settings.kerbalModelDesc')} {t('settings.kerbalModelExample')}
                 </div>
               </div>
               <input
                 className={styles.apiKeyInput}
                 type="text"
-                placeholder="Auto"
+                placeholder={t('common.auto')}
                 value={kerbalModel}
                 onChange={(e) => setKerbalModel(e.target.value)}
                 onBlur={() => setKerbalModelOverride(kerbalModel)}
@@ -304,17 +304,17 @@ export default function SettingsPage() {
             <div className={styles.divider} />
             <div className={styles.settingRow}>
               <div>
-                <div className={styles.settingLabel}>Usage Limits</div>
-                <div className={styles.settingDesc}>Free: 20 requests/day | Paid: Unlimited (1 point/request)</div>
+                <div className={styles.settingLabel}>{t('settings.usageLimits')}</div>
+                <div className={styles.settingDesc}>{t('settings.usageDesc')}</div>
               </div>
             </div>
             <div className={styles.divider} />
             <div className={styles.settingRow}>
               <div>
-                <div className={styles.settingLabel}>Paid Tier</div>
-                <div className={styles.settingDesc}>Coming soon — credits system in development</div>
+                <div className={styles.settingLabel}>{t('settings.paidTier')}</div>
+                <div className={styles.settingDesc}>{t('settings.comingSoon')}</div>
               </div>
-              <span className={styles.tierBadge} style={{ opacity: 0.4 }}>SOON</span>
+              <span className={styles.tierBadge} style={{ opacity: 0.4 }}>{t('common.soon')}</span>
             </div>
           </div>
         </div>
@@ -323,11 +323,11 @@ export default function SettingsPage() {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>
             <Key size={16} />
-            AI API Keys
+            {t('settings.apiKeys')}
           </div>
           <div className={styles.card}>
             <div className={styles.settingDesc} style={{ marginBottom: 12 }}>
-              Connect your own API keys to use custom AI providers. Keys are stored locally in your browser.
+              {t('settings.apiKeysDesc')}
             </div>
             {providers.map((provider, i) => {
               const isOllama = provider === 'ollama';
@@ -338,13 +338,13 @@ export default function SettingsPage() {
                   <div className={styles.providerLabel}>{AI_PROVIDERS[provider].label}</div>
                   {isOllama ? (
                     <div className={styles.settingDesc} style={{ color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Check size={14} /> Runs locally — no API key needed
+                      <Check size={14} /> {t('settings.runsLocally')}
                     </div>
                   ) : savedKeys[provider] ? (
                     <div className={styles.apiKeySaved}>
-                      <Check size={14} /> Key saved
+                      <Check size={14} /> {t('settings.keySaved')}
                       <button className={styles.btnDanger} onClick={() => handleClearApiKey(provider)}>
-                        <X size={12} /> Clear
+                        <X size={12} /> {t('common.clear')}
                       </button>
                     </div>
                   ) : (
@@ -352,7 +352,7 @@ export default function SettingsPage() {
                       <input
                         className={styles.apiKeyInput}
                         type="password"
-                        placeholder="Paste API key..."
+                        placeholder={t('common.placeholder')}
                         value={apiKeys[provider] || ''}
                         onChange={(e) => setApiKeys((prev) => ({ ...prev, [provider]: e.target.value }))}
                         onKeyDown={(e) => e.key === 'Enter' && handleSaveApiKey(provider)}
@@ -363,7 +363,7 @@ export default function SettingsPage() {
                         disabled={!apiKeys[provider]?.trim()}
                         style={{ padding: '6px 12px', fontSize: '12px' }}
                       >
-                        Save
+                        {t('common.save')}
                       </button>
                     </div>
                   )}
@@ -377,15 +377,15 @@ export default function SettingsPage() {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>
             <Database size={16} />
-            CKAN Registry
+            {t('settings.registry')}
           </div>
           <div className={styles.card}>
             <div className={styles.settingRow}>
               <div>
-                <div className={styles.settingLabel}>Repository</div>
-                <div className={styles.settingDesc}>master https://github.com/KSP-CKAN/CKAN-meta</div>
+                <div className={styles.settingLabel}>{t('settings.repository')}</div>
+                <div className={styles.settingDesc}>{t('settings.repositoryDesc')}</div>
               </div>
-              <button className={styles.btnSecondary}>Manage</button>
+              <button className={styles.btnSecondary}>{t('settings.manage')}</button>
             </div>
           </div>
         </div>

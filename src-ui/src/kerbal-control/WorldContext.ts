@@ -30,7 +30,6 @@ type ContextListener = () => void;
 class WorldContext {
   private windowFocused = true;
   private focusChangedAt = Date.now();
-  private focusAwayDuration = 0;
   private currentPage = 'available';
   private pageEnteredAt = Date.now();
   private lastActivityTime = Date.now();
@@ -216,9 +215,6 @@ class WorldContext {
   };
 
   private onFocus = (): void => {
-    if (!this.windowFocused) {
-      this.focusAwayDuration = Date.now() - this.focusChangedAt;
-    }
     this.windowFocused = true;
     this.focusChangedAt = Date.now();
     this.markActivity();

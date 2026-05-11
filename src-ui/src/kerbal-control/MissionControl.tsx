@@ -14,14 +14,20 @@ import { worldContext } from './WorldContext';
 import { moodSystem } from './MoodSystem';
 import { proactiveAgent } from './ProactiveAgent';
 import type { ProactiveMessage } from './ProactiveAgent';
-import { storyEngine } from './StoryEngine';
 import NotificationBanner from './NotificationBanner';
 import type { BannerMessage } from './NotificationBanner';
 
 export default function MissionControl() {
   const [smartphoneOpen, setSmartphoneOpen] = useState(false);
+  const smartphoneOpenRef = useRef(false);
   const [soulsLoaded, setSoulsLoaded] = useState(false);
   const [shiftNotification, setShiftNotification] = useState<string | null>(null);
+  const [unreadPhoneCount, setUnreadPhoneCount] = useState(0);
+
+  // Keep ref in sync for the one-time effect subscribers that capture it
+  useEffect(() => {
+    smartphoneOpenRef.current = smartphoneOpen;
+  }, [smartphoneOpen]);
 
   /** Banter messages collected from idleBanter, passed down to ChatBar. */
   const [banterMessages, setBanterMessages] = useState<BanterMessage[]>([]);
@@ -74,6 +80,9 @@ export default function MissionControl() {
     // Subscribe to banter events (capped at 200 to prevent unbounded growth)
     const unsubBanter = idleBanter.onBanter((message: BanterMessage) => {
       setBanterMessages((prev) => [...prev.slice(-199), message]);
+      if (!smartphoneOpenRef.current) {
+        setUnreadPhoneCount((c) => c + 1);
+      }
     });
 
     const unsubProactive = proactiveAgent.onMessage((msg: ProactiveMessage) => {
@@ -83,6 +92,9 @@ export default function MissionControl() {
         preview: msg.content.slice(0, 80),
         timestamp: msg.timestamp,
       });
+      if (!smartphoneOpenRef.current) {
+        setUnreadPhoneCount((c) => c + 1);
+      }
     });
 
     const timeUnsub = timeSystem.subscribe(() => {
@@ -146,8 +158,8 @@ export default function MissionControl() {
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-40 flex items-center justify-center bg-gray-950"
           >
-            <div className="text-center w-full">
-              <div className="w-10 h-10 rounded-full border-2 border-orange-500 border-t-transparent animate-spin mx-auto mb-4" />
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-10 h-10 rounded-full border-2 border-orange-500 border-t-transparent animate-spin mb-4" />
               <p className="text-gray-400 text-sm">{t('mc.loading')}</p>
             </div>
           </motion.div>
@@ -163,8 +175,11 @@ export default function MissionControl() {
       <div className="relative flex-shrink-0 bg-gray-900 border-t border-b border-gray-800" style={{ height: '4px' }}>
         <div className="absolute right-6 -top-6">
           <button
-            onClick={() => setSmartphoneOpen(true)}
-            className="flex items-center justify-center w-12 h-12 rounded-full
+            onClick={() => {
+              setSmartphoneOpen(true);
+              setUnreadPhoneCount(0);
+            }}
+            className="relative flex items-center justify-center w-12 h-12 rounded-full
               bg-gray-800 border border-gray-700 hover:border-orange-500/50
               hover:bg-gray-750 transition-all duration-200
               shadow-lg hover:shadow-orange-500/20
@@ -172,6 +187,11 @@ export default function MissionControl() {
             title={t('mc.openPhone')}
           >
             <Smartphone size={22} className="text-gray-400 hover:text-orange-400 transition-colors" />
+            {unreadPhoneCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none shadow-md shadow-red-500/40">
+                {unreadPhoneCount > 9 ? '9+' : unreadPhoneCount}
+              </span>
+            )}
           </button>
         </div>
       </div>

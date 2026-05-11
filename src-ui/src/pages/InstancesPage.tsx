@@ -1,34 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Gamepad2, Folder, X, Trash2, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { Plus, Gamepad2, Folder, X, Trash2, AlertCircle, RefreshCw, Loader2, Search } from 'lucide-react';
 import ckanIpc from '../services/ipc';
+import { useT } from '../services/i18n';
 import styles from './InstancesPage.module.css';
 
 interface GameInstance {
-  id: string;
   name: string;
   path: string;
   version: string;
-  addedAt: string;
+  valid: boolean;
+  game: string;
+  active: boolean;
 }
 
-const STORAGE_KEY = 'ckan_instances';
-
-function loadInstances(): GameInstance[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveInstances(instances: GameInstance[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(instances));
+/** Normalize backend instances (which don't have ids) for React keys. */
+function keyForInstance(inst: GameInstance): string {
+  return inst.name.toLowerCase().replace(/\s+/g, '-');
 }
 
 export default function InstancesPage() {
-  const [instances, setInstances] = useState<GameInstance[]>(loadInstances);
+  const { t } = useT();
+  const [instances, setInstances] = useState<GameInstance[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
@@ -36,33 +29,87 @@ export default function InstancesPage() {
   const [error, setError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState('');
+  const [refreshIsError, setRefreshIsError] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Clean up status timeout on unmount
+  useEffect(() => {
+    return () => clearTimeout(statusTimeoutRef.current);
+  }, []);
+
+  // On mount, load instances from the backend (discover existing KSP installations)
+  useEffect(() => {
+    loadBackendInstances();
+  }, []);
+
+  async function loadBackendInstances() {
+    try {
+      const result = await ckanIpc.call<any, { instances?: GameInstance[] }>('game:list-instances', {});
+      if (result?.instances && result.instances.length > 0) {
+        setInstances(result.instances);
+      }
+    } catch (err) {
+      console.warn('[CKAN] Failed to load instances from backend:', err);
+    }
+  }
+
+  const handleScan = async () => {
+    setError('');
+    setIsScanning(true);
+    setRefreshIsError(false);
+    setRefreshStatus(t('instances.scanning'));
+    try {
+      const result = await ckanIpc.call<any, { success?: boolean; instances?: GameInstance[]; error?: string }>('game:scan', {});
+      if (result?.success && result.instances && result.instances.length > 0) {
+        setInstances(result.instances);
+        setRefreshStatus(t('instances.scanComplete', { count: result.instances.length }));
+      } else if (result?.instances && result.instances.length === 0) {
+        setRefreshStatus(t('instances.scanCompleteNone'));
+      } else {
+        setRefreshIsError(true);
+        setRefreshStatus(t('instances.scanFailed', { error: result?.error || t('instances.noResults') }));
+      }
+    } catch (err) {
+      setRefreshIsError(true);
+      setRefreshStatus(t('instances.scanFailed', { error: err instanceof Error ? err.message : t('common.unknownError') }));
+    } finally {
+      setIsScanning(false);
+      clearTimeout(statusTimeoutRef.current);
+      statusTimeoutRef.current = setTimeout(() => setRefreshStatus(''), 5000);
+    }
+  };
 
   const handleRefreshRepo = async () => {
     setIsRefreshing(true);
-    setRefreshStatus('Downloading mod repository...');
+    setRefreshIsError(false);
+    setRefreshStatus(t('instances.downloadingRepo'));
     try {
       const result = await ckanIpc.call<any, any>('repo:refresh', {});
       if (result?.success) {
-        setRefreshStatus(`Repository updated — ${result.modCount} compatible mods found`);
+        setRefreshStatus(t('instances.repoUpdated', { modCount: result.modCount }));
       } else {
-        setRefreshStatus(`Refresh failed: ${result?.error || 'Unknown error'}`);
+        setRefreshIsError(true);
+        setRefreshStatus(`${t('instances.repoRefreshFailed')}: ${result?.error || t('common.unknownError')}`);
       }
     } catch (err) {
-      setRefreshStatus(`Refresh failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setRefreshIsError(true);
+      setRefreshStatus(`${t('instances.repoRefreshFailed')}: ${err instanceof Error ? err.message : t('common.unknownError')}`);
     } finally {
       setIsRefreshing(false);
-      setTimeout(() => setRefreshStatus(''), 5000);
+      clearTimeout(statusTimeoutRef.current);
+      statusTimeoutRef.current = setTimeout(() => setRefreshStatus(''), 5000);
     }
   };
 
   const handleAdd = async () => {
     setError('');
     if (!name.trim()) {
-      setError('Name is required');
+      setError(t('instances.nameRequired'));
       return;
     }
     if (!path.trim()) {
-      setError('Game path is required');
+      setError(t('instances.pathRequired'));
       return;
     }
 
@@ -74,56 +121,80 @@ export default function InstancesPage() {
           path: path.trim(),
         });
         if (!result?.success) {
-          setError(result?.error || 'Failed to add instance');
+          setError(result?.error || t('instances.failedToAdd'));
           return;
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to add instance');
+        setError(err instanceof Error ? err.message : t('instances.failedToAdd'));
         return;
       }
+    } else {
+      setError(t('instances.appLoading'));
+      return;
     }
 
-    const newInstance: GameInstance = {
-      id: crypto.randomUUID(),
-      name: name.trim(),
-      path: path.trim(),
-      version: version.trim() || '1.12.5',
-      addedAt: new Date().toISOString(),
-    };
-
-    const updated = [...instances, newInstance];
-    setInstances(updated);
-    saveInstances(updated);
     setShowAddForm(false);
     setName('');
     setPath('');
     setVersion('1.12.5');
-    setRefreshStatus('Syncing mod repository for new instance...');
+    setRefreshStatus(t('instances.syncing'));
+
+    // Reload from backend to get fresh state
+    await loadBackendInstances();
   };
 
-  const handleRemove = (id: string) => {
-    const updated = instances.filter((i) => i.id !== id);
-    setInstances(updated);
-    saveInstances(updated);
+  const handleRemove = async (name: string) => {
+    setError('');
+    if (ckanIpc.isConnected()) {
+      try {
+        await ckanIpc.call<any, any>('game:remove-instance', { name });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('instances.failedToRemove'));
+        return;
+      }
+    }
+    await loadBackendInstances();
+  };
+
+  const handleSetActive = async (name: string) => {
+    setError('');
+    if (ckanIpc.isConnected()) {
+      try {
+        await ckanIpc.call<any, any>('game:set-active', { name });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('instances.failedToSwitch'));
+        return;
+      }
+    }
+    await loadBackendInstances();
   };
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Game Instances</h1>
+        <h1 className={styles.title}>{t('instances.title')}</h1>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             className={styles.addBtn}
             onClick={handleRefreshRepo}
             disabled={isRefreshing}
-            title="Download latest mod data from CKAN repository"
+            title={t('instances.refreshRepoTooltip')}
           >
             {isRefreshing ? <Loader2 size={16} className={styles.spin} /> : <RefreshCw size={16} />}
-            {isRefreshing ? 'Refreshing...' : 'Refresh Repository'}
+            {isRefreshing ? t('instances.refreshing') : t('instances.refreshRepo')}
+          </button>
+          <button
+            className={styles.addBtn}
+            onClick={handleScan}
+            disabled={isScanning}
+            title={t('instances.scanBtnTooltip')}
+          >
+            {isScanning ? <Loader2 size={16} className={styles.spin} /> : <Search size={16} />}
+            {isScanning ? t('instances.scanningBtn') : t('instances.scanForGames')}
           </button>
           <button className={styles.addBtn} onClick={() => setShowAddForm(true)}>
             <Plus size={16} />
-            Add Instance
+            {t('instances.addInstance')}
           </button>
         </div>
       </div>
@@ -133,12 +204,12 @@ export default function InstancesPage() {
           {refreshStatus && (
             <motion.div
               className={styles.formError}
-              style={{ marginBottom: 16, color: refreshStatus.includes('fail') ? '#ff5050' : 'var(--color-accent-primary)', borderColor: refreshStatus.includes('fail') ? 'rgba(255,80,80,0.3)' : 'rgba(96,205,255,0.3)', background: refreshStatus.includes('fail') ? 'rgba(255,80,80,0.08)' : 'rgba(96,205,255,0.08)', padding: '10px 14px', borderRadius: '8px', border: '1px solid', fontSize: '13px' }}
+              style={{ marginBottom: 16, color: refreshIsError ? '#ff5050' : 'var(--color-accent-primary)', borderColor: refreshIsError ? 'rgba(255,80,80,0.3)' : 'rgba(96,205,255,0.3)', background: refreshIsError ? 'rgba(255,80,80,0.08)' : 'rgba(96,205,255,0.08)', padding: '10px 14px', borderRadius: '8px', border: '1px solid', fontSize: '13px' }}
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
             >
-              {isRefreshing && <Loader2 size={12} className={styles.spin} />}
+              {(isRefreshing || isScanning) && <Loader2 size={12} className={styles.spin} />}
               {refreshStatus}
             </motion.div>
           )}
@@ -153,23 +224,23 @@ export default function InstancesPage() {
               exit={{ opacity: 0, y: -10 }}
             >
               <div className={styles.formHeader}>
-                <h3>Add Game Instance</h3>
+                <h3>{t('instances.addGameInstance')}</h3>
                 <button className={styles.formClose} onClick={() => { setShowAddForm(false); setError(''); }}>
                   <X size={16} />
                 </button>
               </div>
               <div className={styles.formBody}>
                 <div className={styles.formField}>
-                  <label className={styles.formLabel}>Instance Name</label>
+                  <label className={styles.formLabel}>{t('instances.instanceName')}</label>
                   <input
                     className={styles.formInput}
-                    placeholder="e.g. KSP 1.12 Modded"
+                    placeholder={t('instances.instanceNamePlaceholder')}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
                 </div>
                 <div className={styles.formField}>
-                  <label className={styles.formLabel}>Game Path</label>
+                  <label className={styles.formLabel}>{t('instances.gamePath')}</label>
                   <div className={styles.pathRow}>
                     <Folder size={14} className={styles.pathIcon} />
                     <input
@@ -182,26 +253,31 @@ export default function InstancesPage() {
                       type="button"
                       className={styles.browseBtn}
                       onClick={async () => {
+                        setError('');
+                        if (!ckanIpc.isConnected()) {
+                          setError(t('instances.appLoading'));
+                          return;
+                        }
                         try {
                           const result = await ckanIpc.call<{ title: string }, { selected: boolean; path: string | null }>(
                             'app:browse-folder',
-                            { title: 'Select KSP Installation Folder' }
+                            { title: t('instances.selectKspFolder') }
                           );
                           if (result.selected && result.path) {
                             setPath(result.path);
                           }
-                        } catch {
-                          // Fallback: just let them type
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : t('instances.failedToBrowse'));
                         }
                       }}
                     >
-                      Browse
+                      {t('instances.browse')}
                     </button>
                   </div>
-                  <span className={styles.formHint}>Paste the full path to your KSP installation folder</span>
+                  <span className={styles.formHint}>{t('instances.pathHint')}</span>
                 </div>
                 <div className={styles.formField}>
-                  <label className={styles.formLabel}>KSP Version</label>
+                  <label className={styles.formLabel}>{t('instances.kspVersion')}</label>
                   <select
                     className={styles.formInput}
                     value={version}
@@ -223,10 +299,10 @@ export default function InstancesPage() {
                 )}
                 <div className={styles.formActions}>
                   <button className={styles.formBtnPrimary} onClick={handleAdd}>
-                    Add Instance
+                    {t('instances.addInstance')}
                   </button>
                   <button className={styles.formBtnSecondary} onClick={() => { setShowAddForm(false); setError(''); }}>
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -239,8 +315,9 @@ export default function InstancesPage() {
           <div className={styles.instanceList}>
             {instances.map((inst) => (
               <motion.div
-                key={inst.id}
-                className={styles.instanceCard}
+                key={keyForInstance(inst)}
+                className={`${styles.instanceCard} ${inst.active ? styles.activeCard : ''}`}
+                style={inst.active ? { borderColor: 'var(--color-accent-primary, #60cdff)', borderWidth: '1px' } : {}}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
               >
@@ -248,20 +325,41 @@ export default function InstancesPage() {
                   <Gamepad2 size={20} />
                 </div>
                 <div className={styles.instanceInfo}>
-                  <div className={styles.instanceName}>{inst.name}</div>
+                  <div className={styles.instanceName}>
+                    {inst.name}
+                    {inst.active && (
+                      <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--color-accent-primary)', fontWeight: 600 }}>
+                        {t('instances.active')}
+                      </span>
+                    )}
+                  </div>
                   <div className={styles.instancePath}>{inst.path}</div>
                   <div className={styles.instanceMeta}>
-                    <span>KSP {inst.version}</span>
-                    <span>Added {new Date(inst.addedAt).toLocaleDateString()}</span>
+                    <span>{inst.game} {inst.version || '—'}</span>
+                    {!inst.valid && (
+                      <span style={{ color: '#ff5050' }}>{t('instances.invalid')}</span>
+                    )}
                   </div>
                 </div>
-                <button
-                  className={styles.removeBtn}
-                  onClick={() => handleRemove(inst.id)}
-                  title="Remove instance"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {!inst.active && (
+                    <button
+                      className={styles.addBtn}
+                      style={{ padding: '4px 10px', fontSize: 12 }}
+                      onClick={() => handleSetActive(inst.name)}
+                      title={t('instances.setActive')}
+                    >
+                      {t('instances.select')}
+                    </button>
+                  )}
+                  <button
+                    className={styles.removeBtn}
+                    onClick={() => handleRemove(inst.name)}
+                    title={t('instances.removeInstance')}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </motion.div>
             ))}
           </div>
@@ -272,11 +370,11 @@ export default function InstancesPage() {
             animate={{ opacity: 1, y: 0 }}
           >
             <Gamepad2 size={48} className={styles.emptyIcon} />
-            <h2>No game instances found</h2>
-            <p>Add a Kerbal Space Program installation to get started</p>
+            <h2>{t('instances.empty')}</h2>
+            <p>{t('instances.emptyHint')}</p>
             <button className={styles.addBtnLarge} onClick={() => setShowAddForm(true)}>
               <Plus size={16} />
-              Add Your First Game
+              {t('instances.addFirstGame')}
             </button>
           </motion.div>
         ) : null}

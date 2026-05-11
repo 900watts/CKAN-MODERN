@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, Filter, Grid3X3, List, Package, Download, ArrowDownWideNarrow,
+  Search, Filter, Grid3x3, List, Package, Download, ArrowDownWideNarrow,
   X, ExternalLink, Tag, User, Clock, HardDrive, Loader2, CheckCircle, AlertCircle,
   FolderSearch, FolderOpen, ArrowUpCircle, ChevronDown
 } from 'lucide-react';
@@ -9,7 +9,7 @@ import { registryService } from '../services/registry';
 import type { CkanModule, SearchFilters } from '../services/registry';
 import ckanIpc from '../services/ipc';
 import styles from './ModListPage.module.css';
-import { useT } from '../i18n';
+import { useT } from '../services/i18n';
 
 interface UnmanagedMod {
   folder: string;
@@ -34,6 +34,85 @@ interface UpdatableMod {
 }
 
 const BATCH_SIZE = 60;
+
+/** Raw mod shape received from the backend IPC (loosely typed where the backend may omit fields). */
+interface ModDto {
+  identifier?: string;
+  name?: string;
+  abstract?: string;
+  description?: string;
+  author?: string | string[];
+  license?: string | string[];
+  tags?: string[];
+  resources?: Record<string, unknown>;
+  version?: string;
+  download_size?: number;
+  install_size?: number;
+  ksp_version?: string | null;
+  ksp_version_min?: string | null;
+  ksp_version_max?: string | null;
+  release_date?: string | null;
+  depends?: Array<{ name: string }>;
+  recommends?: Array<{ name: string }>;
+  conflicts?: Array<{ name: string }>;
+  download_count?: number;
+  version_count?: number;
+  all_versions?: string[];
+}
+
+/** Map a backend mod DTO to the CkanModule shape the UI expects. */
+function mapModDto(m: ModDto): CkanModule {
+  return {
+    identifier: m.identifier || '',
+    name: m.name || m.identifier || '',
+    abstract: m.abstract || m.description || '',
+    author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
+    license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
+    tags: m.tags || [],
+    resources: (m.resources as CkanModule['resources']) || {},
+    version: m.version || '',
+    download_size: m.download_size || 0,
+    install_size: m.install_size || 0,
+    ksp_version: m.ksp_version ?? null,
+    ksp_version_min: m.ksp_version_min ?? null,
+    ksp_version_max: m.ksp_version_max ?? null,
+    release_date: m.release_date ?? null,
+    depends: m.depends || [],
+    recommends: m.recommends || [],
+    conflicts: m.conflicts || [],
+    description: m.description || m.abstract || '',
+    download: null,
+    download_count: m.download_count || 0,
+    version_count: m.version_count || 1,
+    all_versions: m.all_versions || [m.version || ''],
+  };
+}
+
+/** Apply client-side search, tag filter, and sort to a mod list. */
+function applyFilters(mods: CkanModule[], search: string, activeTag: string | undefined, sortBy: SearchFilters['sortBy']): CkanModule[] {
+  let result = mods;
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    result = result.filter(m =>
+      m.name.toLowerCase().includes(q) ||
+      m.identifier.toLowerCase().includes(q)
+    );
+  }
+  if (activeTag) {
+    result = result.filter(m => m.tags.includes(activeTag));
+  }
+  if (sortBy) {
+    result = [...result].sort((a, b) => {
+      switch (sortBy) {
+        case 'name': return a.name.localeCompare(b.name);
+        case 'downloads': return b.download_count - a.download_count;
+        case 'updated': return (b.release_date ?? '').localeCompare(a.release_date ?? '');
+        default: return 0;
+      }
+    });
+  }
+  return result;
+}
 
 // Track mods that have been updated this session so they don't reappear
 // after component remount (key={activePage} destroys + recreates state).
@@ -79,77 +158,30 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           try {
             const result = await ckanIpc.call<any, any>('mod:list-installed', {});
             if (result?.mods && Array.isArray(result.mods) && result.mods.length > 0) {
-              // Map backend DTOs to CkanModule shape, filling missing fields with defaults
-              mods = result.mods.map((m: any) => ({
-                identifier: m.identifier || '',
-                name: m.name || m.identifier || '',
-                abstract: m.abstract || m.description || '',
-                author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
-                license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
-                tags: m.tags || [],
-                resources: m.resources || {},
-                version: m.version || '',
-                download_size: m.download_size || 0,
-                install_size: m.install_size || 0,
-                ksp_version: m.ksp_version || null,
-                ksp_version_min: m.ksp_version_min || null,
-                ksp_version_max: m.ksp_version_max || null,
-                release_date: m.release_date || null,
-                depends: m.depends || [],
-                recommends: m.recommends || [],
-                conflicts: m.conflicts || [],
-                description: m.description || m.abstract || '',
-                download: null,
-                download_count: m.download_count || 0,
-                version_count: m.version_count || 1,
-                all_versions: m.all_versions || [m.version || ''],
-              } as CkanModule));
+              mods = result.mods.map(mapModDto);
 
               // Sync installed state to registryService so badges work
               for (const m of mods) {
                 registryService.install(m.identifier);
               }
             } else {
-              // Backend returned empty — no mods installed, clear stale state
+              // Backend returned empty -- no mods installed, clear stale state
               registryService.clearInstalled();
               mods = [];
             }
           } catch {
-            // IPC call failed — no mods installed, clear stale state
+            // IPC call failed -- no mods installed, clear stale state
             registryService.clearInstalled();
             mods = [];
           }
         } else {
-          // Dev mode — use localStorage
+          // Dev mode -- use localStorage
           mods = registryService.getInstalledModules();
         }
 
-        if (search.trim()) {
-          const q = search.toLowerCase();
-          mods = mods.filter(m =>
-            m.name.toLowerCase().includes(q) ||
-            m.identifier.toLowerCase().includes(q)
-          );
-        }
-
-        // Apply tag filter
-        if (activeTag) {
-          mods = mods.filter(m => m.tags.includes(activeTag));
-        }
-
-        // Apply sorting
-        if (sortBy) {
-          mods = [...mods].sort((a, b) => {
-            switch (sortBy) {
-              case 'name': return a.name.localeCompare(b.name);
-              case 'downloads': return b.download_count - a.download_count;
-              case 'updated': return (b.release_date ?? '').localeCompare(a.release_date ?? '');
-              default: return 0;
-            }
-          });
-        }
+        mods = applyFilters(mods, search, activeTag, sortBy);
       } else {
-        // Available tab — try static registry first, fallback to backend
+        // Available tab -- try static registry first, fallback to backend
         mods = registryService.search(search, filters);
 
         // If static registry returned nothing and backend is connected, try IPC
@@ -157,33 +189,10 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           try {
             const result = await ckanIpc.call<any, any>('mod:search', { query: search || '' });
             if (result?.mods && Array.isArray(result.mods) && result.mods.length > 0) {
-              mods = result.mods.map((m: any) => ({
-                identifier: m.identifier || '',
-                name: m.name || m.identifier || '',
-                abstract: m.abstract || m.description || '',
-                author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
-                license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
-                tags: m.tags || [],
-                resources: m.resources || {},
-                version: m.version || '',
-                download_size: m.download_size || 0,
-                install_size: m.install_size || 0,
-                ksp_version: m.ksp_version || null,
-                ksp_version_min: m.ksp_version_min || null,
-                ksp_version_max: m.ksp_version_max || null,
-                release_date: m.release_date || null,
-                depends: m.depends || [],
-                recommends: m.recommends || [],
-                conflicts: m.conflicts || [],
-                description: m.description || m.abstract || '',
-                download: null,
-                download_count: m.download_count || 0,
-                version_count: m.version_count || 1,
-                all_versions: m.all_versions || [m.version || ''],
-              } as CkanModule));
+              mods = result.mods.map(mapModDto);
             }
           } catch {
-            // Silent fail — keep whatever we have
+            // Silent fail -- keep whatever we have
           }
         }
       }
@@ -192,40 +201,42 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
       setTags(registryService.getAllTags().slice(0, 30));
       setIsLoading(false);
     }).catch(() => {
-      // registry.json failed to load — try backend as fallback
+      // registry.json failed to load -- try backend as fallback
       if (ckanIpc.isConnected()) {
-        ckanIpc.call<any, any>('mod:search', { query: '' }).then((result) => {
-          if (result?.mods && Array.isArray(result.mods)) {
-            const mods = result.mods.map((m: any) => ({
-              identifier: m.identifier || '',
-              name: m.name || m.identifier || '',
-              abstract: m.abstract || m.description || '',
-              author: Array.isArray(m.author) ? m.author : (m.author ? [m.author] : []),
-              license: Array.isArray(m.license) ? m.license : (m.license ? [m.license] : []),
-              tags: m.tags || [],
-              resources: m.resources || {},
-              version: m.version || '',
-              download_size: m.download_size || 0,
-              install_size: m.install_size || 0,
-              ksp_version: m.ksp_version || null,
-              ksp_version_min: m.ksp_version_min || null,
-              ksp_version_max: m.ksp_version_max || null,
-              release_date: m.release_date || null,
-              depends: m.depends || [],
-              recommends: m.recommends || [],
-              conflicts: m.conflicts || [],
-              description: m.description || m.abstract || '',
-              download: null,
-              download_count: m.download_count || 0,
-              version_count: m.version_count || 1,
-              all_versions: m.all_versions || [m.version || ''],
-            } as CkanModule));
-            setAllMods(mods);
-            setTags([]);
+        const fallbackToBackend = async () => {
+          try {
+            if (view === 'installed') {
+              const result = await ckanIpc.call<any, any>('mod:list-installed', {});
+              if (result?.mods && Array.isArray(result.mods)) {
+                const mods = result.mods.map(mapModDto);
+                for (const m of mods) {
+                  registryService.install(m.identifier);
+                }
+                setAllMods(applyFilters(mods, search, activeTag, sortBy));
+                setTags([]);
+                return;
+              }
+              registryService.clearInstalled();
+              setAllMods([]);
+            } else {
+              const result = await ckanIpc.call<any, any>('mod:search', { query: search || '' });
+              if (result?.mods && Array.isArray(result.mods)) {
+                setAllMods(result.mods.map(mapModDto));
+                setTags([]);
+              } else {
+                setAllMods([]);
+              }
+            }
+          } catch {
+            if (view === 'installed') {
+              registryService.clearInstalled();
+            }
+            setAllMods([]);
+          } finally {
+            setIsLoading(false);
           }
-        }).catch(() => {
-          setAllMods([]);
-        }).finally(() => setIsLoading(false));
+        };
+        fallbackToBackend();
       } else {
         setAllMods([]);
         setIsLoading(false);
@@ -330,6 +341,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
   // Reload mod list when backend finishes a repository refresh (including auto-refresh on startup)
   useEffect(() => {
     const unsub = ckanIpc.on('repo:refresh-complete', () => {
+      updatedThisSession.clear();
       loadMods();
     });
     return () => unsub();
@@ -369,15 +381,15 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           const result = await ckanIpc.call<any, any>('mod:uninstall', { identifier: mod.identifier });
           if (result?.status === 'removed') {
             registryService.uninstall(mod.identifier);
-            setInstallStatus({ id: mod.identifier, msg: `${mod.name} removed`, type: 'success' });
+            setInstallStatus({ id: mod.identifier, msg: t('modlist.status.removed', { name: mod.name }), type: 'success' });
           } else if (result?.status === 'error') {
-            setInstallStatus({ id: mod.identifier, msg: `Uninstall failed: ${result.error}`, type: 'error' });
+            setInstallStatus({ id: mod.identifier, msg: t('modlist.status.uninstallFailed', { error: result.error }), type: 'error' });
           }
         } else {
           const result = await ckanIpc.call<any, any>('mod:install', { identifier: mod.identifier });
           if (result?.status === 'installed') {
             registryService.install(mod.identifier);
-            setInstallStatus({ id: mod.identifier, msg: `${mod.name} installed`, type: 'success' });
+            setInstallStatus({ id: mod.identifier, msg: t('modlist.status.installed', { name: mod.name }), type: 'success' });
           } else if (result?.status === 'needs_provider_choice') {
             setProviderChoice({
               identifier: mod.identifier,
@@ -386,13 +398,13 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
               providers: result.providers,
             });
           } else if (result?.status === 'error') {
-            setInstallStatus({ id: mod.identifier, msg: `Install failed: ${result.error}`, type: 'error' });
+            setInstallStatus({ id: mod.identifier, msg: t('modlist.status.installFailed', { error: result.error }), type: 'error' });
           }
         }
       } catch (err) {
         setInstallStatus({
           id: mod.identifier,
-          msg: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          msg: t('modlist.status.genericError', { error: err instanceof Error ? err.message : t('common.unknownError') }),
           type: 'error',
         });
       }
@@ -405,7 +417,9 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
       }
       setInstallStatus({
         id: mod.identifier,
-        msg: isInstalled ? `${mod.name} removed (dev mode)` : `${mod.name} installed (dev mode)`,
+        msg: isInstalled
+          ? `${t('modlist.status.removed', { name: mod.name })} ${t('modlist.status.devMode')}`
+          : `${t('modlist.status.installed', { name: mod.name })} ${t('modlist.status.devMode')}`,
         type: 'success',
       });
     }
@@ -422,7 +436,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
       try {
         const result = await ckanIpc.call<any, any>('mod:install', { identifier });
         if (result?.status === 'installed') {
-          setInstallStatus({ id: identifier, msg: `${name} updated`, type: 'success' });
+          setInstallStatus({ id: identifier, msg: t('modlist.status.updated', { name }), type: 'success' });
           // Remove from updatable list and remember for this session
           updatedThisSession.add(identifier);
           setUpdatableMods(prev => prev.filter(m => m.identifier !== identifier));
@@ -434,19 +448,19 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
             providers: result.providers,
           });
         } else if (result?.status === 'error') {
-          setInstallStatus({ id: identifier, msg: `Update failed: ${result.error}`, type: 'error' });
+          setInstallStatus({ id: identifier, msg: t('modlist.status.updateFailed', { error: result.error }), type: 'error' });
         }
       } catch (err) {
         setInstallStatus({
           id: identifier,
-          msg: `Update error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          msg: t('modlist.status.genericError', { error: err instanceof Error ? err.message : t('common.unknownError') }),
           type: 'error',
         });
       }
     } else {
       updatedThisSession.add(identifier);
       setUpdatableMods(prev => prev.filter(m => m.identifier !== identifier));
-      setInstallStatus({ id: identifier, msg: `${name} updated (dev mode)`, type: 'success' });
+      setInstallStatus({ id: identifier, msg: `${t('modlist.status.updated', { name })} ${t('modlist.status.devMode')}`, type: 'success' });
     }
 
     setInstallingIds(prev => { const next = new Set(prev); next.delete(identifier); return next; });
@@ -466,7 +480,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
       const result = await ckanIpc.call<any, any>('mod:install', { identifier: origId });
       if (result?.status === 'installed') {
         registryService.install(origId);
-        setInstallStatus({ id: origId, msg: `Installed successfully`, type: 'success' });
+        setInstallStatus({ id: origId, msg: t('modlist.status.success'), type: 'success' });
       } else if (result?.status === 'needs_provider_choice') {
         // Another provider choice needed (nested deps)
         setProviderChoice({
@@ -476,12 +490,12 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           providers: result.providers,
         });
       } else if (result?.status === 'error') {
-        setInstallStatus({ id: origId, msg: `Install failed: ${result.error}`, type: 'error' });
+        setInstallStatus({ id: origId, msg: t('modlist.status.installFailed', { error: result.error }), type: 'error' });
       }
     } catch (err) {
       setInstallStatus({
         id: origId,
-        msg: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        msg: t('modlist.status.genericError', { error: err instanceof Error ? err.message : t('common.unknownError') }),
         type: 'error',
       });
     }
@@ -508,6 +522,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SearchFilters['sortBy'])}
                 className={styles.select}
+                aria-label={t('modlist.sort.popular')}
               >
                 <option value="downloads">{t('modlist.sort.popular')}</option>
                 <option value="name">{t('modlist.sort.name')}</option>
@@ -520,7 +535,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                 onClick={() => setGridView(true)}
                 title={t('modlist.view.grid')}
               >
-                <Grid3X3 size={15} />
+                <Grid3x3 size={15} />
               </button>
               <button
                 className={`${styles.viewBtn} ${!gridView ? styles.viewBtnActive : ''}`}
@@ -544,9 +559,10 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Escape' && setSearch('')}
+              aria-label={t('common.search')}
             />
             {search && (
-              <button className={styles.clearBtn} onClick={() => setSearch('')}>
+              <button className={styles.clearBtn} onClick={() => setSearch('')} aria-label={t('common.clear')}>
                 <X size={14} />
               </button>
             )}
@@ -554,6 +570,7 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           <button
             className={`${styles.filterBtn} ${showFilters ? styles.filterBtnActive : ''}`}
             onClick={() => setShowFilters(!showFilters)}
+            aria-label={t('modlist.tags')}
           >
             <Filter size={15} />
             {t('modlist.tags')}
@@ -668,6 +685,10 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                   key={mod.identifier}
                   className={`${styles.modCard} ${selectedMod?.identifier === mod.identifier ? styles.modCardSelected : ''}`}
                   onClick={() => setSelectedMod(mod)}
+                  tabIndex={0}
+                  role="button"
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedMod(mod); } }}
+                  aria-label={mod.name}
                 >
                   <div className={styles.modCardHeader}>
                     <div className={styles.modIcon}>
@@ -714,6 +735,10 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                   key={mod.identifier}
                   className={`${styles.modRow} ${selectedMod?.identifier === mod.identifier ? styles.modRowSelected : ''}`}
                   onClick={() => setSelectedMod(mod)}
+                  tabIndex={0}
+                  role="button"
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedMod(mod); } }}
+                  aria-label={mod.name}
                 >
                   <span className={styles.listColIcon}>
                     <div className={styles.modRowIcon}><Package size={16} /></div>
@@ -934,7 +959,7 @@ function ModDetailPanel({
         </div>
         {mod.tags.length > 0 && (
           <div className={styles.detailSection}>
-            <h3><Tag size={14} /> Tags</h3>
+            <h3><Tag size={14} /> {t('common.tags')}</h3>
             <div className={styles.detailTags}>
               {mod.tags.map((tag) => <span key={tag} className={styles.detailTag}>{tag}</span>)}
             </div>
@@ -969,13 +994,13 @@ function ModDetailPanel({
             <h3>{t('modlist.detail.versions')} ({mod.version_count})</h3>
             <div className={styles.versionList}>
               {mod.all_versions.slice(0, 10).map((v) => <span key={v} className={styles.versionItem}>{v}</span>)}
-              {mod.all_versions.length > 10 && <span className={styles.versionMore}>+{mod.all_versions.length - 10} more</span>}
+              {mod.all_versions.length > 10 && <span className={styles.versionMore}>{t('modlist.detail.more', { count: mod.all_versions.length - 10 })}</span>}
             </div>
           </div>
         )}
         {mod.resources && Object.keys(mod.resources).length > 0 && (
           <div className={styles.detailSection}>
-            <h3><ExternalLink size={14} /> Links</h3>
+            <h3><ExternalLink size={14} /> {t('common.links')}</h3>
             <div className={styles.linkList}>
               {mod.resources.homepage && <a href={mod.resources.homepage} target="_blank" rel="noopener" className={styles.link}>{t('modlist.detail.homepage')}</a>}
               {mod.resources.repository && <a href={mod.resources.repository} target="_blank" rel="noopener" className={styles.link}>{t('modlist.detail.source')}</a>}

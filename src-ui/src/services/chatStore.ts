@@ -3,6 +3,8 @@
  * Messages live in module-level state so React component unmount/remount doesn't lose them.
  */
 
+import { t } from './i18n';
+
 export interface ChatMsg {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -13,8 +15,7 @@ export interface ChatMsg {
 const WELCOME: ChatMsg = {
   id: 'welcome',
   role: 'assistant',
-  content:
-    "Hi! I'm your CKAN AI assistant. I can help you find mods, explain dependencies, and recommend mod packs.\n\nSign in (Settings > Account) to start chatting. Free tier: 20 messages/day.",
+  content: t('ai.welcome'),
   timestamp: Date.now(),
 };
 

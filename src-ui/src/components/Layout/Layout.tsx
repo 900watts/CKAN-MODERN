@@ -5,7 +5,7 @@ import AIChatPanel from '../AIChat/AIChatPanel';
 import UpdateBanner from '../UpdateBanner/UpdateBanner';
 import { registryService } from '../../services/registry';
 import ckanIpc from '../../services/ipc';
-import { useT } from '../../i18n';
+import { useT } from '../../services/i18n';
 import styles from './Layout.module.css';
 
 export type NavItem = 'available' | 'installed' | 'downloads' | 'instances' | 'mission-control' | 'repos' | 'settings';

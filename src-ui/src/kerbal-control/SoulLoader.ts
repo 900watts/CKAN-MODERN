@@ -128,7 +128,7 @@ export class SoulLoader {
    * Returns a fully populated KerbalSoul object.
    */
   static async load(name: string): Promise<KerbalSoul> {
-    const response = await fetch(`/src/kerbal-control/Souls/${name}.md`);
+    const response = await fetch(`/kerbal-souls/${name}.md`);
     if (!response.ok) {
       throw new Error(`Failed to load soul for "${name}": ${response.status} ${response.statusText}`);
     }

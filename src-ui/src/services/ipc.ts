@@ -20,6 +20,7 @@ export type IpcChannel =
   | 'game:add-instance'
   | 'game:remove-instance'
   | 'game:set-active'
+  | 'game:scan'
   | 'ai:chat'
   | 'ai:points-balance'
   | 'auth:login'
@@ -213,6 +214,8 @@ class CkanIpc {
         return { success: true };
       case 'game:remove-instance':
         return { success: true };
+      case 'game:scan':
+        return { success: true, instances: [] };
       case 'app:browse-folder':
         return { selected: false, path: null };
       case 'mod:scan-gamedata':

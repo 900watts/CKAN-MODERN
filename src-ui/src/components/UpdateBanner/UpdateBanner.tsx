@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Download, X, ExternalLink, Loader2 } from 'lucide-react';
 import ckanIpc from '../../services/ipc';
-import { useT } from '../../i18n';
+import { useT } from '../../services/i18n';
 import styles from './UpdateBanner.module.css';
 
 interface UpdateData {
@@ -68,14 +68,14 @@ export default function UpdateBanner() {
         <span className={styles.text}>
           <strong>{update.name || update.tag}</strong>
           {' — '}
-          <span>{t('update.available', { fallback: 'A new version is available' })}</span>
+          <span>{t('update.available')}</span>
         </span>
       </div>
       <div className={styles.actions}>
         {updating ? (
           <div className={styles.progress}>
             <Loader2 size={14} className={styles.spinner} />
-            <span>{progress.message || 'Updating...'}</span>
+            <span>{progress.message || t('update.updating')}</span>
             {progress.percent > 0 && (
               <div className={styles.progressBar}>
                 <div className={styles.progressFill} style={{ width: `${progress.percent}%` }} />
@@ -85,14 +85,14 @@ export default function UpdateBanner() {
         ) : (
           <>
             <button className={styles.updateBtn} onClick={handleUpdate}>
-              {t('update.install', { fallback: 'Update Now' })}
+              {t('update.install')}
             </button>
             <a
               className={styles.releaseLink}
               href={update.url}
               target="_blank"
               rel="noopener noreferrer"
-              title="View release notes"
+              title={t('update.viewNotes')}
             >
               <ExternalLink size={14} />
             </a>
