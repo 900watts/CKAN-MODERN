@@ -18,6 +18,7 @@ public sealed class AiClient : IDisposable
     private readonly string? _apiKey;
 
     private readonly List<ChatMessage> _history = new();
+    private const int MaxHistoryMessages = 40;
     private const string SystemPrompt = @"
 You are CKAN-CLI, an AI assistant that helps users manage Kerbal Space Program mods.
 
@@ -37,22 +38,29 @@ Guidelines:
 5. Keep responses concise and helpful.
 ";
 
-    /// <summary>System prompt with CLAUDE.md project context appended, if present.</summary>
+    /// <summary>System prompt with CKAN-CLI.md + skills + memory injected.</summary>
     private static readonly string FullSystemPrompt = InitFullPrompt();
     private static string InitFullPrompt()
     {
+        var prompt = SystemPrompt;
+
+        // Append CKAN-CLI.md project context
         try
         {
-            var path = Path.Combine(Directory.GetCurrentDirectory(), "CLAUDE.md");
+            var path = Path.Combine(Directory.GetCurrentDirectory(), "CKAN-CLI.md");
             if (File.Exists(path))
             {
                 var content = File.ReadAllText(path).Trim();
                 if (!string.IsNullOrEmpty(content))
-                    return FullSystemPrompt + $"\n\n## Project Context (from CLAUDE.md)\n\n{content}";
+                    prompt += $"\n\n## Project Context (from CKAN-CLI.md)\n\n{content}";
             }
         }
         catch { }
-        return FullSystemPrompt;
+
+        // Append self-improvement memory
+        prompt += SkillManager.LoadMemory();
+
+        return prompt;
     }
 
     public string ProviderName => _provider.Name;
@@ -65,11 +73,7 @@ Guidelines:
         _endpoint = endpoint.TrimEnd('/');
         _model    = model;
         _apiKey   = apiKey;
-        _http     = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-
-        if (!string.IsNullOrEmpty(_apiKey))
-            _http.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", _apiKey);
+        _http     = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
     }
 
     // ── Factory ───────────────────────────────────────────────────────
@@ -103,6 +107,7 @@ Guidelines:
         // Heuristic: detect provider from endpoint
         var uri      = new Uri(endpoint);
         var host     = uri.Host.ToLowerInvariant();
+        var path     = uri.AbsolutePath.ToLowerInvariant();
         var provider = host switch
         {
             "localhost" or "127.0.0.1" => AiProviderType.Ollama,
@@ -110,7 +115,9 @@ Guidelines:
             "api.anthropic.com"        => AiProviderType.Anthropic,
             "api.groq.com"             => AiProviderType.Groq,
             "openrouter.ai"            => AiProviderType.OpenRouter,
-            _                          => AiProviderType.Ollama, // default fallback
+            _ when path.Contains("/v1") || path.Contains("/chat/completions")
+                                       => AiProviderType.OpenAI, // OpenAI-compatible fallback
+            _                          => AiProviderType.Ollama, // localhost-like fallback
         };
         var def  = ProviderConfig.GetProvider(provider);
         var key  = apiKey ?? ProviderConfig.ResolveApiKey(def);
@@ -126,23 +133,44 @@ Guidelines:
     {
         _history.Add(new ChatMessage("user", userMessage));
 
-        var jsonPayload = BuildProviderPayload();
-        var json        = JsonConvert.SerializeObject(jsonPayload);
-        var content     = new StringContent(json, Encoding.UTF8, "application/json");
-        var chatUrl     = $"{_endpoint}{_provider.ChatEndpoint}";
-
-        // Anthropic uses a different auth header
-        if (_provider.Type == AiProviderType.Anthropic && !string.IsNullOrEmpty(_apiKey))
+        // Trim history to prevent unbounded growth (20 exchanges = 40 messages)
+        if (_history.Count > MaxHistoryMessages)
         {
-            content.Headers.Remove("Authorization");
-            content.Headers.Add("x-api-key", _apiKey);
-            content.Headers.Add("anthropic-version", "2023-06-01");
+            var keep = Math.Max(30, _history.Count - 20);
+            _history.RemoveRange(0, _history.Count - keep);
+        }
+
+        var skillContext = SkillManager.LoadRelevantSkills(userMessage);
+        var payload = BuildPayload(skillContext);
+        return await SendPayload(payload, onToken);
+    }
+
+    private async Task<string> SendPayload(object payload, Action<string> onToken)
+    {
+        var json    = JsonConvert.SerializeObject(payload);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var chatUrl = $"{_endpoint}{_provider.ChatEndpoint}";
+
+        var request = new HttpRequestMessage(HttpMethod.Post, chatUrl) { Content = content };
+
+        // Set auth header per provider type
+        if (!string.IsNullOrEmpty(_apiKey))
+        {
+            if (_provider.Type == AiProviderType.Anthropic)
+            {
+                request.Headers.Add("x-api-key", _apiKey);
+                request.Headers.Add("anthropic-version", "2023-06-01");
+            }
+            else
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+            }
         }
 
         HttpResponseMessage response;
         try
         {
-            response = await _http.PostAsync(chatUrl, content);
+            response = await _http.SendAsync(request);
             response.EnsureSuccessStatusCode();
         }
         catch (HttpRequestException ex)
@@ -156,7 +184,7 @@ Guidelines:
         }
         catch (TaskCanceledException)
         {
-            var errMsg = $"Request to {_provider.Name} timed out after 5 minutes.";
+            var errMsg = $"Request to {_provider.Name} timed out after 90 seconds.";
             onToken(errMsg);
             _history.Add(new ChatMessage("assistant", errMsg));
             return errMsg;
@@ -172,22 +200,21 @@ Guidelines:
 
     // ── Provider-specific payload builders ────────────────────────────
 
-    private object BuildProviderPayload()
+    private object BuildPayload(string? skillContext = null)
     {
+        var systemPrompt = FullSystemPrompt;
+        if (!string.IsNullOrEmpty(skillContext))
+        {
+            systemPrompt += $"\n\nLoaded skill context:\n{skillContext}";
+        }
+
         return _provider.Type switch
         {
-            AiProviderType.Ollama => new
+            AiProviderType.Ollama or AiProviderType.OpenAI or AiProviderType.Groq or AiProviderType.OpenRouter => new
             {
                 model    = _model,
                 stream   = true,
-                messages = BuildMessageList()
-            },
-
-            AiProviderType.OpenAI or AiProviderType.Groq or AiProviderType.OpenRouter => new
-            {
-                model    = _model,
-                stream   = true,
-                messages = BuildMessageList()
+                messages = BuildMessageList(systemPrompt)
             },
 
             AiProviderType.Anthropic => new
@@ -195,11 +222,11 @@ Guidelines:
                 model      = _model,
                 stream     = true,
                 max_tokens = 4096,
-                messages = _history
+                messages   = _history
                     .Where(m => m.Role != "system")
                     .Select(m => new { role = m.Role, content = m.Content })
                     .ToArray(),
-                system = _history.FirstOrDefault(m => m.Role == "system")?.Content ?? FullSystemPrompt
+                system = systemPrompt
             },
 
             _ => throw new InvalidOperationException($"Unknown provider: {_provider.Type}")
@@ -243,7 +270,10 @@ Guidelines:
                 if (!string.IsNullOrEmpty(text)) { onToken(text); full.Append(text); }
                 if (chunk["done"]?.Value<bool>() == true) break;
             }
-            catch (JsonReaderException) { }
+            catch (JsonReaderException ex)
+            {
+                Console.Error.WriteLine($"[AiClient] Ollama JSON parse error: {ex.Message}");
+            }
         }
     }
 
@@ -266,7 +296,10 @@ Guidelines:
                 var text  = chunk["choices"]?[0]?["delta"]?["content"]?.ToString() ?? "";
                 if (!string.IsNullOrEmpty(text)) { onToken(text); full.Append(text); }
             }
-            catch (JsonReaderException) { }
+            catch (JsonReaderException ex)
+            {
+                Console.Error.WriteLine($"[AiClient] OpenAI JSON parse error: {ex.Message}");
+            }
         }
     }
 
@@ -292,7 +325,10 @@ Guidelines:
                         if (!string.IsNullOrEmpty(text)) { onToken(text); full.Append(text); }
                     }
                 }
-                catch (JsonReaderException) { }
+                catch (JsonReaderException ex)
+                {
+                    Console.Error.WriteLine($"[AiClient] Anthropic JSON parse error: {ex.Message}");
+                }
             }
         }
     }
@@ -302,9 +338,9 @@ Guidelines:
     public void ClearHistory() => _history.Clear();
     public IReadOnlyList<ChatMessage> History => _history.AsReadOnly();
 
-    private List<ChatMessage> BuildMessageList()
+    private List<ChatMessage> BuildMessageList(string? systemPrompt = null)
     {
-        var msgs = new List<ChatMessage> { new("system", FullSystemPrompt) };
+        var msgs = new List<ChatMessage> { new("system", systemPrompt ?? FullSystemPrompt) };
         msgs.AddRange(_history);
         return msgs;
     }

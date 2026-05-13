@@ -180,82 +180,84 @@ class ProactiveAgent {
 
     this.processing = true;
 
-    const ctx = worldContext.getSnapshot();
-    const presentKerbals = kerbalStore.getAvailable();
-    if (presentKerbals.length === 0) return;
+    try {
+      const ctx = worldContext.getSnapshot();
+      const presentKerbals = kerbalStore.getAvailable();
+      if (presentKerbals.length === 0) return;
 
-    // Check each trigger
-    for (const trigger of TRIGGERS) {
-      const lastFire = this.triggerCooldowns.get(trigger.id) || 0;
-      if (Date.now() - lastFire < trigger.cooldownMs) continue;
-      if (!trigger.condition(ctx, presentKerbals)) continue;
+      // Check each trigger
+      for (const trigger of TRIGGERS) {
+        const lastFire = this.triggerCooldowns.get(trigger.id) || 0;
+        if (Date.now() - lastFire < trigger.cooldownMs) continue;
+        if (!trigger.condition(ctx, presentKerbals)) continue;
 
-      const kerbal = trigger.selectKerbal(presentKerbals);
-      const promptText = trigger.buildPrompt(ctx, kerbal);
-      if (!promptText) continue;
+        const kerbal = trigger.selectKerbal(presentKerbals);
+        const promptText = trigger.buildPrompt(ctx, kerbal);
+        if (!promptText) continue;
 
-      // Generate the proactive message via AI
-      try {
-        const soul: KerbalSoul = await SoulLoader.load(kerbal.name.toLowerCase());
-        const params = statsToApiParams(soul);
-        const toolsPrompt = buildToolsPrompt(soul.role);
+        // Generate the proactive message via AI
+        try {
+          const soul: KerbalSoul = await SoulLoader.load(kerbal.name.toLowerCase());
+          const params = statsToApiParams(soul);
+          const toolsPrompt = buildToolsPrompt(soul.role);
 
-        const messages = [
-          { role: 'system' as const, content: soul.rawMarkdown + toolsPrompt },
-          { role: 'user' as const, content: promptText },
-        ];
+          const messages = [
+            { role: 'system' as const, content: soul.rawMarkdown + toolsPrompt },
+            { role: 'user' as const, content: promptText },
+          ];
 
-        const result = await chatViaProvider(messages, {
-          temperature: params.temperature,
-          topP: params.topP,
-          noSystemPrompt: true,
-        });
+          const result = await chatViaProvider(messages, {
+            temperature: params.temperature,
+            topP: params.topP,
+            noSystemPrompt: true,
+          });
 
-        const reply = (result.reply && result.reply !== EMPTY_RESPONSE)
-          ? stripToolCalls(result.reply)
-          : this.getFallback(trigger.id, kerbal.name);
+          const reply = (result.reply && result.reply !== EMPTY_RESPONSE)
+            ? stripToolCalls(result.reply)
+            : this.getFallback(trigger.id, kerbal.name);
 
-        // Handle tool calls if any
-        const toolCalls = parseToolCalls(result.reply);
-        if (toolCalls.length > 0) {
-          for (const tc of toolCalls.slice(0, 2)) {
-            const toolResult = await executeToolCall(tc);
-            // We got the result — the final reply already incorporates it
-            // For now, just log. In future, could do a second AI pass.
-            console.log(`[ProactiveAgent] Tool ${tc.toolName}: ${toolResult.slice(0, 100)}`);
+          // Handle tool calls if any
+          const toolCalls = parseToolCalls(result.reply);
+          if (toolCalls.length > 0) {
+            for (const tc of toolCalls.slice(0, 2)) {
+              const toolResult = await executeToolCall(tc);
+              // We got the result — the final reply already incorporates it
+              // For now, just log. In future, could do a second AI pass.
+              console.log(`[ProactiveAgent] Tool ${tc.toolName}: ${toolResult.slice(0, 100)}`);
+            }
           }
+
+          const msg: ProactiveMessage = {
+            kerbalName: kerbal.name,
+            content: reply,
+            triggerId: trigger.id,
+            timestamp: Date.now(),
+            isProactive: true,
+          };
+
+          this.emit(msg);
+          this.lastFireTime = Date.now();
+          this.triggerCooldowns.set(trigger.id, Date.now());
+          moodSystem.tickMood(kerbal.name, 'user_interaction', trigger.id);
+          break; // One per tick
+        } catch (err) {
+          console.error(`[ProactiveAgent] Failed for ${kerbal.name} (${trigger.id}):`, err);
+          // Fire fallback anyway
+          const msg: ProactiveMessage = {
+            kerbalName: kerbal.name,
+            content: this.getFallback(trigger.id, kerbal.name),
+            triggerId: trigger.id,
+            timestamp: Date.now(),
+            isProactive: true,
+          };
+          this.emit(msg);
+          this.lastFireTime = Date.now();
+          this.triggerCooldowns.set(trigger.id, Date.now());
+          break;
         }
-
-        const msg: ProactiveMessage = {
-          kerbalName: kerbal.name,
-          content: reply,
-          triggerId: trigger.id,
-          timestamp: Date.now(),
-          isProactive: true,
-        };
-
-        this.emit(msg);
-        this.lastFireTime = Date.now();
-        this.triggerCooldowns.set(trigger.id, Date.now());
-        moodSystem.tickMood(kerbal.name, 'user_interaction', trigger.id);
-        break; // One per tick
-      } catch (err) {
-        console.error(`[ProactiveAgent] Failed for ${kerbal.name} (${trigger.id}):`, err);
-        // Fire fallback anyway
-        const msg: ProactiveMessage = {
-          kerbalName: kerbal.name,
-          content: this.getFallback(trigger.id, kerbal.name),
-          triggerId: trigger.id,
-          timestamp: Date.now(),
-          isProactive: true,
-        };
-        this.emit(msg);
-        this.lastFireTime = Date.now();
-        this.triggerCooldowns.set(trigger.id, Date.now());
-        break;
-      } finally {
-        this.processing = false;
       }
+    } finally {
+      this.processing = false;
     }
   }
 

@@ -31,7 +31,7 @@ export default function InstancesPage() {
   const [refreshStatus, setRefreshStatus] = useState('');
   const [refreshIsError, setRefreshIsError] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Clean up status timeout on unmount
   useEffect(() => {
@@ -45,8 +45,8 @@ export default function InstancesPage() {
 
   async function loadBackendInstances() {
     try {
-      const result = await ckanIpc.call<any, { instances?: GameInstance[] }>('game:list-instances', {});
-      if (result?.instances && result.instances.length > 0) {
+      const result = await ckanIpc.call<any, { success?: boolean; instances?: GameInstance[] }>('game:list-instances', {});
+      if (result?.instances) {
         setInstances(result.instances);
       }
     } catch (err) {
@@ -60,13 +60,21 @@ export default function InstancesPage() {
     setRefreshIsError(false);
     setRefreshStatus(t('instances.scanning'));
     try {
-      const result = await ckanIpc.call<any, { success?: boolean; instances?: GameInstance[]; error?: string }>('game:scan', {});
-      if (result?.success && result.instances && result.instances.length > 0) {
-        setInstances(result.instances);
-        setRefreshStatus(t('instances.scanComplete', { count: result.instances.length }));
-      } else if (result?.instances && result.instances.length === 0) {
-        setRefreshStatus(t('instances.scanCompleteNone'));
+      const result = await ckanIpc.call<any, { success?: boolean; instances?: GameInstance[]; error?: string; newCount?: number }>('game:scan', {});
+      if (result?.success) {
+        // Scan succeeded — always update instances list even if nothing new was found
+        if (result.instances) {
+          setInstances(result.instances);
+        }
+
+        const newCount = result.newCount ?? 0;
+        if (newCount > 0) {
+          setRefreshStatus(t('instances.scanComplete', { count: newCount }));
+        } else {
+          setRefreshStatus(t('instances.scanCompleteNone'));
+        }
       } else {
+        // Scan reported failure
         setRefreshIsError(true);
         setRefreshStatus(t('instances.scanFailed', { error: result?.error || t('instances.noResults') }));
       }

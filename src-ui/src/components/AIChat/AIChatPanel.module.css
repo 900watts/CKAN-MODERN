@@ -240,6 +240,30 @@
   flex-shrink: 0;
 }
 
+.stopBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: #e05555;
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.stopBtn:hover {
+  opacity: 0.85;
+  transform: scale(1.05);
+}
+
+.stopBtn:active {
+  transform: scale(0.95);
+}
+
 .sendBtn:hover:not(:disabled) {
   opacity: 0.85;
   transform: scale(1.05);

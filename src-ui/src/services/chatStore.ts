@@ -12,14 +12,16 @@ export interface ChatMsg {
   timestamp: number;
 }
 
-const WELCOME: ChatMsg = {
-  id: 'welcome',
-  role: 'assistant',
-  content: t('ai.welcome'),
-  timestamp: Date.now(),
-};
+function createWelcome(): ChatMsg {
+  return {
+    id: 'welcome',
+    role: 'assistant',
+    content: t('ai.welcome'),
+    timestamp: Date.now(),
+  };
+}
 
-let _messages: ChatMsg[] = [WELCOME];
+let _messages: ChatMsg[] = [createWelcome()];
 const _listeners = new Set<() => void>();
 
 function notify() {
@@ -34,7 +36,7 @@ export const chatStore = {
     notify();
   },
   clear: () => {
-    _messages = [WELCOME];
+    _messages = [createWelcome()];
     notify();
   },
   // FIX: Arrow function so 'this' is not needed — useSyncExternalStore passes subscribe as a bare function

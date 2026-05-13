@@ -86,8 +86,25 @@ public sealed class IpcBridge : IDisposable
 
     /// <summary>
     /// Forward a push event from IpcHandler to the React frontend.
+    /// Must be marshalled to the UI thread because PostWebMessageAsJson
+    /// requires the calling thread to be the WebView2 owner thread.
     /// </summary>
     private void OnPushEvent(string channel, object data)
+    {
+        if (_disposed) return;
+
+        var app = System.Windows.Application.Current;
+        if (app != null && !app.Dispatcher.CheckAccess())
+        {
+            app.Dispatcher.InvokeAsync(() => OnPushEventCore(channel, data));
+        }
+        else
+        {
+            OnPushEventCore(channel, data);
+        }
+    }
+
+    private void OnPushEventCore(string channel, object data)
     {
         if (_disposed) return;
 
@@ -99,6 +116,15 @@ public sealed class IpcBridge : IDisposable
         }, JsonSettings);
 
         _webView.PostWebMessageAsJson(message);
+    }
+
+    /// <summary>
+    /// Delegate to IpcHandler.AutoRefreshOnStartup.
+    /// Triggers a background repository refresh after the bridge is fully wired up.
+    /// </summary>
+    public void AutoRefreshOnStartup()
+    {
+        _handler.AutoRefreshOnStartup();
     }
 
     public void Dispose()

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using CKAN.Modern.IPC;
 
@@ -31,6 +32,8 @@ public partial class MainWindow : Window
         [".ttf"]  = "font/ttf",
     };
 
+    private CancellationTokenSource? _initTimeoutCts;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -38,28 +41,82 @@ public partial class MainWindow : Window
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        var userDataFolder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "CKAN", "WebView2");
+        try
+        {
+            var userDataFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "CKAN", "WebView2");
 
-        var env = await CoreWebView2Environment.CreateAsync(
-            userDataFolder: userDataFolder);
+            var env = await CoreWebView2Environment.CreateAsync(
+                userDataFolder: userDataFolder);
 
-        await webView.EnsureCoreWebView2Async(env);
+            await webView.EnsureCoreWebView2Async(env);
+
+            // Start a 30-second timeout in case CoreWebView2InitializationCompleted
+            // never fires (e.g., hung init). We check after the delay and close if
+            // the bridge was never set up.
+            _initTimeoutCts = new CancellationTokenSource();
+            _ = TimeoutAfterInit(_initTimeoutCts.Token);
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"WebView2 initialization failed:\n{ex.Message}\n\n" +
+                "Make sure the WebView2 Runtime is installed.\n" +
+                "Download from: https://developer.microsoft.com/en-us/microsoft-edge/webview2/",
+                "CKAN Modern",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Close();
+        }
+    }
+
+    private async Task TimeoutAfterInit(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(30_000, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // Init completed in time
+        }
+
+        // Timeout: if bridge was never set up, show error and close
+        if (_bridge == null && !ct.IsCancellationRequested)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                System.Windows.MessageBox.Show(
+                    "WebView2 initialization timed out after 30 seconds.\n\n" +
+                    "Make sure the WebView2 Runtime is installed.\n" +
+                    "Download from: https://developer.microsoft.com/en-us/microsoft-edge/webview2/",
+                    "CKAN Modern",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                Close();
+            });
+        }
     }
 
     private void WebView_CoreWebView2InitializationCompleted(
         object? sender, CoreWebView2InitializationCompletedEventArgs e)
     {
+        // Cancel the timeout — init completed (success or failure)
+        _initTimeoutCts?.Cancel();
+        _initTimeoutCts?.Dispose();
+        _initTimeoutCts = null;
+
         if (!e.IsSuccess)
         {
-            MessageBox.Show(
+            System.Windows.MessageBox.Show(
                 $"WebView2 failed to initialize:\n{e.InitializationException?.Message}\n\n" +
                 "Make sure the WebView2 Runtime is installed.\n" +
                 "Download from: https://developer.microsoft.com/en-us/microsoft-edge/webview2/",
                 "CKAN Modern",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
+            Close();
             return;
         }
 
@@ -68,6 +125,9 @@ public partial class MainWindow : Window
         // Set up IPC bridge
         _bridge = new IpcBridge(core);
         core.WebMessageReceived += _bridge.OnWebMessageReceived;
+
+        // Trigger background repository refresh on startup
+        _bridge.AutoRefreshOnStartup();
 
 #if DEBUG
         core.Settings.AreDevToolsEnabled = true;

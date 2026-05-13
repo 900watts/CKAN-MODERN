@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { motion } from 'framer-motion';
-import { X, Send, Bot, User, Loader2, Sparkles, Download, Trash2, Search, RefreshCw } from 'lucide-react';
-import { aiService, AI_PROVIDERS, getCustomApiKey, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatWithCustomProvider } from '../../services/ai';
+import { X, Send, Bot, User, Sparkles, Download, Trash2, Search, RefreshCw, Square } from 'lucide-react';
+import { aiService, AI_PROVIDERS, getCustomApiKey, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatViaProvider } from '../../services/ai';
 import type { ChatMessage, CustomProvider } from '../../services/ai';
 import { chatStore } from '../../services/chatStore';
 import type { ChatMsg } from '../../services/chatStore';
@@ -27,6 +27,8 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const [userTier, setUserTier] = useState<string>('free');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
 
   // Model selector state
   const [curProvider, setCurProvider] = useState<CustomProvider | 'ckan-cloud'>(getSelectedProvider());
@@ -67,6 +69,20 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Track mount state to prevent state updates after unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // Validate provider from localStorage — reset to 'ckan-cloud' if corrupted
+  useEffect(() => {
+    if (curProvider !== 'ckan-cloud' && !(AI_PROVIDERS as Record<string, unknown>)[curProvider]) {
+      setCurProvider('ckan-cloud');
+      setSelectedProvider('ckan-cloud');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleProviderChange = (val: string) => {
     const p = val as CustomProvider | 'ckan-cloud';
     setCurProvider(p);
@@ -105,11 +121,17 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       timestamp: Date.now(),
     };
 
-    chatStore.push(userMessage);
+    // Create a new AbortController for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     setInput('');
     setIsLoading(true);
 
     try {
+      chatStore.push(userMessage);
+      if (!mountedRef.current) return;
+
       // Build chat history
       const chatHistory: ChatMessage[] = messages
         .filter((m) => m.role !== 'system')
@@ -118,22 +140,17 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
 
       let reply: string;
 
-      if (curProvider !== 'ckan-cloud') {
-        // Use custom provider
-        const response = await chatWithCustomProvider(curProvider, curModel, chatHistory);
-        reply = response.reply;
-      } else {
-        // Use CKAN Cloud (Silicon Flow via Supabase)
-        if (!(await aiService.isConfigured())) {
-          throw new Error(t('ai.signInRequired'));
-        }
-        const response = await aiService.chat(chatHistory);
-        if (response.remaining_today !== undefined) {
-          setRemainingToday(response.remaining_today);
-        }
-        reply = response.reply;
-      }
+      // Use the unified provider router — handles CKAN Cloud, Ollama detection,
+      // custom providers, and graceful fallback when auth is unavailable.
+      const response = await chatViaProvider(chatHistory, { signal: abortController.signal });
+      if (!mountedRef.current) return;
 
+      if (curProvider === 'ckan-cloud' && response.remaining_today !== undefined) {
+        setRemainingToday(response.remaining_today);
+      }
+      reply = response.reply;
+
+      if (!mountedRef.current) return;
       chatStore.push({
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -144,6 +161,10 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       // Execute any action commands in the AI's response
       executeAiActions(reply);
     } catch (err) {
+      if (!mountedRef.current) return;
+      // Silently ignore user-initiated abort
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+
       chatStore.push({
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -151,9 +172,16 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         timestamp: Date.now(),
       });
     } finally {
-      setIsLoading(false);
-      inputRef.current?.focus();
+      if (mountedRef.current) {
+        setIsLoading(false);
+        abortControllerRef.current = null;
+        inputRef.current?.focus();
+      }
     }
+  };
+
+  const handleStop = () => {
+    abortControllerRef.current?.abort();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -339,7 +367,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             ))}
           </select>
         </div>
-        {curProvider !== 'ckan-cloud' && (
+        {curProvider !== 'ckan-cloud' && (AI_PROVIDERS as Record<string, unknown>)[curProvider] && (
           <>
             <div className={styles.modelSelect}>
               <label className={styles.modelLabel}>{t('ai.model')}</label>
@@ -427,16 +455,26 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             rows={1}
             disabled={isLoading}
           />
-          <button
-            className={styles.sendBtn}
-            onClick={handleSend}
-            disabled={!input.trim() || isLoading}
-          >
-            {isLoading ? <Loader2 size={16} className={styles.spin} /> : <Send size={16} />}
-          </button>
+          {isLoading ? (
+            <button
+              className={styles.stopBtn}
+              onClick={handleStop}
+              title={t('ai.stop')}
+            >
+              <Square size={16} />
+            </button>
+          ) : (
+            <button
+              className={styles.sendBtn}
+              onClick={handleSend}
+              disabled={!input.trim()}
+            >
+              <Send size={16} />
+            </button>
+          )}
         </div>
         <div className={styles.inputHint}>
-          {curProvider === 'ckan-cloud'
+          {curProvider === 'ckan-cloud' || !(AI_PROVIDERS as Record<string, unknown>)[curProvider]
             ? `${t('ai.poweredBy')} · ${aiService.getModelName()}`
             : t('ai.using', { provider: AI_PROVIDERS[curProvider].label })}
         </div>

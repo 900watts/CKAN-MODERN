@@ -24,6 +24,7 @@ public sealed class IpcHandler : IDisposable
     private GameInstanceManager? _instanceManager;
     private RegistryManager? _registryManager;
     private string? _customMirrorUrl;
+    private readonly object _lock = new();
 
     /// <summary>
     /// Event fired when we want to push a message to the frontend.
@@ -31,14 +32,24 @@ public sealed class IpcHandler : IDisposable
     /// </summary>
     public event Action<string, object>? PushEvent;
 
+    /// <summary>
+    /// Safely raises the PushEvent, catching any subscriber exceptions
+    /// so they don't abort the calling operation.
+    /// </summary>
+    private void RaisePushEvent(string channel, object data)
+    {
+        try { PushEvent?.Invoke(channel, data); }
+        catch (Exception ex) { log.Error($"[IPC] Error raising PushEvent for channel '{channel}'", ex); }
+    }
+
     public IpcHandler()
     {
         _config = new JsonConfiguration();
 
         _user = new ModernUser(
-            onProgress: (msg, pct) => PushEvent?.Invoke("progress", new { message = msg, percent = pct }),
-            onMessage:  (msg) => PushEvent?.Invoke("log", new { message = msg }),
-            onError:    (msg) => PushEvent?.Invoke("error", new { message = msg })
+            onProgress: (msg, pct) => RaisePushEvent("progress", new { message = msg, percent = pct }),
+            onMessage:  (msg) => RaisePushEvent("log", new { message = msg }),
+            onError:    (msg) => RaisePushEvent("error", new { message = msg })
         );
 
         _repoData = new RepositoryDataManager();
@@ -49,13 +60,14 @@ public sealed class IpcHandler : IDisposable
         {
             _instanceManager = new GameInstanceManager(_user, _config);
 
-            // Try to get the preferred (auto-start) instance
+            // Try to get the preferred (auto-start) instance.
+            // GetPreferredInstance() already handles the zero-instances case by
+            // calling FindAndRegisterDefaultInstances() internally.
             var preferred = _instanceManager.GetPreferredInstance();
+
             if (preferred == null)
             {
-                // Try auto-detecting game instances
-                _instanceManager.FindAndRegisterDefaultInstances();
-                preferred = _instanceManager.GetPreferredInstance();
+                preferred = TrySelectFirstValidInstance();
             }
 
             if (preferred != null)
@@ -98,7 +110,7 @@ public sealed class IpcHandler : IDisposable
                 if (update != null)
                 {
                     log.Info($"[IPC] Update available: {update.TagName}");
-                    PushEvent?.Invoke("update:available", new
+                    RaisePushEvent("update:available", new
                     {
                         tag = update.TagName,
                         name = update.ReleaseName,
@@ -121,16 +133,19 @@ public sealed class IpcHandler : IDisposable
 
     private void InitRegistryForInstance(GameInstance instance)
     {
-        try
+        lock (_lock)
         {
-            _registryManager?.Dispose();
-            _registryManager = RegistryManager.Instance(instance, _repoData);
-            log.Info($"[IPC] Registry loaded for instance: {instance.Name}");
-        }
-        catch (Exception ex)
-        {
-            log.Error($"[IPC] Failed to load registry for {instance.Name}", ex);
-            _registryManager = null;
+            try
+            {
+                _registryManager?.Dispose();
+                _registryManager = RegistryManager.Instance(instance, _repoData);
+                log.Info($"[IPC] Registry loaded for instance: {instance.Name}");
+            }
+            catch (Exception ex)
+            {
+                log.Error($"[IPC] Failed to load registry for {instance.Name}", ex);
+                _registryManager = null;
+            }
         }
     }
 
@@ -305,70 +320,50 @@ public sealed class IpcHandler : IDisposable
 
         return await Task.Run(() =>
         {
-            try
+            lock (_lock)
             {
-                var registry = _registryManager.registry;
-                var gameVersion = instance.VersionCriteria();
-                var stabilityTolerance = instance.StabilityToleranceConfig;
-
-                var mod = registry.LatestAvailable(identifier, stabilityTolerance, gameVersion);
-                if (mod == null)
+                try
                 {
-                    return (object)new { identifier, status = "error", error = $"Module {identifier} not found or incompatible" };
+                    var registry = _registryManager.registry;
+                    var gameVersion = instance.VersionCriteria();
+                    var stabilityTolerance = instance.StabilityToleranceConfig;
+
+                    var mod = registry.LatestAvailable(identifier, stabilityTolerance, gameVersion);
+                    if (mod == null)
+                    {
+                        return (object)new { identifier, status = "error", error = $"Module {identifier} not found or incompatible" };
+                    }
+
+                    var cache = _instanceManager!.Cache;
+                    if (cache == null)
+                    {
+                        return new { identifier, status = "error", error = "Download cache not configured" };
+                    }
+
+                    var installer = new ModuleInstaller(instance, cache, _config, _user);
+                    var options = RelationshipResolverOptions.DependsOnlyOpts(stabilityTolerance);
+
+                    HashSet<string>? possibleConfigOnlyDirs = null;
+
+                    RaisePushEvent("install:start", new { identifier, name = mod.name });
+
+                    installer.InstallList(
+                        new[] { mod },
+                        options,
+                        _registryManager,
+                        ref possibleConfigOnlyDirs,
+                        userAgent: "CKAN-Modern/2.0",
+                        ConfirmPrompt: false
+                    );
+
+                    RaisePushEvent("install:complete", new { identifier, name = mod.name, status = "success" });
+
+                    return new { identifier, status = "installed", name = mod.name };
                 }
-
-                var cache = _instanceManager!.Cache;
-                if (cache == null)
+                catch (TooManyModsProvideKraken tooMany)
                 {
-                    return new { identifier, status = "error", error = "Download cache not configured" };
-                }
-
-                var installer = new ModuleInstaller(instance, cache, _config, _user);
-                var options = RelationshipResolverOptions.DependsOnlyOpts(stabilityTolerance);
-
-                HashSet<string>? possibleConfigOnlyDirs = null;
-
-                PushEvent?.Invoke("install:start", new { identifier, name = mod.name });
-
-                installer.InstallList(
-                    new[] { mod },
-                    options,
-                    _registryManager,
-                    ref possibleConfigOnlyDirs,
-                    userAgent: "CKAN-Modern/2.0",
-                    ConfirmPrompt: false
-                );
-
-                PushEvent?.Invoke("install:complete", new { identifier, name = mod.name, status = "success" });
-
-                return new { identifier, status = "installed", name = mod.name };
-            }
-            catch (TooManyModsProvideKraken tooMany)
-            {
-                log.Info($"[IPC] Multiple providers for {tooMany.requested}, asking user to choose");
-                var providers = tooMany.modules.Select(m => new
-                {
-                    identifier = m.identifier,
-                    name = m.name,
-                    @abstract = m.@abstract,
-                }).ToArray();
-                return (object)new
-                {
-                    identifier,
-                    status = "needs_provider_choice",
-                    requested = tooMany.requested,
-                    requester = tooMany.requester.name,
-                    providers
-                };
-            }
-            catch (Exception ex)
-            {
-                // Check for TooManyModsProvideKraken wrapped in AggregateException
-                var actual = ex is AggregateException agg ? agg.InnerException ?? ex : ex;
-                if (actual is TooManyModsProvideKraken tooMany2)
-                {
-                    log.Info($"[IPC] Multiple providers for {tooMany2.requested} (wrapped), asking user to choose");
-                    var providers2 = tooMany2.modules.Select(m => new
+                    log.Info($"[IPC] Multiple providers for {tooMany.requested}, asking user to choose");
+                    var providers = tooMany.modules.Select(m => new
                     {
                         identifier = m.identifier,
                         name = m.name,
@@ -378,26 +373,49 @@ public sealed class IpcHandler : IDisposable
                     {
                         identifier,
                         status = "needs_provider_choice",
-                        requested = tooMany2.requested,
-                        requester = tooMany2.requester.name,
-                        providers = providers2
+                        requested = tooMany.requested,
+                        requester = tooMany.requester.name,
+                        providers
                     };
                 }
-
-                log.Error($"[IPC] Install failed for {identifier}", ex);
-                // Wrap raw Core exceptions (which may be localized) with a clear English message
-                var friendlyError = ex switch
+                catch (Exception ex)
                 {
-                    ModuleNotFoundKraken mnf => $"Module '{mnf.identifier}' is not available for your game version. Check compatibility.",
-                    ModuleIsDLCKraken dlc => $"'{dlc.module.name}' is a DLC and cannot be installed via CKAN.",
-                    InconsistentKraken ik => $"Registry inconsistency: {ik.ShortDescription}",
-                    DependenciesNotSatisfiedKraken => $"Cannot install '{identifier}': some dependencies could not be satisfied.",
-                    ModuleDownloadErrorsKraken => $"Download failed for '{identifier}'. Check your internet connection and try again.",
-                    DownloadErrorsKraken => $"Download failed. Check your internet connection and try again.",
-                    _ => $"Install failed for '{identifier}': {ex.Message}"
-                };
-                PushEvent?.Invoke("install:error", new { identifier, error = friendlyError });
-                return (object)new { identifier, status = "error", error = friendlyError };
+                    // Check for TooManyModsProvideKraken wrapped in AggregateException
+                    var actual = ex is AggregateException agg ? agg.InnerException ?? ex : ex;
+                    if (actual is TooManyModsProvideKraken tooMany2)
+                    {
+                        log.Info($"[IPC] Multiple providers for {tooMany2.requested} (wrapped), asking user to choose");
+                        var providers2 = tooMany2.modules.Select(m => new
+                        {
+                            identifier = m.identifier,
+                            name = m.name,
+                            @abstract = m.@abstract,
+                        }).ToArray();
+                        return (object)new
+                        {
+                            identifier,
+                            status = "needs_provider_choice",
+                            requested = tooMany2.requested,
+                            requester = tooMany2.requester.name,
+                            providers = providers2
+                        };
+                    }
+
+                    log.Error($"[IPC] Install failed for {identifier}", ex);
+                    // Wrap raw Core exceptions (which may be localized) with a clear English message
+                    var friendlyError = ex switch
+                    {
+                        ModuleNotFoundKraken mnf => $"Module '{mnf.identifier}' is not available for your game version. Check compatibility.",
+                        ModuleIsDLCKraken dlc => $"'{dlc.module.name}' is a DLC and cannot be installed via CKAN.",
+                        InconsistentKraken ik => $"Registry inconsistency: {ik.ShortDescription}",
+                        DependenciesNotSatisfiedKraken => $"Cannot install '{identifier}': some dependencies could not be satisfied.",
+                        ModuleDownloadErrorsKraken => $"Download failed for '{identifier}'. Check your internet connection and try again.",
+                        DownloadErrorsKraken => $"Download failed. Check your internet connection and try again.",
+                        _ => $"Install failed for '{identifier}': {ex.Message}"
+                    };
+                    RaisePushEvent("install:error", new { identifier, error = friendlyError });
+                    return (object)new { identifier, status = "error", error = friendlyError };
+                }
             }
         });
     }
@@ -414,40 +432,43 @@ public sealed class IpcHandler : IDisposable
 
         return await Task.Run(() =>
         {
-            try
+            lock (_lock)
             {
-                var cache = _instanceManager!.Cache;
-                if (cache == null)
+                try
                 {
-                    return (object)new { identifier, status = "error", error = "Download cache not configured" };
+                    var cache = _instanceManager!.Cache;
+                    if (cache == null)
+                    {
+                        return (object)new { identifier, status = "error", error = "Download cache not configured" };
+                    }
+
+                    var installer = new ModuleInstaller(instance, cache, _config, _user);
+                    HashSet<string>? possibleConfigOnlyDirs = null;
+
+                    RaisePushEvent("uninstall:start", new { identifier });
+
+                    installer.UninstallList(
+                        new[] { identifier },
+                        ref possibleConfigOnlyDirs,
+                        _registryManager,
+                        ConfirmPrompt: false
+                    );
+
+                    RaisePushEvent("uninstall:complete", new { identifier, status = "success" });
+
+                    return new { identifier, status = "removed" };
                 }
-
-                var installer = new ModuleInstaller(instance, cache, _config, _user);
-                HashSet<string>? possibleConfigOnlyDirs = null;
-
-                PushEvent?.Invoke("uninstall:start", new { identifier });
-
-                installer.UninstallList(
-                    new[] { identifier },
-                    ref possibleConfigOnlyDirs,
-                    _registryManager,
-                    ConfirmPrompt: false
-                );
-
-                PushEvent?.Invoke("uninstall:complete", new { identifier, status = "success" });
-
-                return new { identifier, status = "removed" };
-            }
-            catch (Exception ex)
-            {
-                log.Error($"[IPC] Uninstall failed for {identifier}", ex);
-                var friendlyError = ex switch
+                catch (Exception ex)
                 {
-                    ModNotInstalledKraken => $"'{identifier}' is not installed.",
-                    _ => $"Uninstall failed for '{identifier}': {ex.Message}"
-                };
-                PushEvent?.Invoke("uninstall:error", new { identifier, error = friendlyError });
-                return (object)new { identifier, status = "error", error = friendlyError };
+                    log.Error($"[IPC] Uninstall failed for {identifier}", ex);
+                    var friendlyError = ex switch
+                    {
+                        ModNotInstalledKraken => $"'{identifier}' is not installed.",
+                        _ => $"Uninstall failed for '{identifier}': {ex.Message}"
+                    };
+                    RaisePushEvent("uninstall:error", new { identifier, error = friendlyError });
+                    return (object)new { identifier, status = "error", error = friendlyError };
+                }
             }
         });
     }
@@ -601,21 +622,11 @@ public sealed class IpcHandler : IDisposable
     {
         if (_instanceManager == null)
         {
-            return Task.FromResult<object?>(new { instances = Array.Empty<object>() });
+            return Task.FromResult<object?>(new { success = false, instances = Array.Empty<object>(), error = "Instance manager not initialized" });
         }
 
-        var currentName = _instanceManager.CurrentInstance?.Name;
-        var instances = _instanceManager.Instances.Select(kvp => new
-        {
-            name = kvp.Key,
-            path = kvp.Value.GameDir,
-            valid = kvp.Value.Valid,
-            version = kvp.Value.Version()?.ToString() ?? "unknown",
-            game = kvp.Value.Game.ShortName,
-            active = kvp.Key == currentName
-        }).ToArray();
-
-        return Task.FromResult<object?>(new { instances });
+        var instances = BuildInstanceListResponse();
+        return Task.FromResult<object?>(new { success = true, instances });
     }
 
     private Task<object?> HandleAddInstance(JToken? args)
@@ -635,23 +646,30 @@ public sealed class IpcHandler : IDisposable
 
         try
         {
-            if (_instanceManager.HasInstance(name))
+            GameInstance? instance;
+            lock (_lock)
             {
-                return Task.FromResult<object?>(new { success = false, error = $"An instance named '{name}' already exists. Please choose a different name." });
+                if (_instanceManager.HasInstance(name))
+                {
+                    return Task.FromResult<object?>(new { success = false, error = $"An instance named '{name}' already exists. Please choose a different name." });
+                }
+
+                instance = _instanceManager.AddInstance(path, name, _user);
+                if (instance != null)
+                {
+                    _instanceManager.SetCurrentInstance(name);
+                    InitRegistryForInstance(instance);
+                }
             }
 
-            var instance = _instanceManager.AddInstance(path, name, _user);
             if (instance != null)
             {
-                _instanceManager.SetCurrentInstance(name);
-                InitRegistryForInstance(instance);
-
                 // Auto-refresh repository in the background so mods are installable
                 _ = Task.Run(() =>
                 {
                     try
                     {
-                        PushEvent?.Invoke("repo:refresh-start", new { });
+                        RaisePushEvent("repo:refresh-start", new { });
                         var registry = _registryManager!.registry;
                         var repos = registry.Repositories.Values.OrderBy(r => r.priority).ToArray();
                         if (repos.Length == 0)
@@ -665,12 +683,12 @@ public sealed class IpcHandler : IDisposable
                         _repoData.Update(repos, instance.Game, skipETags: false, downloader: downloader, user: _user, userAgent: "CKAN-Modern/2.0");
                         InitRegistryForInstance(instance);
                         var modCount = _registryManager?.registry?.CompatibleModules(instance.StabilityToleranceConfig, instance.VersionCriteria())?.Count() ?? 0;
-                        PushEvent?.Invoke("repo:refresh-complete", new { modCount });
+                        RaisePushEvent("repo:refresh-complete", new { modCount });
                     }
                     catch (Exception ex)
                     {
                         log.Error("[IPC] Auto-refresh after instance add failed", ex);
-                        PushEvent?.Invoke("repo:refresh-error", new { error = ex.Message });
+                        RaisePushEvent("repo:refresh-error", new { error = ex.Message });
                     }
                 });
 
@@ -695,32 +713,35 @@ public sealed class IpcHandler : IDisposable
 
         try
         {
-            var wasActive = _instanceManager.CurrentInstance?.Name == name;
-            _instanceManager.RemoveInstance(name);
-
-            // If we removed the active instance, clear registry
-            if (wasActive)
+            lock (_lock)
             {
-                _registryManager?.Dispose();
-                _registryManager = null;
-                // Try to switch to another instance if one exists
-                var remaining = _instanceManager.Instances;
-                if (remaining.Count > 0)
+                var wasActive = _instanceManager.CurrentInstance?.Name == name;
+                _instanceManager.RemoveInstance(name);
+
+                // If we removed the active instance, clear registry
+                if (wasActive)
                 {
-                    var next = remaining.Values.First();
-                    _instanceManager.SetCurrentInstance(next.Name);
-                    InitRegistryForInstance(next);
-                    var registry = _registryManager?.registry;
-                    var installedCount = registry?.InstalledModules?.Count() ?? 0;
-                    var modCount = registry != null
-                        ? registry.CompatibleModules(next.StabilityToleranceConfig, next.VersionCriteria())?.Count() ?? 0
-                        : 0;
-                    PushEvent?.Invoke("instance:switched", new { name = next.Name, installedCount, modCount });
-                }
-                else
-                {
-                    // No instances left — reset everything
-                    PushEvent?.Invoke("instance:switched", new { name = "", installedCount = 0, modCount = 0 });
+                    _registryManager?.Dispose();
+                    _registryManager = null;
+                    // Try to switch to another instance if one exists
+                    var remaining = _instanceManager.Instances;
+                    if (remaining.Count > 0)
+                    {
+                        var next = remaining.Values.First();
+                        _instanceManager.SetCurrentInstance(next.Name);
+                        InitRegistryForInstance(next);
+                        var registry = _registryManager?.registry;
+                        var installedCount = registry?.InstalledModules?.Count() ?? 0;
+                        var modCount = registry != null
+                            ? registry.CompatibleModules(next.StabilityToleranceConfig, next.VersionCriteria())?.Count() ?? 0
+                            : 0;
+                        RaisePushEvent("instance:switched", new { name = next.Name, installedCount, modCount });
+                    }
+                    else
+                    {
+                        // No instances left — reset everything
+                        RaisePushEvent("instance:switched", new { name = "", installedCount = 0, modCount = 0 });
+                    }
                 }
             }
 
@@ -743,25 +764,28 @@ public sealed class IpcHandler : IDisposable
 
         try
         {
-            _instanceManager.SetCurrentInstance(name);
-            var instance = _instanceManager.CurrentInstance;
-            if (instance != null)
+            lock (_lock)
             {
-                InitRegistryForInstance(instance);
-            }
+                _instanceManager.SetCurrentInstance(name);
+                var instance = _instanceManager.CurrentInstance;
+                if (instance != null)
+                {
+                    InitRegistryForInstance(instance);
+                }
 
-            var registry = _registryManager?.registry;
-            var installedCount = registry?.InstalledModules?.Count() ?? 0;
-            var modCount = 0;
-            if (instance != null && registry != null)
-            {
-                modCount = registry.CompatibleModules(
-                    instance.StabilityToleranceConfig,
-                    instance.VersionCriteria())?.Count() ?? 0;
-            }
+                var registry = _registryManager?.registry;
+                var installedCount = registry?.InstalledModules?.Count() ?? 0;
+                var modCount = 0;
+                if (instance != null && registry != null)
+                {
+                    modCount = registry.CompatibleModules(
+                        instance.StabilityToleranceConfig,
+                        instance.VersionCriteria())?.Count() ?? 0;
+                }
 
-            PushEvent?.Invoke("instance:switched", new { name, installedCount, modCount });
-            return Task.FromResult<object?>(new { name, active = true, installedCount, modCount });
+                RaisePushEvent("instance:switched", new { name, installedCount, modCount });
+                return Task.FromResult<object?>(new { name, active = true, installedCount, modCount });
+            }
         }
         catch (Exception ex)
         {
@@ -815,7 +839,7 @@ public sealed class IpcHandler : IDisposable
 
     private Task<object?> HandleDispatchPair(JToken? args)
     {
-        var code = new Random().Next(100000, 999999).ToString();
+        var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
         return Task.FromResult<object?>(new { code, expires_in = 300 });
     }
 
@@ -881,7 +905,7 @@ public sealed class IpcHandler : IDisposable
             downloadUrl,
             onProgress: (msg, pct) =>
             {
-                PushEvent?.Invoke("update:progress", new { message = msg, percent = pct });
+                RaisePushEvent("update:progress", new { message = msg, percent = pct });
             }
         );
 
@@ -927,65 +951,38 @@ public sealed class IpcHandler : IDisposable
     private async Task<object?> HandleBrowseFolder(JToken? args)
     {
         var title = args?["title"]?.ToString() ?? "Select Game Folder";
-        var initialDir = args?["initialDirectory"]?.ToString();
 
-        // Guard: the WPF application must be running
         var app = System.Windows.Application.Current;
         if (app == null)
         {
-            log.Error("[IPC] BrowseFolder: Application.Current is null — cannot show dialog");
-            return new { selected = false, path = (string?)null };
+            log.Error("[IPC] BrowseFolder: Application.Current is null");
+            return new { selected = false, path = (string?)null, error = "WPF application is not running" };
         }
 
         string? selectedPath = null;
 
-        try
+        await app.Dispatcher.InvokeAsync(() =>
         {
-            // Use InvokeAsync (non-blocking) instead of Invoke to avoid deadlock.
-            // WebView2 WebMessageReceived may fire on a thread that the WPF dispatcher
-            // is waiting on, so a blocking Invoke would hang. InvokeAsync posts the
-            // operation and yields, letting the dispatcher pump and run the dialog.
-            selectedPath = await app.Dispatcher.InvokeAsync(() =>
+            try
             {
-                try
+                // Use WPF-native OpenFolderDialog — simpler and more reliable
+                // than WinForms FolderBrowserDialog in a WebView2-hosted WPF app.
+                var dialog = new Microsoft.Win32.OpenFolderDialog
                 {
-                    var dialog = new Microsoft.Win32.OpenFolderDialog
-                    {
-                        Title = title,
-                        Multiselect = false,
-                    };
+                    Title = title,
+                    Multiselect = false,
+                };
 
-                    if (!string.IsNullOrEmpty(initialDir))
-                    {
-                        dialog.InitialDirectory = initialDir;
-                    }
-
-                    // Pass the main window as the owner so the dialog is parented
-                    // correctly (stays on top, behaves as a modal child).
-                    var owner = app.MainWindow;
-                    bool? accepted = owner != null
-                        ? dialog.ShowDialog(owner)
-                        : dialog.ShowDialog();
-
-                    if (accepted == true)
-                    {
-                        return dialog.FolderName;
-                    }
-
-                    log.Debug("[IPC] BrowseFolder: user cancelled the dialog");
-                    return null;
-                }
-                catch (Exception ex)
+                if (dialog.ShowDialog() == true)
                 {
-                    log.Error("[IPC] BrowseFolder: dialog.ShowDialog threw", ex);
-                    return null;
+                    selectedPath = dialog.FolderName;
                 }
-            });
-        }
-        catch (Exception ex)
-        {
-            log.Error("[IPC] BrowseFolder: Dispatcher.InvokeAsync failed", ex);
-        }
+            }
+            catch (Exception ex)
+            {
+                log.Error("[IPC] BrowseFolder failed", ex);
+            }
+        });
 
         if (!string.IsNullOrEmpty(selectedPath))
         {
@@ -1051,73 +1048,83 @@ public sealed class IpcHandler : IDisposable
 
         var refreshTask = Task.Run(() =>
         {
-            try
+            lock (_lock)
             {
-                PushEvent?.Invoke("repo:refresh-start", new { });
-
-                var registry = _registryManager.registry;
-                var repos = registry.Repositories.Values
-                    .OrderBy(r => r.priority)
-                    .ToArray();
-
-                if (repos.Length == 0)
+                try
                 {
-                    // Use custom mirror URL if set, otherwise default to GitHub
-                    var repoUrl = !string.IsNullOrWhiteSpace(_customMirrorUrl)
-                        ? _customMirrorUrl
-                        : "https://github.com/KSP-CKAN/CKAN-meta/archive/master.tar.gz";
-                    var defaultRepo = new Repository("default", new Uri(repoUrl));
-                    registry.RepositoriesAdd(defaultRepo);
-                    repos = new[] { defaultRepo };
-                    _registryManager.Save();
+                    RaisePushEvent("repo:refresh-start", new { });
+
+                    var registry = _registryManager.registry;
+                    var repos = registry.Repositories.Values
+                        .OrderBy(r => r.priority)
+                        .ToArray();
+
+                    if (repos.Length == 0)
+                    {
+                        // Use custom mirror URL if set, otherwise default to GitHub
+                        var repoUrl = !string.IsNullOrWhiteSpace(_customMirrorUrl)
+                            ? _customMirrorUrl
+                            : "https://github.com/KSP-CKAN/CKAN-meta/archive/master.tar.gz";
+                        var defaultRepo = new Repository("default", new Uri(repoUrl));
+                        registry.RepositoriesAdd(defaultRepo);
+                        repos = new[] { defaultRepo };
+                        _registryManager.Save();
+                    }
+
+                    var downloader = new NetAsyncDownloader(_user, () => null, "CKAN-Modern/2.0");
+
+                    var result = _repoData.Update(
+                        repos,
+                        instance.Game,
+                        skipETags: false,
+                        downloader: downloader,
+                        user: _user,
+                        userAgent: "CKAN-Modern/2.0"
+                    );
+
+                    // Reload registry with fresh data
+                    InitRegistryForInstance(instance);
+
+                    var modCount = _registryManager?.registry?.CompatibleModules(
+                        instance.StabilityToleranceConfig,
+                        instance.VersionCriteria())?.Count() ?? 0;
+
+                    RaisePushEvent("repo:refresh-complete", new { modCount });
+
+                    return (object)new
+                    {
+                        success = true,
+                        result = result.ToString(),
+                        modCount
+                    };
                 }
-
-                var downloader = new NetAsyncDownloader(_user, () => null, "CKAN-Modern/2.0");
-
-                var result = _repoData.Update(
-                    repos,
-                    instance.Game,
-                    skipETags: false,
-                    downloader: downloader,
-                    user: _user,
-                    userAgent: "CKAN-Modern/2.0"
-                );
-
-                // Reload registry with fresh data
-                InitRegistryForInstance(instance);
-
-                var modCount = _registryManager?.registry?.CompatibleModules(
-                    instance.StabilityToleranceConfig,
-                    instance.VersionCriteria())?.Count() ?? 0;
-
-                PushEvent?.Invoke("repo:refresh-complete", new { modCount });
-
-                return (object)new
+                catch (Exception ex)
                 {
-                    success = true,
-                    result = result.ToString(),
-                    modCount
-                };
-            }
-            catch (Exception ex)
-            {
-                log.Error("[IPC] Repository refresh failed", ex);
-                PushEvent?.Invoke("repo:refresh-error", new { error = ex.Message });
-                return (object)new { success = false, error = $"Repository refresh failed: {ex.Message}" };
+                    log.Error("[IPC] Repository refresh failed", ex);
+                    RaisePushEvent("repo:refresh-error", new { error = ex.Message });
+                    return (object)new { success = false, error = $"Repository refresh failed: {ex.Message}" };
+                }
             }
         });
 
         // 3-minute timeout to prevent infinite hangs
-        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        var timeoutTask = Task.Delay(Timeout.Infinite, cts.Token);
-        var completed = await Task.WhenAny(refreshTask, timeoutTask);
-        if (completed == timeoutTask)
+        var cts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        try
         {
-            PushEvent?.Invoke("repo:refresh-error", new { error = "Timed out after 3 minutes" });
-            return new { success = false, error = "Repository refresh timed out after 3 minutes. Try using a Gitee mirror in Settings if you are in China." };
+            var timeoutTask = Task.Delay(Timeout.Infinite, cts.Token);
+            var completed = await Task.WhenAny(refreshTask, timeoutTask);
+            if (completed == timeoutTask)
+            {
+                RaisePushEvent("repo:refresh-error", new { error = "Timed out after 3 minutes" });
+                return new { success = false, error = "Repository refresh timed out after 3 minutes. Try using a Gitee mirror in Settings if you are in China." };
+            }
+            cts.Cancel(); // Cancel the infinite delay
+            return await refreshTask;
         }
-        cts.Cancel(); // Cancel the infinite delay
-        return await refreshTask;
+        finally
+        {
+            cts.Dispose();
+        }
     }
 
     private object? HandleSetMirror(JToken? args)
@@ -1149,60 +1156,128 @@ public sealed class IpcHandler : IDisposable
     private object HandleDownloadPause(JToken? args)
     {
         var id = args?["id"]?.ToString() ?? "";
-        PushEvent?.Invoke("download:paused", new { id });
+        RaisePushEvent("download:paused", new { id });
         return new { id, status = "paused" };
     }
 
     private object HandleDownloadResume(JToken? args)
     {
         var id = args?["id"]?.ToString() ?? "";
-        PushEvent?.Invoke("download:resumed", new { id });
+        RaisePushEvent("download:resumed", new { id });
         return new { id, status = "resumed" };
     }
 
     private object HandleDownloadCancel(JToken? args)
     {
         var id = args?["id"]?.ToString() ?? "";
-        PushEvent?.Invoke("download:cancelled", new { id });
+        RaisePushEvent("download:cancelled", new { id });
         return new { id, status = "cancelled" };
     }
 
     /// <summary>
     /// Scan the system for KSP installations (Steam, etc.)
+    /// Adds newly found instances without throwing if instances already exist.
     /// </summary>
     private Task<object?> HandleScanForGames(JToken? args)
     {
         if (_instanceManager == null)
         {
-            return Task.FromResult<object?>(new { instances = Array.Empty<object>(), error = "Instance manager not initialized" });
+            return Task.FromResult<object?>(new { success = false, instances = Array.Empty<object>(), error = "Instance manager not initialized" });
         }
 
         try
         {
-            _instanceManager.FindAndRegisterDefaultInstances();
-            var currentName = _instanceManager.CurrentInstance?.Name;
-            var instances = _instanceManager.Instances.Select(kvp => new
-            {
-                name = kvp.Key,
-                path = kvp.Value.GameDir,
-                valid = kvp.Value.Valid,
-                version = kvp.Value.Version()?.ToString() ?? "unknown",
-                game = kvp.Value.Game.ShortName,
-                active = kvp.Key == currentName
-            }).ToArray();
+            // Use FindDefaultInstances() instead of FindAndRegisterDefaultInstances()
+            // because the latter throws GameManagerKraken when instances already exist.
+            // FindDefaultInstances() discovers games from Steam, Mac paths, etc.
+            var foundInstances = _instanceManager.FindDefaultInstances();
 
-            return Task.FromResult<object?>(new { instances });
+            // Collect paths already registered to avoid duplicates
+            var existingPaths = new HashSet<string>(
+                _instanceManager.Instances.Values.Select(i => NormalizePath(i.GameDir)),
+                StringComparer.OrdinalIgnoreCase
+            );
+
+            int newCount = 0;
+            lock (_lock)
+            {
+                foreach (var inst in foundInstances)
+                {
+                    var normPath = NormalizePath(inst.GameDir);
+                    if (!existingPaths.Contains(normPath))
+                    {
+                        _instanceManager.AddInstance(inst);
+                        existingPaths.Add(normPath);
+                        newCount++;
+                        log.Info($"[IPC] Auto-detected new instance: {inst.Name} at {inst.GameDir}");
+                    }
+                }
+
+                if (_instanceManager.CurrentInstance == null && _instanceManager.Instances.Count > 0)
+                {
+                    TrySelectFirstValidInstance();
+                }
+            }
+
+            var instances = BuildInstanceListResponse();
+            return Task.FromResult<object?>(new { success = true, instances, newCount });
         }
         catch (Exception ex)
         {
             log.Error("[IPC] Game scan failed", ex);
-            return Task.FromResult<object?>(new { instances = Array.Empty<object>(), error = ex.Message });
+            return Task.FromResult<object?>(new { success = false, instances = Array.Empty<object>(), error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Normalize a path for comparison (trailing slash removal, etc.)
+    /// </summary>
+    private static string NormalizePath(string path)
+    {
+        var full = System.IO.Path.IsPathRooted(path)
+            ? path
+            : System.IO.Path.GetFullPath(path);
+        return full.TrimEnd(
+            System.IO.Path.DirectorySeparatorChar,
+            System.IO.Path.AltDirectorySeparatorChar
+        );
+    }
+
+    private object[] BuildInstanceListResponse()
+    {
+        if (_instanceManager == null) return Array.Empty<object>();
+        var currentName = _instanceManager.CurrentInstance?.Name;
+        return _instanceManager.Instances.Select(kvp => new
+        {
+            name = kvp.Key,
+            path = kvp.Value.GameDir,
+            valid = kvp.Value.Valid,
+            version = kvp.Value.Version()?.ToString() ?? "unknown",
+            game = kvp.Value.Game.ShortName,
+            active = kvp.Key == currentName
+        }).ToArray();
+    }
+
+    private GameInstance? TrySelectFirstValidInstance()
+    {
+        lock (_lock)
+        {
+            var inst = _instanceManager!.Instances.Values.FirstOrDefault(i => i.Valid);
+            if (inst != null)
+            {
+                _instanceManager.SetCurrentInstance(inst);
+                InitRegistryForInstance(inst);
+            }
+            return inst;
         }
     }
 
     public void Dispose()
     {
-        _registryManager?.Dispose();
+        lock (_lock)
+        {
+            _registryManager?.Dispose();
+        }
         _updateChecker.Dispose();
         RegistryManager.DisposeAll();
     }

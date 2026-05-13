@@ -48,7 +48,9 @@ function loadThreads(): Record<string, ThreadMessage[]> {
 function saveThreads(threads: Record<string, ThreadMessage[]>): void {
   try {
     localStorage.setItem(THREADS_KEY, JSON.stringify(threads));
-  } catch {}
+  } catch (err) {
+    console.warn('[SmartphoneModal] Failed to save threads to localStorage:', err);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +92,21 @@ function isOffShift(status: DerivedStatus): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Soul cache — avoid re-fetching from network on every message
+// ---------------------------------------------------------------------------
+
+const soulCache = new Map<string, KerbalSoul>();
+
+async function getSoulCached(kerbalName: string): Promise<KerbalSoul> {
+  const key = kerbalName.toLowerCase();
+  const cached = soulCache.get(key);
+  if (cached) return cached;
+  const soul = await SoulLoader.load(key);
+  soulCache.set(key, soul);
+  return soul;
+}
+
+// ---------------------------------------------------------------------------
 // SmartphoneModal
 // ---------------------------------------------------------------------------
 
@@ -110,6 +127,22 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeKerbalRef = useRef<KerbalState | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+
+  // Sync activeKerbalRef whenever activeKerbal changes
+  useEffect(() => {
+    activeKerbalRef.current = activeKerbal;
+  }, [activeKerbal]);
+
+  // Mark unmounted on cleanup
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -144,6 +177,11 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
   }, [isOpen, visible]);
 
   const handleClose = useCallback(() => {
+    // Abort any in-flight request before closing
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setVisible(false);
   }, []);
 
@@ -152,8 +190,18 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
   }, [visible, onClose]);
 
   const sendMessage = useCallback(async () => {
-    const trimmed = inputValue.trim();
-    if (!trimmed || !activeKerbal) return;
+    // Read current values from refs to avoid stale closures on rapid typing
+    const currentKerbal = activeKerbalRef.current;
+    const rawValue = inputRef.current?.value ?? '';
+    const trimmed = rawValue.trim();
+    if (!trimmed || !currentKerbal) return;
+
+    // Abort any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const userMsg: ThreadMessage = {
       id: `msg-${Date.now()}-user`,
@@ -164,19 +212,20 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
 
     setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
+    if (inputRef.current) inputRef.current.value = '';
     setSummonError(null);
 
-    const status = deriveStatus(activeKerbal);
+    const status = deriveStatus(currentKerbal);
 
     // ---- Off-shift: wake-up delay + groggy AI response ----
     if (isOffShift(status)) {
       setIsSummoning(true);
 
-      // 30% chance of no response (deep asleep)
+      // 30% chance of no response (deep asleep) — show immediately, no artificial delay
       if (Math.random() < 0.3) {
-        await new Promise((resolve) => setTimeout(resolve, 15_000));
         setSummonError(t('mc.noResponse'));
         setIsSummoning(false);
+        abortControllerRef.current = null;
         return;
       }
 
@@ -184,13 +233,17 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
       const wakeDelay = 5000 + Math.random() * 5000;
       await new Promise((resolve) => setTimeout(resolve, wakeDelay));
 
+      // Check if aborted or unmounted after the delay
+      if (controller.signal.aborted || !mountedRef.current) {
+        abortControllerRef.current = null;
+        return;
+      }
+
       try {
-        const soul: KerbalSoul = await SoulLoader.load(
-          activeKerbal.name.toLowerCase(),
-        );
+        const soul: KerbalSoul = await getSoulCached(currentKerbal.name);
         const params = statsToApiParams(soul);
 
-        const memoryCtx = KerbalMemory.buildMemoryContext(activeKerbal.name);
+        const memoryCtx = KerbalMemory.buildMemoryContext(currentKerbal.name);
 
         const messages = [
           {
@@ -203,24 +256,35 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
         const result = await chatViaProvider(messages, {
           temperature: params.temperature,
           topP: params.topP,
+          noSystemPrompt: true,
+          signal: controller.signal,
         });
 
+        if (controller.signal.aborted || !mountedRef.current) return;
+
         const kerbalMsg: ThreadMessage = {
-          id: `msg-${Date.now()}-${activeKerbal.name}`,
-          sender: activeKerbal.name,
-          content: (result.reply && result.reply !== EMPTY_RESPONSE) ? result.reply : `*${activeKerbal.name} ${t('mc.mumbles')}*`,
+          id: `msg-${Date.now()}-${currentKerbal.name}`,
+          sender: currentKerbal.name,
+          content: (result.reply && result.reply !== EMPTY_RESPONSE) ? result.reply : `*${currentKerbal.name} ${t('mc.mumbles')}*`,
           timestamp: Date.now(),
           isGroggy: true,
         };
         setMessages((prev) => [...prev, kerbalMsg]);
 
-        KerbalMemory.addSummary(activeKerbal.name, trimmed, result.reply);
+        KerbalMemory.addSummary(currentKerbal.name, trimmed, result.reply);
       } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return; // Silently ignore aborts
+        }
+        if (!mountedRef.current) return;
         setSummonError(
           err instanceof Error ? err.message : 'No response.',
         );
       } finally {
-        setIsSummoning(false);
+        if (mountedRef.current) setIsSummoning(false);
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
       }
       return;
     }
@@ -228,14 +292,12 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
     // ---- On-shift / On-break: real AI call with typing indicator ----
     setIsGenerating(true);
     try {
-      const soul: KerbalSoul = await SoulLoader.load(
-        activeKerbal.name.toLowerCase(),
-      );
+      const soul: KerbalSoul = await getSoulCached(currentKerbal.name);
       const params = statsToApiParams(soul);
 
-      const memoryCtx = KerbalMemory.buildMemoryContext(activeKerbal.name);
-      const moodCtx = moodSystem.buildMoodPrompt(activeKerbal.name);
-      const storyCtx = storyEngine.buildStoryPrompt(activeKerbal.name);
+      const memoryCtx = KerbalMemory.buildMemoryContext(currentKerbal.name);
+      const moodCtx = moodSystem.buildMoodPrompt(currentKerbal.name);
+      const storyCtx = storyEngine.buildStoryPrompt(currentKerbal.name);
       const toolsCtx = buildToolsPrompt(soul.role);
       const systemPrompt = [soul.rawMarkdown, moodCtx, memoryCtx, storyCtx, toolsCtx].filter(Boolean).join('\n\n');
 
@@ -247,50 +309,65 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
       const result = await chatViaProvider(messages, {
         temperature: params.temperature,
         topP: params.topP,
+        noSystemPrompt: true,
+        signal: controller.signal,
       });
 
-      let reply = (result.reply && result.reply !== EMPTY_RESPONSE) ? result.reply : `*${activeKerbal.name} ${t('mc.aiUnavailable')}*`;
+      if (controller.signal.aborted || !mountedRef.current) return;
+
+      let reply = (result.reply && result.reply !== EMPTY_RESPONSE) ? result.reply : `*${currentKerbal.name} ${t('mc.aiUnavailable')}*`;
       const toolCalls = parseToolCalls(reply);
       for (const tc of toolCalls.slice(0, 2)) {
+        if (controller.signal.aborted) break;
         try {
           const toolResult = await executeToolCall(tc);
           const followUpMessages = [
             { role: 'system' as const, content: `[TOOL RESULT for ${tc.toolName}]: ${toolResult}\n\nRespond naturally.` },
             { role: 'user' as const, content: trimmed },
           ];
-          const followUp = await chatViaProvider(followUpMessages, { temperature: params.temperature, topP: params.topP });
+          const followUp = await chatViaProvider(followUpMessages, { temperature: params.temperature, topP: params.topP, noSystemPrompt: true, signal: controller.signal });
+          if (controller.signal.aborted) return;
           if (followUp.reply && followUp.reply !== EMPTY_RESPONSE) reply = stripToolCalls(followUp.reply);
         } catch {}
       }
+
+      if (controller.signal.aborted || !mountedRef.current) return;
       const finalContent = stripToolCalls(reply);
 
       const kerbalMsg: ThreadMessage = {
-        id: `msg-${Date.now()}-${activeKerbal.name}`,
-        sender: activeKerbal.name,
+        id: `msg-${Date.now()}-${currentKerbal.name}`,
+        sender: currentKerbal.name,
         content: finalContent,
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, kerbalMsg]);
 
-      KerbalMemory.addSummary(activeKerbal.name, trimmed, result.reply);
-      moodSystem.tickMood(activeKerbal.name, 'user_interaction');
+      KerbalMemory.addSummary(currentKerbal.name, trimmed, result.reply);
+      moodSystem.tickMood(currentKerbal.name, 'user_interaction');
     } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return; // Silently ignore aborts
+      }
+      if (!mountedRef.current) return;
       console.error(
-        `[SmartphoneModal] AI call failed for ${activeKerbal.name}:`,
+        `[SmartphoneModal] AI call failed for ${currentKerbal.name}:`,
         err,
       );
       // Fall back to echo behavior if AI call fails
       const kerbalMsg: ThreadMessage = {
-        id: `msg-${Date.now()}-${activeKerbal.name}`,
-        sender: activeKerbal.name,
-        content: `*${activeKerbal.name} ${t('mc.aiUnavailable')}*`,
+        id: `msg-${Date.now()}-${currentKerbal.name}`,
+        sender: currentKerbal.name,
+        content: `*${currentKerbal.name} ${t('mc.aiUnavailable')}*`,
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, kerbalMsg]);
     } finally {
-      setIsGenerating(false);
+      if (mountedRef.current) setIsGenerating(false);
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
-  }, [inputValue, activeKerbal]);
+  }, []);
 
   const openThread = useCallback((kerbal: KerbalState) => {
     setActiveKerbal(kerbal);
@@ -319,6 +396,15 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
     setIsSummoning(false);
     setIsGenerating(false);
     setSummonError(null);
+  }, []);
+
+  const cancelMessage = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsGenerating(false);
+    setIsSummoning(false);
   }, []);
 
   const handleKeyDown = useCallback(
@@ -516,27 +602,46 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
                     onKeyDown={handleKeyDown}
                     disabled={isSummoning || isGenerating}
                   />
-                  <button
-                    type="button"
-                    className="flex-shrink-0 w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-500 disabled:opacity-40 transition-colors"
-                    onClick={sendMessage}
-                    disabled={isSummoning || isGenerating || !inputValue.trim()}
-                    aria-label={t('mc.sendMessage')}
-                  >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      viewBox="0 0 24 24"
+                  {isSummoning || isGenerating ? (
+                    <button
+                      type="button"
+                      className="flex-shrink-0 w-7 h-7 bg-red-600 text-white rounded-full flex items-center justify-center hover:bg-red-500 transition-colors"
+                      onClick={cancelMessage}
+                      aria-label={t('mc.cancel')}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 12h14m0 0l-6-6m6 6l-6 6"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        viewBox="0 0 24 24"
+                      >
+                        <rect x="4" y="4" width="16" height="16" rx="2" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex-shrink-0 w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-500 disabled:opacity-40 transition-colors"
+                      onClick={sendMessage}
+                      disabled={!inputValue.trim()}
+                      aria-label={t('mc.sendMessage')}
+                    >
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 12h14m0 0l-6-6m6 6l-6 6"
+                        />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </>
             )}

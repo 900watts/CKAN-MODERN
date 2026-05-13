@@ -405,13 +405,13 @@ export function clearApiKeyFor(provider: CustomProvider): void {
 
 export function hasAnyCustomKey(): boolean {
   return (Object.keys(AI_PROVIDERS) as CustomProvider[]).some(
-    (p) => p === 'ollama' || !!getCustomApiKey(p)
+    (p) => (p === 'ollama' && ollamaDetected === true) || !!getCustomApiKey(p)
   );
 }
 
 export function getConfiguredProviders(): CustomProvider[] {
   return (Object.keys(AI_PROVIDERS) as CustomProvider[]).filter(
-    (p) => p === 'ollama' || !!getCustomApiKey(p)
+    (p) => (p === 'ollama' && ollamaDetected === true) || !!getCustomApiKey(p)
   );
 }
 
@@ -441,6 +441,30 @@ export function setKerbalModelOverride(model: string): void {
   localStorage.setItem(`${STORAGE_PREFIX}kerbal_model`, model);
 }
 
+// ── Message trimming ──
+
+const MAX_MESSAGES = 30;
+const KEEP_LAST = 20;
+
+/**
+ * Trim message history to prevent unbounded growth.
+ * Always preserves the system prompt (first message if role === 'system')
+ * and the last KEEP_LAST messages. Only trims if total exceeds MAX_MESSAGES.
+ */
+function trimMessages(messages: ChatMessage[]): ChatMessage[] {
+  if (messages.length <= MAX_MESSAGES) return messages;
+  const systemMsg = messages.find(m => m.role === 'system');
+  if (systemMsg) {
+    const nonSystem = messages.filter(m => m.role !== 'system');
+    if (nonSystem.length > KEEP_LAST) {
+      const trimmed = nonSystem.slice(-KEEP_LAST);
+      return [systemMsg, ...trimmed];
+    }
+    return messages;
+  }
+  return messages.slice(-KEEP_LAST);
+}
+
 // ── Custom provider chat ──
 
 export interface CustomChatOptions {
@@ -457,10 +481,12 @@ export async function chatWithCustomProvider(
   messages: ChatMessage[],
   options?: CustomChatOptions,
 ): Promise<AiChatResult> {
+  messages = trimMessages(messages);
   const apiKey = provider === 'ollama' ? 'ollama' : getCustomApiKey(provider);
   if (!apiKey && provider !== 'ollama') throw new Error(`No API key set for ${AI_PROVIDERS[provider].label}. Add it in Settings.`);
 
   const config = AI_PROVIDERS[provider];
+  const signal = options?.signal ?? AbortSignal.timeout(120_000);
   const fullMessages: ChatMessage[] = options?.noSystemPrompt
     ? messages
     : [{ role: 'system', content: SYSTEM_PROMPT }, ...messages];
@@ -474,10 +500,6 @@ export async function chatWithCustomProvider(
       temperature: baseTemp,
     };
     if (options?.topP !== undefined) body.top_p = options.topP;
-    // Ollama-specific: ensure we get a response
-    if (provider === 'ollama') {
-      body.options = { num_predict: 300 };
-    }
 
     const res = await fetch(`${config.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -486,15 +508,26 @@ export async function chatWithCustomProvider(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
-      signal: options?.signal,
+      signal,
     });
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
-      throw new Error(`${config.label} error (${res.status}): ${errText.slice(0, 200)}`);
+      let errorMessage: string;
+      if (res.status === 401 || res.status === 403) {
+        errorMessage = `Invalid API key for ${config.label}. Please check your API key in Settings.`;
+      } else if (res.status === 429) {
+        errorMessage = `Rate limited by ${config.label}. Please wait and try again.`;
+      } else if (res.status >= 500 && res.status <= 503) {
+        errorMessage = `Service unavailable from ${config.label}. The provider may be down.`;
+      } else {
+        errorMessage = `${config.label} error (${res.status}): ${errText.slice(0, 200)}`;
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await res.json();
+    const systemMsg = fullMessages.find(m => m.role === 'system');
     let reply = data.choices?.[0]?.message?.content;
 
     // Retry with different params if empty
@@ -504,14 +537,11 @@ export async function chatWithCustomProvider(
       try {
         const retryBody: Record<string, unknown> = { ...body, temperature: Math.min(baseTemp + 0.2, 1.2) };
         delete retryBody.max_tokens;
-        if (provider === 'ollama' && retryBody.options) {
-          (retryBody.options as Record<string, unknown>).num_predict = 256;
-        }
         const r1 = await fetch(`${config.baseUrl}/chat/completions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify(retryBody),
-          signal: options?.signal,
+          signal,
         });
         if (r1.ok) {
           const d1 = await r1.json();
@@ -524,19 +554,19 @@ export async function chatWithCustomProvider(
         console.warn(`[ai] Retry 2: minimal prompt...`);
         try {
           const lastUser = fullMessages.filter(m => m.role === 'user').slice(-1);
+          const retryMessages: ChatMessage[] = systemMsg
+            ? [systemMsg, ...lastUser]
+            : [...lastUser];
           const r2 = await fetch(`${config.baseUrl}/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
             body: JSON.stringify({
               model,
-              messages: [
-                { role: 'system', content: 'You are a KSP kerbal. Respond briefly in character.' },
-                ...lastUser,
-              ],
+              messages: retryMessages,
               temperature: baseTemp + 0.1,
               max_tokens: 200,
             }),
-            signal: options?.signal,
+            signal,
           });
           if (r2.ok) {
             const d2 = await r2.json();
@@ -582,7 +612,7 @@ export async function chatWithCustomProvider(
             temperature: options?.temperature ?? 0.7,
           },
         }),
-        signal: options?.signal,
+        signal,
       }
     );
 
@@ -601,12 +631,14 @@ export async function chatWithCustomProvider(
 
 let ollamaDetected: boolean | null = null;
 let ollamaModels: string[] | null = null;
+let ollamaDetectionTime: number = 0;
+const OLLAMA_DETECTION_TTL_MS = 30_000;
 
 async function detectOllama(): Promise<boolean> {
-  if (ollamaDetected !== null) return ollamaDetected;
+  if (ollamaDetected !== null && Date.now() - ollamaDetectionTime < OLLAMA_DETECTION_TTL_MS) return ollamaDetected;
   try {
     const res = await fetch('http://localhost:11434/api/tags', {
-      signal: AbortSignal.timeout(800),
+      signal: AbortSignal.timeout(3000),
     });
     if (res.ok) {
       const data = await res.json();
@@ -618,7 +650,15 @@ async function detectOllama(): Promise<boolean> {
   } catch {
     ollamaDetected = false;
   }
+  ollamaDetectionTime = Date.now();
   return ollamaDetected;
+}
+
+/** Reset Ollama detection state so the next request re-checks. */
+export function refreshOllamaDetection(): void {
+  ollamaDetected = null;
+  ollamaModels = null;
+  ollamaDetectionTime = 0;
 }
 
 function getOllamaAvailableModels(): string[] {
@@ -665,6 +705,7 @@ export async function chatViaProvider(
   messages: ChatMessage[],
   options?: CustomChatOptions,
 ): Promise<AiChatResult> {
+  messages = trimMessages(messages);
   const provider = await resolveProvider();
 
   if (provider !== 'ckan-cloud') {
@@ -674,12 +715,50 @@ export async function chatViaProvider(
       if (kerbalOverride) model = kerbalOverride;
     }
     if (provider === 'ollama') {
+      await detectOllama();
       model = resolveOllamaModel(model);
     }
-    return chatWithCustomProvider(provider, model, messages, {
-      ...options,
-      noSystemPrompt: options?.noSystemPrompt ?? false,
-    });
+    try {
+      return await chatWithCustomProvider(provider, model, messages, {
+        ...options,
+        noSystemPrompt: options?.noSystemPrompt ?? false,
+      });
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      if (msg.includes('401') || msg.includes('403') || msg.includes('Invalid API key')) {
+        console.warn(`[ai] ${provider} auth failed, trying fallbacks...`);
+        // Try Ollama first
+        const ollamaAvailable = await detectOllama();
+        if (ollamaAvailable) {
+          console.log('[ai] Falling back to Ollama');
+          const ollamaModel = resolveOllamaModel();
+          try {
+            return await chatWithCustomProvider('ollama', ollamaModel, messages, {
+              ...options,
+              noSystemPrompt: options?.noSystemPrompt ?? false,
+            });
+          } catch (ollamaErr: any) {
+            console.warn('[ai] Ollama fallback also failed:', ollamaErr?.message ?? String(ollamaErr));
+          }
+        }
+        // Try CKAN Cloud
+        const configured = await isAuthConfiguredCached();
+        if (configured) {
+          console.log('[ai] Falling back to CKAN Cloud');
+          return aiService.chat(messages, {
+            signal: options?.signal,
+            temperature: options?.temperature,
+            topP: options?.topP,
+            noSystemPrompt: options?.noSystemPrompt,
+          });
+        }
+        throw new Error(
+          'Custom provider failed with auth error and no fallback is available. ' +
+          'Please sign in to CKAN Cloud (Settings > Account) or set up a local Ollama instance.',
+        );
+      }
+      throw err;
+    }
   }
 
   // CKAN Cloud path — check auth (cached), fall back to Ollama if not configured
