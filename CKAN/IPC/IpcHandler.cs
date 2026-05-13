@@ -55,25 +55,14 @@ public sealed class IpcHandler : IDisposable
         _repoData = new RepositoryDataManager();
         _updateChecker = new UpdateChecker();
 
-        // Initialize the game instance manager
+        // Initialize the game instance manager (load configured instances only — no auto-scan)
         try
         {
             _instanceManager = new GameInstanceManager(_user, _config);
 
-            // Try to get the preferred (auto-start) instance.
-            // GetPreferredInstance() already handles the zero-instances case by
-            // calling FindAndRegisterDefaultInstances() internally.
-            var preferred = _instanceManager.GetPreferredInstance();
-
-            if (preferred == null)
-            {
-                preferred = TrySelectFirstValidInstance();
-            }
-
-            if (preferred != null)
-            {
-                InitRegistryForInstance(preferred);
-            }
+            // Select the first valid instance from the config without triggering
+            // a full Steam scan. Users can scan manually via the Instances page.
+            TrySelectFirstValidInstance();
 
             log.Info($"[IPC] Initialized with {_instanceManager.Instances.Count} game instance(s)");
         }
@@ -964,19 +953,27 @@ public sealed class IpcHandler : IDisposable
 
         string? selectedPath = null;
 
+        // Get the main window to use as dialog owner.
+        // Without an explicit owner, native COM dialogs can appear behind
+        // the main window in WebView2-hosted apps, making the app seem frozen.
+        var owner = app.MainWindow;
+
         await app.Dispatcher.InvokeAsync(() =>
         {
             try
             {
-                // Use WPF-native OpenFolderDialog — simpler and more reliable
-                // than WinForms FolderBrowserDialog in a WebView2-hosted WPF app.
                 var dialog = new Microsoft.Win32.OpenFolderDialog
                 {
                     Title = title,
                     Multiselect = false,
                 };
 
-                if (dialog.ShowDialog() == true)
+                // ShowDialog with owner keeps the dialog on top of the main window
+                bool? result = owner != null
+                    ? dialog.ShowDialog(owner)
+                    : dialog.ShowDialog();
+
+                if (result == true)
                 {
                     selectedPath = dialog.FolderName;
                 }

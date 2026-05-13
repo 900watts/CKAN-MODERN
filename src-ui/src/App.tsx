@@ -6,6 +6,7 @@ import SettingsPage from './pages/SettingsPage';
 import InstancesPage from './pages/InstancesPage';
 import DownloadsPage from './pages/DownloadsPage';
 import MissionControl from './kerbal-control/MissionControl';
+import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
 import { ckanIpc } from './services/ipc';
 import { downloadStore } from './services/downloadStore';
 import { worldContext } from './kerbal-control/WorldContext';
@@ -47,7 +48,11 @@ function App() {
       case 'downloads':
         return <DownloadsPage />;
       case 'mission-control':
-        return <MissionControl />;
+        return (
+          <ErrorBoundary>
+            <MissionControl />
+          </ErrorBoundary>
+        );
       default:
         return <ModListPage view="available" onInstallChange={handleInstallChange} installTick={installTick} />;
     }

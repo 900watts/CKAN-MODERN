@@ -36,7 +36,7 @@ type BanterListener = (message: BanterMessage) => void;
 const STORAGE_KEY = 'kerbal-control:idle-config';
 
 const DEFAULTS: IdleConfig = {
-  enabled: false,
+  enabled: true,
   delayMinutes: 0.5,
   frequency: 'chatty',
 };

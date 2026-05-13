@@ -67,21 +67,44 @@ public sealed class IpcBridge : IDisposable
                 Data = data,
             };
 
-            var json = JsonConvert.SerializeObject(response, JsonSettings);
-            _webView.PostWebMessageAsJson(json);
+            PostResponse(response);
         }
         catch (Exception ex)
         {
-            var response = new IpcResponse
+            PostResponse(new IpcResponse
             {
                 Id = request.Id,
                 Success = false,
                 Error = ex.Message,
-            };
-
-            var json = JsonConvert.SerializeObject(response, JsonSettings);
-            _webView.PostWebMessageAsJson(json);
+            });
         }
+    }
+
+    /// <summary>
+    /// Send an IPC response back to the WebView2 frontend.
+    /// Must be marshalled to the UI thread because PostWebMessageAsJson
+    /// requires the calling thread to be the WebView2 owner thread.
+    /// </summary>
+    private void PostResponse(IpcResponse response)
+    {
+        if (_disposed) return;
+
+        var app = System.Windows.Application.Current;
+        if (app != null && !app.Dispatcher.CheckAccess())
+        {
+            app.Dispatcher.InvokeAsync(() => PostResponseCore(response));
+        }
+        else
+        {
+            PostResponseCore(response);
+        }
+    }
+
+    private void PostResponseCore(IpcResponse response)
+    {
+        if (_disposed) return;
+        var json = JsonConvert.SerializeObject(response, JsonSettings);
+        _webView.PostWebMessageAsJson(json);
     }
 
     /// <summary>

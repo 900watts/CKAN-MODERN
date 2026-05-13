@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen, Rocket } from 'lucide-react';
 import AIChatPanel from '../AIChat/AIChatPanel';
+import ErrorBoundary from '../ErrorBoundary/ErrorBoundary';
 import UpdateBanner from '../UpdateBanner/UpdateBanner';
 import { registryService } from '../../services/registry';
 import ckanIpc from '../../services/ipc';
@@ -141,7 +142,9 @@ export default function Layout({ children, activePage = 'available', onNavigate 
           {/* AI Panel */}
           <AnimatePresence>
             {aiPanelOpen && (
-              <AIChatPanel onClose={() => setAiPanelOpen(false)} />
+              <ErrorBoundary>
+                <AIChatPanel onClose={() => setAiPanelOpen(false)} />
+              </ErrorBoundary>
             )}
           </AnimatePresence>
         </main>
