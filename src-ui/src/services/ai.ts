@@ -529,6 +529,7 @@ export async function chatWithCustomProvider(
     const data = await res.json();
     const systemMsg = fullMessages.find(m => m.role === 'system');
     let reply = data.choices?.[0]?.message?.content;
+    let retryUsed = false;
 
     // Retry with different params if empty
     if (!reply) {
@@ -546,6 +547,7 @@ export async function chatWithCustomProvider(
         if (r1.ok) {
           const d1 = await r1.json();
           reply = d1.choices?.[0]?.message?.content;
+          if (reply) retryUsed = true;
         }
       } catch { /* continue */ }
 
@@ -571,6 +573,7 @@ export async function chatWithCustomProvider(
           if (r2.ok) {
             const d2 = await r2.json();
             reply = d2.choices?.[0]?.message?.content;
+            if (reply) retryUsed = true;
           }
         } catch { /* continue */ }
       }
@@ -583,7 +586,7 @@ export async function chatWithCustomProvider(
     return {
       reply: reply || EMPTY_RESPONSE,
       model,
-      usage: data.usage,
+      usage: retryUsed ? undefined : data.usage,
       tier: 'custom',
     };
   } else {
@@ -675,13 +678,6 @@ function resolveOllamaModel(fallbackModel?: string): string {
   return model;
 }
 
-async function resolveProvider(): Promise<CustomProvider | 'ckan-cloud'> {
-  const selected = getSelectedProvider();
-  const stored = localStorage.getItem(`${STORAGE_PREFIX}provider`);
-  if (stored) return selected;
-  // No explicit provider chosen — default to ckan-cloud (Ollama is lazy-detected only when needed)
-  return selected;
-}
 
 /** Cached auth state to avoid repeated Supabase getSession() calls on the hot path. */
 let cachedAuthState: { configured: boolean; checkedAt: number } | null = null;
@@ -706,7 +702,7 @@ export async function chatViaProvider(
   options?: CustomChatOptions,
 ): Promise<AiChatResult> {
   messages = trimMessages(messages);
-  const provider = await resolveProvider();
+  const provider = getSelectedProvider();
 
   if (provider !== 'ckan-cloud') {
     let model = getSelectedModel(provider);

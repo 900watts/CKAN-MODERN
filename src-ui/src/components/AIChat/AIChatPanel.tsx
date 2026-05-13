@@ -367,7 +367,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             ))}
           </select>
         </div>
-        {curProvider !== 'ckan-cloud' && (AI_PROVIDERS as Record<string, unknown>)[curProvider] && (
+        {curProvider !== 'ckan-cloud' && curProvider in AI_PROVIDERS && (
           <>
             <div className={styles.modelSelect}>
               <label className={styles.modelLabel}>{t('ai.model')}</label>

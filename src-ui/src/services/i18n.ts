@@ -376,6 +376,8 @@ const translations: Record<Language, Record<string, string>> = {
     'update.install': 'Update Now',
     'update.updating': 'Updating...',
     'update.viewNotes': 'View release notes',
+    'update.noDownloadUrl': 'Update available but download URL not found. Please download manually.',
+    'update.applyFailed': 'Update failed. Please download manually from the release page.',
 
     // Shift Config (Kerbal)
     'shift.assignments': 'Shift Assignments',
@@ -750,6 +752,8 @@ const translations: Record<Language, Record<string, string>> = {
     'update.install': '立即更新',
     'update.updating': '更新中...',
     'update.viewNotes': '查看更新日志',
+    'update.noDownloadUrl': '发现新版本但无法获取下载链接。请手动下载。',
+    'update.applyFailed': '更新失败。请从发布页面手动下载。',
 
     // Shift Config (Kerbal)
     'shift.assignments': '排班安排',

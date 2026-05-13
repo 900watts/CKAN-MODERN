@@ -909,7 +909,10 @@ public sealed class IpcHandler : IDisposable
             }
         );
 
-        return new { success };
+        if (!success)
+            return new { success = false, error = "Download or apply failed. Check logs for details." };
+
+        return new { success = true };
     }
 
     private async Task<object?> HandleMinimize()

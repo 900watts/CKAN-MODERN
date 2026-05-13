@@ -40,21 +40,20 @@ export default function UpdateBanner() {
   const handleUpdate = async () => {
     if (!update) return;
 
-    // Determine which exe to download — use lite by default (smaller),
-    // fall back to bundled if lite isn't available
     const downloadUrl = update.liteUrl || update.bundledUrl;
     if (!downloadUrl) {
-      // No direct download — open the release page instead
-      window.open(update.url, '_blank');
+      setProgress({ message: t('update.noDownloadUrl'), percent: 0 });
       return;
     }
 
     setUpdating(true);
     try {
-      await ckanIpc.call('app:apply-update', { downloadUrl });
-    } catch {
-      // If the IPC call fails (e.g. dev mode), open the release page
-      window.open(update.url, '_blank');
+      const result = await ckanIpc.call<any, { success: boolean; error?: string }>('app:apply-update', { downloadUrl });
+      if (!result?.success) {
+        throw new Error(result?.error || t('update.applyFailed'));
+      }
+    } catch (err: any) {
+      setProgress({ message: err?.message || t('update.applyFailed'), percent: 0 });
       setUpdating(false);
     }
   };
