@@ -62,14 +62,23 @@ public sealed class IpcHandler : IDisposable
         _repoData = new RepositoryDataManager();
         _updateChecker = new UpdateChecker();
 
-        // Initialize the game instance manager (load configured instances only — no auto-scan)
+        // Initialize the game instance manager and auto-detect game instances
         try
         {
             _instanceManager = new GameInstanceManager(_user, _config);
 
-            // Select the first valid instance from the config without triggering
-            // a full Steam scan. Users can scan manually via the Instances page.
-            TrySelectFirstValidInstance();
+            var preferred = _instanceManager.GetPreferredInstance();
+            if (preferred == null)
+            {
+                // No instances registered yet — scan Steam/library paths
+                _instanceManager.FindAndRegisterDefaultInstances();
+                preferred = _instanceManager.GetPreferredInstance();
+            }
+
+            if (preferred != null)
+            {
+                InitRegistryForInstance(preferred);
+            }
 
             log.Info($"[IPC] Initialized with {_instanceManager.Instances.Count} game instance(s)");
         }
@@ -1122,23 +1131,14 @@ public sealed class IpcHandler : IDisposable
         });
 
         // 3-minute timeout to prevent infinite hangs
-        var cts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        try
+        var timeoutTask = Task.Delay(TimeSpan.FromMinutes(3));
+        var completed = await Task.WhenAny(refreshTask, timeoutTask);
+        if (completed == timeoutTask)
         {
-            var timeoutTask = Task.Delay(Timeout.Infinite, cts.Token);
-            var completed = await Task.WhenAny(refreshTask, timeoutTask);
-            if (completed == timeoutTask)
-            {
-                RaisePushEvent("repo:refresh-error", new { error = "Timed out after 3 minutes" });
-                return new { success = false, error = "Repository refresh timed out after 3 minutes. Try using a Gitee mirror in Settings if you are in China." };
-            }
-            cts.Cancel(); // Cancel the infinite delay
-            return await refreshTask;
+            RaisePushEvent("repo:refresh-error", new { error = "Timed out after 3 minutes" });
+            return new { success = false, error = "Repository refresh timed out after 3 minutes. Try using a Gitee mirror in Settings if you are in China." };
         }
-        finally
-        {
-            cts.Dispose();
-        }
+        return await refreshTask;
     }
 
     private object? HandleSetMirror(JToken? args)
