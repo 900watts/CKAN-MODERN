@@ -11,6 +11,7 @@ import type { KerbalState } from '../KerbalStore';
 import { timeSystem } from '../TimeSystem';
 import type { TimeState } from '../TimeSystem';
 import { proactiveAgent } from '../ProactiveAgent';
+import { t } from '../../services/i18n';
 
 // ==========================================================================
 // RoomCanvas  —  React component for the 2.5D Mission Control room
@@ -151,12 +152,12 @@ function drawBigScreen(ctx: CanvasRenderingContext2D, w: number, h: number, _flo
   ctx.font = `bold ${Math.round(h * 0.022)}px "Courier New", monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('CKAN  MISSION  CONTROL', sx + sw / 2, sy + sh * 0.4);
+  ctx.fillText(t('room.title'), sx + sw / 2, sy + sh * 0.4);
 
   // Subtitle
   ctx.fillStyle = 'rgba(80, 255, 200, 0.4)';
   ctx.font = `${Math.round(h * 0.013)}px "Courier New", monospace`;
-  ctx.fillText('ALL SYSTEMS NOMINAL', sx + sw / 2, sy + sh * 0.68);
+  ctx.fillText(t('room.statusOk'), sx + sw / 2, sy + sh * 0.68);
 }
 
 /** Draw a few Kerbal-themed posters / drawings on the walls. */
@@ -218,13 +219,13 @@ function drawShiftBadge(ctx: CanvasRenderingContext2D, w: number, h: number, _ti
   ctx.stroke();
 
   // Label
-  const shiftLabel = isDay ? 'DAY SHIFT' : 'NIGHT SHIFT';
+  const shiftLabel = isDay ? t('room.dayShift') : t('room.nightShift');
   const labelColor = isDay ? '#fbbf24' : '#a5b4fc';
   ctx.fillStyle = labelColor;
   ctx.font = `bold ${Math.round(h * 0.016)}px "Courier New", monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${shiftLabel}  ·  ${count} crew`, bx + bw / 2, by + bh / 2);
+  ctx.fillText(`${shiftLabel}  ·  ${t('room.crew', { count })}`, bx + bw / 2, by + bh / 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -468,7 +469,7 @@ function drawCoffeeStation(ctx: CanvasRenderingContext2D, w: number, h: number):
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.font = `${Math.round(h * 0.011)}px "Courier New", monospace`;
   ctx.textAlign = 'center';
-  ctx.fillText('COFFEE', cx, cy + h * 0.065);
+  ctx.fillText(t('room.coffee'), cx, cy + h * 0.065);
 }
 
 // ---------------------------------------------------------------------------

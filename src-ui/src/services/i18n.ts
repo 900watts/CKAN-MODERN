@@ -399,6 +399,14 @@ const translations: Record<Language, Record<string, string>> = {
     'shift.chatty': 'Chatty',
     'shift.tokenWarning': 'Idle conversations consume API tokens. Disable to save.',
     'shift.noResponse': 'No response.',
+
+    // Room Canvas
+    'room.title': 'CKAN  MISSION  CONTROL',
+    'room.statusOk': 'ALL SYSTEMS NOMINAL',
+    'room.dayShift': 'DAY SHIFT',
+    'room.nightShift': 'NIGHT SHIFT',
+    'room.crew': '{count} crew',
+    'room.coffee': 'COFFEE',
   },
 
   zh: {
@@ -775,6 +783,14 @@ const translations: Record<Language, Record<string, string>> = {
     'shift.chatty': '频繁',
     'shift.tokenWarning': '空闲对话会消耗 API 额度。关闭可节省用量。',
     'shift.noResponse': '无响应。',
+
+    // Room Canvas
+    'room.title': 'CKAN 任务控制中心',
+    'room.statusOk': '所有系统正常',
+    'room.dayShift': '白班',
+    'room.nightShift': '夜班',
+    'room.crew': '{count} 名人员',
+    'room.coffee': '咖啡',
   },
 };
 

@@ -493,12 +493,18 @@ export async function chatWithCustomProvider(
 
   if (config.openaiCompat) {
     const baseTemp = options?.temperature ?? 0.7;
+    // OpenAI o-series models require max_completion_tokens instead of max_tokens.
+    // Other OpenAI-compatible providers (Silicon Flow, OpenRouter, Ollama) still use max_tokens.
+    const isOModel = provider === 'openai' && model.startsWith('o');
     const body: Record<string, unknown> = {
       model,
       messages: fullMessages,
-      max_tokens: provider === 'ollama' ? 300 : 1024,
-      temperature: baseTemp,
+      ...(isOModel
+        ? { max_completion_tokens: 1024 }
+        : { max_tokens: provider === 'ollama' ? 300 : 1024 }),
+      ...(isOModel ? {} : { temperature: baseTemp }),
     };
+    if (options?.topP !== undefined) body.top_p = options.topP;
     if (options?.topP !== undefined) body.top_p = options.topP;
 
     const res = await fetch(`${config.baseUrl}/chat/completions`, {
@@ -601,10 +607,13 @@ export async function chatWithCustomProvider(
     const systemInstruction = fullMessages.find((m) => m.role === 'system');
 
     const res = await fetch(
-      `${config.baseUrl}/models/${model}:generateContent?key=${apiKey}`,
+      `${config.baseUrl}/models/${model}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey!,
+        },
         body: JSON.stringify({
           contents,
           ...(systemInstruction
