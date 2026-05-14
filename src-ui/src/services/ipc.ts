@@ -130,16 +130,31 @@ class CkanIpc {
   }
 
   /**
+   * Per-channel timeout overrides (milliseconds).
+   * Channels that involve native dialogs or long downloads need more time.
+   */
+  private static readonly CHANNEL_TIMEOUTS: Partial<Record<IpcChannel, number>> = {
+    'app:browse-folder': 300_000,   // 5 min — user is browsing their filesystem
+    'repo:refresh': 300_000,         // 5 min — downloading repo data
+    'mod:install': 600_000,          // 10 min — downloading mods
+    'mod:scan-gamedata': 300_000,    // 5 min — scanning game directory
+    'game:scan': 120_000,            // 2 min — scanning for game instances
+  };
+
+  private static readonly DEFAULT_TIMEOUT = 30_000; // 30 seconds for most calls
+
+  /**
    * Call a C# method and return a promise with the result.
    */
   async call<T = unknown, R = unknown>(channel: IpcChannel, args?: T): Promise<R> {
     const id = crypto.randomUUID();
-    
+    const timeoutMs = CkanIpc.CHANNEL_TIMEOUTS[channel] ?? CkanIpc.DEFAULT_TIMEOUT;
+
     return new Promise<R>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.handlers.delete(id);
         reject(new Error(`IPC timeout: ${channel}`));
-      }, 30000);
+      }, timeoutMs);
 
       this.handlers.set(id, (response) => {
         clearTimeout(timeout);
