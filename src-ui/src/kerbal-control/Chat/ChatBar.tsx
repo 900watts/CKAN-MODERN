@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { kerbalStore } from '../KerbalStore';
 import { SoulLoader, statsToApiParams } from '../SoulLoader';
 import type { KerbalSoul } from '../SoulLoader';
+import { growthSystem } from '../GrowthSystem';
 import { timeSystem, getTimeOfDayDescription } from '../TimeSystem';
 import { chatViaProvider, EMPTY_RESPONSE } from '../../services/ai';
 import { worldContext } from '../WorldContext';
@@ -492,8 +493,8 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
     setTyping(kerbalState.name, true);
 
     try {
-      // Load the Kerbal's soul
-      const soul: KerbalSoul = await SoulLoader.load(kerbalId);
+      // Load the Kerbal's soul (with growth data merged in)
+      const soul: KerbalSoul = await SoulLoader.loadWithGrowth(kerbalId);
 
       // Build the conversation messages for the AI call
       const conversationHistory =
@@ -580,9 +581,11 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
 
       setTyping(kerbalState.name, false);
 
-      // Persist conversation memory + tick mood
+      // Persist conversation memory + extract facts + tick mood + growth
       KerbalMemory.addSummary(kerbalState.name, routed.originalMessage, fullContent);
+      KerbalMemory.extractAndStore(kerbalState.name, routed.originalMessage, fullContent);
       moodSystem.tickMood(kerbalState.name, 'user_interaction');
+      growthSystem.tick(kerbalState.name, 'successful_chat');
 
       return {
         kerbalId,
@@ -600,6 +603,7 @@ const ChatBar: React.FC<ChatBarProps> = ({ onMessageSent, banterMessages, proact
 
       console.error(`[ChatBar] Failed to get response from ${kerbalState.name}:`, err);
       addSystemMessage('mc.kerbalCantRespond', kerbalState.name);
+      growthSystem.tick(kerbalState.name, 'error_response');
       return null;
     }
   }

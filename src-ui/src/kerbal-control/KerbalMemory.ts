@@ -85,6 +85,59 @@ export const KerbalMemory = {
   },
 
   /**
+   * Extract memorable facts from a conversation and store them.
+   * Uses pattern matching — no AI call needed, so it's instant.
+   */
+  extractAndStore(kerbalName: string, userMessage: string, _kerbalResponse: string): void {
+    const msg = userMessage.toLowerCase();
+
+    // Name extraction: "I'm X", "my name is X", "call me X"
+    const nameMatch = msg.match(/(?:i'm|i am|my name is|call me)\s+([a-z]+)/i);
+    if (nameMatch) {
+      const name = nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1);
+      KerbalMemory.addFact(kerbalName, `User's name is ${name}`);
+    }
+
+    // Preferences: "I like X", "I love X", "I hate X", "I don't like X"
+    const likeMatch = msg.match(/i (?:really )?(?:like|love|enjoy|prefer)\s+(.+?)(?:\.|!|$)/i);
+    if (likeMatch) {
+      KerbalMemory.addFact(kerbalName, `User likes ${likeMatch[1].trim()}`);
+    }
+    const hateMatch = msg.match(/i (?:really )?(?:hate|dislike|can't stand)\s+(.+?)(?:\.|!|$)/i);
+    if (hateMatch) {
+      KerbalMemory.addFact(kerbalName, `User dislikes ${hateMatch[1].trim()}`);
+    }
+
+    // Game context: KSP version, mod counts, play style
+    const versionMatch = msg.match(/ksp\s*(\d+[\.\d]*)/i);
+    if (versionMatch) {
+      KerbalMemory.addFact(kerbalName, `User plays KSP ${versionMatch[1]}`);
+    }
+    const modMatch = msg.match(/(\d+)\s*mod/i);
+    if (modMatch) {
+      KerbalMemory.addFact(kerbalName, `User has ${modMatch[1]} mods installed`);
+    }
+
+    // Skill level: "I'm new", "I'm a veteran", "I'm experienced"
+    const skillMatch = msg.match(/i'm (?:a |an )?(beginner|newbie|veteran|experienced|pro|expert|new player)/i);
+    if (skillMatch) {
+      KerbalMemory.addFact(kerbalName, `User is a ${skillMatch[1]} KSP player`);
+    }
+
+    // Current activity: "I'm building X", "I'm trying to X", "I'm working on X"
+    const activityMatch = msg.match(/i'm (?:building|trying to|working on|setting up|designing)\s+(.+?)(?:\.|!|$)/i);
+    if (activityMatch) {
+      KerbalMemory.addFact(kerbalName, `User is working on: ${activityMatch[1].trim()}`);
+    }
+
+    // Problems: "I can't X", "X isn't working", "X broke"
+    const problemMatch = msg.match(/(?:i can't|doesn't work|isn't working|won't)\s+(.+?)(?:\.|!|$)/i);
+    if (problemMatch) {
+      KerbalMemory.addFact(kerbalName, `User had trouble with: ${problemMatch[1].trim()}`);
+    }
+  },
+
+  /**
    * Build a concise memory preamble for injection into the system prompt.
    * Returns empty string if there are no memories.
    */

@@ -5,6 +5,7 @@ import type { KerbalState } from '../KerbalStore';
 import { SoulLoader } from '../SoulLoader';
 import type { KerbalSoul } from '../SoulLoader';
 import { statsToApiParams } from '../SoulLoader';
+import { growthSystem } from '../GrowthSystem';
 import { chatViaProvider, EMPTY_RESPONSE } from '../../services/ai';
 import { KerbalMemory } from '../KerbalMemory';
 import { moodSystem } from '../MoodSystem';
@@ -101,7 +102,7 @@ async function getSoulCached(kerbalName: string): Promise<KerbalSoul> {
   const key = kerbalName.toLowerCase();
   const cached = soulCache.get(key);
   if (cached) return cached;
-  const soul = await SoulLoader.load(key);
+  const soul = await SoulLoader.loadWithGrowth(key);
   soulCache.set(key, soul);
   return soul;
 }
@@ -272,11 +273,11 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
         setMessages((prev) => [...prev, kerbalMsg]);
 
         KerbalMemory.addSummary(currentKerbal.name, trimmed, result.reply);
+        KerbalMemory.extractAndStore(currentKerbal.name, trimmed, result.reply);
+        growthSystem.tick(currentKerbal.name, 'successful_chat');
       } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          return; // Silently ignore aborts
-        }
         if (!mountedRef.current) return;
+        growthSystem.tick(currentKerbal.name, 'error_response');
         setSummonError(
           err instanceof Error ? err.message : 'No response.',
         );
@@ -344,6 +345,7 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
 
       KerbalMemory.addSummary(currentKerbal.name, trimmed, result.reply);
       moodSystem.tickMood(currentKerbal.name, 'user_interaction');
+      growthSystem.tick(currentKerbal.name, 'successful_chat');
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return; // Silently ignore aborts
@@ -353,6 +355,7 @@ const SmartphoneModal: React.FC<SmartphoneModalProps> = ({ isOpen, onClose }) =>
         `[SmartphoneModal] AI call failed for ${currentKerbal.name}:`,
         err,
       );
+      growthSystem.tick(currentKerbal.name, 'error_response');
       // Fall back to echo behavior if AI call fails
       const kerbalMsg: ThreadMessage = {
         id: `msg-${Date.now()}-${currentKerbal.name}`,

@@ -9,6 +9,7 @@ import { worldContext } from '../WorldContext';
 import { moodSystem } from '../MoodSystem';
 import { relationshipGraph } from '../RelationshipGraph';
 import { storyEngine } from '../StoryEngine';
+import { growthSystem } from '../GrowthSystem';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -278,6 +279,7 @@ export class IdleBanter {
       // Tick moods and record relationships for all participant pairs
       for (const p of participants) {
         moodSystem.tickMood(p.name, 'kerbal_interaction');
+        growthSystem.tick(p.name, 'idle_banter');
       }
       for (let i = 0; i < participants.length; i++) {
         for (let j = i + 1; j < participants.length; j++) {
@@ -307,8 +309,8 @@ export class IdleBanter {
     role: 'initiator' | 'responder',
   ): Promise<string> {
     try {
-      // Load the Kerbal's soul (personality, stats, backstory)
-      const soul: KerbalSoul = await SoulLoader.load(kerbal.name.toLowerCase());
+      // Load the Kerbal's soul with growth data
+      const soul: KerbalSoul = await SoulLoader.loadWithGrowth(kerbal.name.toLowerCase());
 
       // Derive temperature/topP from the Kerbal's courage and stupidity
       const params = statsToApiParams(soul);

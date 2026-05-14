@@ -14,6 +14,7 @@ import { statsToApiParams } from './SoulLoader';
 import { chatViaProvider, EMPTY_RESPONSE } from '../services/ai';
 import { moodSystem } from './MoodSystem';
 import { storyEngine } from './StoryEngine';
+import { growthSystem } from './GrowthSystem';
 import { buildToolsPrompt, parseToolCalls, executeToolCall, stripToolCalls } from './AgentSkills';
 
 // ---------------------------------------------------------------------------
@@ -197,7 +198,7 @@ class ProactiveAgent {
 
         // Generate the proactive message via AI
         try {
-          const soul: KerbalSoul = await SoulLoader.load(kerbal.name.toLowerCase());
+          const soul: KerbalSoul = await SoulLoader.loadWithGrowth(kerbal.name.toLowerCase());
           const params = statsToApiParams(soul);
           const toolsPrompt = buildToolsPrompt(soul.role);
 
@@ -239,6 +240,7 @@ class ProactiveAgent {
           this.lastFireTime = Date.now();
           this.triggerCooldowns.set(trigger.id, Date.now());
           moodSystem.tickMood(kerbal.name, 'user_interaction', trigger.id);
+          growthSystem.tick(kerbal.name, 'idle_banter');
           break; // One per tick
         } catch (err) {
           console.error(`[ProactiveAgent] Failed for ${kerbal.name} (${trigger.id}):`, err);

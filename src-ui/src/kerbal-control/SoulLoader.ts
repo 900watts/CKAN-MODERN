@@ -1,7 +1,12 @@
+import { growthSystem } from './GrowthSystem';
+
 /**
  * SoulLoader — Loads soul.md files and provides them as system prompts
  * for AI calls. Each Kerbal has a unique personality defined by
  * courage, stupidity, mood traits, and a detailed markdown backstory.
+ *
+ * Growth data is merged on top of soul base stats, so kerbals
+ * evolve over time while the .md files remain the canonical source.
  */
 
 export interface KerbalSoul {
@@ -162,6 +167,26 @@ export class SoulLoader {
    */
   static getSystemPrompt(soul: KerbalSoul): string {
     return soul.rawMarkdown;
+  }
+
+  /**
+   * Fetches and parses a soul.md file for the named Kerbal,
+   * then merges growth data (evolved stats) on top of the base soul.
+   * Use this when the soul will be used for AI calls or visual rendering.
+   */
+  static async loadWithGrowth(name: string): Promise<KerbalSoul> {
+    const soul = await SoulLoader.load(name);
+    const effective = growthSystem.getEffectiveStats(name, soul.courage, soul.stupidity);
+    soul.courage = effective.courage;
+    soul.stupidity = effective.stupidity;
+
+    // Append growth context to the system prompt
+    const growthContext = growthSystem.buildGrowthContext(name);
+    if (growthContext) {
+      soul.rawMarkdown += '\n\n' + growthContext;
+    }
+
+    return soul;
   }
 
   /**

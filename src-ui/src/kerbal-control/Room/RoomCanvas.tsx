@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { KerbalSprite } from './KerbalSprite';
+import { SoulLoader } from '../SoulLoader';
 import type { KerbalSoul } from '../SoulLoader';
 import {
   DESK_POSITIONS,
@@ -815,6 +816,26 @@ const RoomCanvas: React.FC = () => {
   }, []);
 
   // -----------------------------------------------------------------------
+  // Load real soul data into sprites (replaces stub souls used during init)
+  // -----------------------------------------------------------------------
+
+  const soulsLoadedRef = useRef<Set<string>>(new Set());
+
+  const loadSoulsIntoSprites = useCallback(() => {
+    for (const [name] of spritesRef.current.entries()) {
+      if (soulsLoadedRef.current.has(name)) continue;
+      SoulLoader.load(name).then((soul) => {
+        if (spritesRef.current.has(name)) {
+          spritesRef.current.get(name)!.updateSoul(soul);
+          soulsLoadedRef.current.add(name);
+        }
+      }).catch(() => {
+        // Soul file not found — keep stub soul
+      });
+    }
+  }, []);
+
+  // -----------------------------------------------------------------------
   // Main render loop
   // -----------------------------------------------------------------------
 
@@ -1088,6 +1109,8 @@ const RoomCanvas: React.FC = () => {
     const frame = requestAnimationFrame(() => {
       updateSizes();
       syncSprites();
+      // Load real soul data into sprites after initial sync
+      loadSoulsIntoSprites();
     });
 
     rafIdRef.current = requestAnimationFrame(renderLoop);
@@ -1222,6 +1245,7 @@ const RoomCanvas: React.FC = () => {
     // Subscribe to kerbalStore changes — sync sprites only when state changes
     const unsubStore = kerbalStore.subscribe(() => {
       syncSprites();
+      loadSoulsIntoSprites();
     });
 
     // Subscribe to proactiveAgent — trigger 'reacting' animation on sprites
@@ -1251,7 +1275,7 @@ const RoomCanvas: React.FC = () => {
       unsubStore();
       unsubProactive();
     };
-  }, [updateSizes, syncSprites, renderLoop]);
+  }, [updateSizes, syncSprites, loadSoulsIntoSprites, renderLoop]);
 
   // -----------------------------------------------------------------------
   // Render

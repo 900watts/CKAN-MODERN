@@ -1153,6 +1153,12 @@ export class KerbalSprite {
     }
   }
 
+  /** Update the soul data (replaces stub with real loaded soul). */
+  updateSoul(soul: KerbalSoul): void {
+    this.soul = soul;
+    this.suitColor = getSuitColor(soul);
+  }
+
   /** Begin a smooth movement to (x, y) over `duration` ms. Sets state to 'walking'. */
   moveTo(x: number, y: number, duration: number): void {
     this.movement = {
