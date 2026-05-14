@@ -27,6 +27,13 @@ public sealed class IpcHandler : IDisposable
     private readonly object _lock = new();
 
     /// <summary>
+    /// Callback to toggle WebView2 visibility.
+    /// WebView2's compositor HWND renders on top of native WPF dialogs,
+    /// so we must hide it before showing folder dialogs and restore after.
+    /// </summary>
+    public Action<bool>? SetWebView2Visibility { get; set; }
+
+    /// <summary>
     /// Event fired when we want to push a message to the frontend.
     /// The IpcBridge subscribes to this to forward events.
     /// </summary>
@@ -952,37 +959,44 @@ public sealed class IpcHandler : IDisposable
         }
 
         string? selectedPath = null;
-
-        // Get the main window to use as dialog owner.
-        // Without an explicit owner, native COM dialogs can appear behind
-        // the main window in WebView2-hosted apps, making the app seem frozen.
         var owner = app.MainWindow;
 
-        await app.Dispatcher.InvokeAsync(() =>
+        // WebView2's compositor HWND renders on top of native WPF dialogs.
+        // Hide it before showing the folder dialog so the user can actually see it.
+        SetWebView2Visibility?.Invoke(false);
+
+        try
         {
-            try
+            await app.Dispatcher.InvokeAsync(() =>
             {
-                var dialog = new Microsoft.Win32.OpenFolderDialog
+                try
                 {
-                    Title = title,
-                    Multiselect = false,
-                };
+                    var dialog = new Microsoft.Win32.OpenFolderDialog
+                    {
+                        Title = title,
+                        Multiselect = false,
+                    };
 
-                // ShowDialog with owner keeps the dialog on top of the main window
-                bool? result = owner != null
-                    ? dialog.ShowDialog(owner)
-                    : dialog.ShowDialog();
+                    bool? result = owner != null
+                        ? dialog.ShowDialog(owner)
+                        : dialog.ShowDialog();
 
-                if (result == true)
-                {
-                    selectedPath = dialog.FolderName;
+                    if (result == true)
+                    {
+                        selectedPath = dialog.FolderName;
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                log.Error("[IPC] BrowseFolder failed", ex);
-            }
-        });
+                catch (Exception ex)
+                {
+                    log.Error("[IPC] BrowseFolder failed", ex);
+                }
+            });
+        }
+        finally
+        {
+            // Always restore WebView2 visibility, even if the dialog threw
+            SetWebView2Visibility?.Invoke(true);
+        }
 
         if (!string.IsNullOrEmpty(selectedPath))
         {

@@ -47,8 +47,18 @@ public partial class MainWindow : Window
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "CKAN", "WebView2");
 
+            // Disable web security so the embedded React frontend can call
+            // external AI APIs (Silicon Flow, OpenAI, etc.) without CORS
+            // restrictions. This is safe because the app only loads trusted
+            // embedded code — it is not a general-purpose browser.
+            // Also ignore certificate errors for the self-hosted https://ckan.local origin.
+            var options = new CoreWebView2EnvironmentOptions
+            {
+                AdditionalBrowserArguments = "--disable-web-security --ignore-certificate-errors"
+            };
+
             var env = await CoreWebView2Environment.CreateAsync(
-                userDataFolder: userDataFolder);
+                null, userDataFolder, options);
 
             await webView.EnsureCoreWebView2Async(env);
 
@@ -125,6 +135,16 @@ public partial class MainWindow : Window
         // Set up IPC bridge
         _bridge = new IpcBridge(core);
         core.WebMessageReceived += _bridge.OnWebMessageReceived;
+
+        // Wire up WebView2 visibility toggle so native dialogs (folder browser)
+        // can appear on top of the WebView2 compositor layer.
+        _bridge.SetWebViewVisibilityCallback(visible =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                webView.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            });
+        });
 
         // Trigger background repository refresh on startup
         _bridge.AutoRefreshOnStartup();
