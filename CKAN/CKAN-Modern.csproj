@@ -4,6 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>CKAN.Modern</RootNamespace>
     <AssemblyName>CKAN-M</AssemblyName>
     <Nullable>enable</Nullable>

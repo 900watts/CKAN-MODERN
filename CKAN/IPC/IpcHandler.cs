@@ -3,6 +3,7 @@ using log4net;
 using Newtonsoft.Json.Linq;
 
 using CKAN.Configuration;
+using System.Threading;
 using CKAN.Games.KerbalSpaceProgram;
 using CKAN.IO;
 using CKAN.Versioning;
@@ -25,13 +26,6 @@ public sealed class IpcHandler : IDisposable
     private RegistryManager? _registryManager;
     private string? _customMirrorUrl;
     private readonly object _lock = new();
-
-    /// <summary>
-    /// Callback to toggle WebView2 visibility.
-    /// WebView2's compositor HWND renders on top of native WPF dialogs,
-    /// so we must hide it before showing folder dialogs and restore after.
-    /// </summary>
-    public Action<bool>? SetWebView2Visibility { get; set; }
 
     /// <summary>
     /// Event fired when we want to push a message to the frontend.
@@ -960,51 +954,46 @@ public sealed class IpcHandler : IDisposable
     {
         var title = args?["title"]?.ToString() ?? "Select Game Folder";
 
-        var app = System.Windows.Application.Current;
-        if (app == null)
-        {
-            log.Error("[IPC] BrowseFolder: Application.Current is null");
-            return new { selected = false, path = (string?)null, error = "WPF application is not running" };
-        }
-
+        // Run the folder dialog on a dedicated STA thread.
+        // WebView2's compositor HWND intercepts focus and rendering on the UI thread,
+        // which blocks or hides native WPF dialogs. Running on a separate STA thread
+        // completely avoids this conflict — the dialog gets its own message pump and
+        // is not affected by WebView2's compositor layer.
         string? selectedPath = null;
-        var owner = app.MainWindow;
+        Exception? dialogError = null;
 
-        // WebView2's compositor HWND renders on top of native WPF dialogs.
-        // Hide it before showing the folder dialog so the user can actually see it.
-        SetWebView2Visibility?.Invoke(false);
-
-        try
+        var staThread = new Thread(() =>
         {
-            await app.Dispatcher.InvokeAsync(() =>
+            try
             {
-                try
+                using var dialog = new System.Windows.Forms.FolderBrowserDialog
                 {
-                    var dialog = new Microsoft.Win32.OpenFolderDialog
-                    {
-                        Title = title,
-                        Multiselect = false,
-                    };
+                    Description = title,
+                    UseDescriptionForTitle = true,
+                    ShowNewFolderButton = true,
+                };
 
-                    bool? result = owner != null
-                        ? dialog.ShowDialog(owner)
-                        : dialog.ShowDialog();
-
-                    if (result == true)
-                    {
-                        selectedPath = dialog.FolderName;
-                    }
-                }
-                catch (Exception ex)
+                // FolderBrowserDialog.ShowDialog() on its own STA thread —
+                // no WPF window owner needed, no WebView2 interference.
+                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                 {
-                    log.Error("[IPC] BrowseFolder failed", ex);
+                    selectedPath = dialog.SelectedPath;
                 }
-            });
-        }
-        finally
+            }
+            catch (Exception ex)
+            {
+                dialogError = ex;
+                log.Error("[IPC] BrowseFolder dialog failed", ex);
+            }
+        });
+
+        staThread.SetApartmentState(ApartmentState.STA);
+        staThread.Start();
+        staThread.Join(); // Block until dialog closes
+
+        if (dialogError != null)
         {
-            // Always restore WebView2 visibility, even if the dialog threw
-            SetWebView2Visibility?.Invoke(true);
+            return new { selected = false, path = (string?)null, error = $"Dialog error: {dialogError.Message}" };
         }
 
         if (!string.IsNullOrEmpty(selectedPath))
