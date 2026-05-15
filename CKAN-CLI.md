@@ -26,6 +26,8 @@ The AI embeds these commands in responses. ActionExecutor parses and runs them:
 
 - `[INSTALL:identifier]` — Install a mod
 - `[UNINSTALL:identifier]` — Uninstall a mod
+- `[UPGRADE:identifier]` — Upgrade a specific mod to latest version
+- `[UPGRADE_ALL]` — Upgrade all outdated mods at once
 - `[SEARCH:query]` — Search mods
 - `[REFRESH_REPO]` — Refresh mod repository metadata
 - `[LIST_INSTALLED]` — List installed mods

@@ -136,6 +136,16 @@ public partial class MainWindow : Window
         _bridge = new IpcBridge(core);
         core.WebMessageReceived += _bridge.OnWebMessageReceived;
 
+        // Wire up WebView2 visibility toggle so native dialogs (folder browser)
+        // can appear on top of the WebView2 compositor layer.
+        _bridge.SetWebViewVisibilityCallback(visible =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                webView.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            });
+        });
+
         // Trigger background repository refresh on startup
         _bridge.AutoRefreshOnStartup();
 

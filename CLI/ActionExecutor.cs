@@ -19,9 +19,10 @@ public sealed class ActionExecutor : IDisposable
     private readonly RepositoryDataManager _repoData;
     private RegistryManager? _registryManager;
 
-    private static readonly Regex InstallCmd   = new(@"\[INSTALL\s*:\s*([^\]]+)\]", RegexOptions.IgnoreCase);
+    private static readonly Regex InstallCmd   = new(@"\[INSTALL\s*:\s*([^\]]+)\]",   RegexOptions.IgnoreCase);
     private static readonly Regex UninstallCmd = new(@"\[UNINSTALL\s*:\s*([^\]]+)\]", RegexOptions.IgnoreCase);
-    private static readonly Regex SearchCmd    = new(@"\[SEARCH\s*:\s*([^\]]+)\]",   RegexOptions.IgnoreCase);
+    private static readonly Regex UpgradeCmd   = new(@"\[UPGRADE\s*:\s*([^\]]+)\]",   RegexOptions.IgnoreCase);
+    private static readonly Regex SearchCmd    = new(@"\[SEARCH\s*:\s*([^\]]+)\]",     RegexOptions.IgnoreCase);
 
     public GameInstance? CurrentInstance => _instanceManager.CurrentInstance;
     public Registry?     Registry        => _registryManager?.registry;
@@ -82,6 +83,19 @@ public sealed class ActionExecutor : IDisposable
         {
             var identifier = m.Groups[1].Value.Trim();
             var result     = await UninstallMod(identifier);
+            summaries.Add(result);
+        }
+
+        foreach (Match m in UpgradeCmd.Matches(aiResponse))
+        {
+            var identifier = m.Groups[1].Value.Trim();
+            var result = await UpgradeMod(identifier);
+            summaries.Add(result);
+        }
+
+        if (Regex.IsMatch(aiResponse, @"\[UPGRADE_ALL\]", RegexOptions.IgnoreCase))
+        {
+            var result = await UpgradeAll();
             summaries.Add(result);
         }
 
@@ -181,6 +195,94 @@ public sealed class ActionExecutor : IDisposable
             {
                 log.Error($"Uninstall failed for '{identifier}'", ex);
                 return $"Uninstall failed for '{identifier}': {ex.Message}";
+            }
+        });
+    }
+
+    private Task<string> UpgradeMod(string identifier)
+    {
+        var instance = _instanceManager.CurrentInstance;
+        if (instance == null || _registryManager == null)
+            return Task.FromResult($"Cannot upgrade '{identifier}': no active game instance.");
+
+        return Task.Run(() =>
+        {
+            try
+            {
+                var registry    = _registryManager.registry;
+                var stability   = instance.StabilityToleranceConfig;
+                var gameVersion = instance.VersionCriteria();
+
+                var mod = registry.LatestAvailable(identifier, stability, gameVersion);
+                if (mod == null)
+                    return $"No available upgrade for '{identifier}'.";
+
+                var cache = _instanceManager.Cache;
+                if (cache == null)
+                    return "Download cache not configured.";
+
+                var installer   = new ModuleInstaller(instance, cache, _config, _user);
+                var downloader  = new NetAsyncModulesDownloader(_user, cache, "CKAN-CLI/1.0");
+                HashSet<string>? possibleConfigOnlyDirs = null;
+
+                installer.Upgrade(
+                    new[] { mod },
+                    downloader,
+                    ref possibleConfigOnlyDirs,
+                    _registryManager,
+                    ConfirmPrompt: false
+                );
+
+                return $"Upgraded {GreenText(mod.name)} to {mod.version}";
+            }
+            catch (Exception ex)
+            {
+                log.Error($"Upgrade failed for '{identifier}'", ex);
+                return $"Upgrade failed for '{identifier}': {ex.Message}";
+            }
+        });
+    }
+
+    private Task<string> UpgradeAll()
+    {
+        var instance = _instanceManager.CurrentInstance;
+        if (instance == null || _registryManager == null)
+            return Task.FromResult("Cannot upgrade: no active game instance.");
+
+        return Task.Run(() =>
+        {
+            try
+            {
+                var registry   = _registryManager.registry;
+                var heldIdents = new HashSet<string>();
+                var upgradeable = registry.CheckUpgradeable(instance, heldIdents);
+                var toUpgrade   = upgradeable[true];
+
+                if (toUpgrade.Count == 0)
+                    return "All mods are up to date.";
+
+                var cache = _instanceManager.Cache;
+                if (cache == null)
+                    return "Download cache not configured.";
+
+                var installer  = new ModuleInstaller(instance, cache, _config, _user);
+                var downloader = new NetAsyncModulesDownloader(_user, cache, "CKAN-CLI/1.0");
+                HashSet<string>? possibleConfigOnlyDirs = null;
+
+                installer.Upgrade(
+                    toUpgrade,
+                    downloader,
+                    ref possibleConfigOnlyDirs,
+                    _registryManager,
+                    ConfirmPrompt: false
+                );
+
+                return $"Upgraded {toUpgrade.Count} mod(s).";
+            }
+            catch (Exception ex)
+            {
+                log.Error("Upgrade all failed", ex);
+                return $"Upgrade all failed: {ex.Message}";
             }
         });
     }

@@ -150,6 +150,16 @@ public sealed class IpcBridge : IDisposable
         _handler.AutoRefreshOnStartup();
     }
 
+    /// <summary>
+    /// Set a callback to toggle WebView2 visibility.
+    /// Used to hide/show the WebView2 control when native dialogs
+    /// (like folder browser) need to appear on top.
+    /// </summary>
+    public void SetWebViewVisibilityCallback(Action<bool> callback)
+    {
+        _handler.SetWebView2Visibility = callback;
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
