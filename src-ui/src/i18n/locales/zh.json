@@ -163,5 +163,10 @@
   "common.cancel": "取消",
   "common.save": "保存",
   "common.close": "关闭",
-  "common.search": "搜索"
+  "common.search": "搜索",
+
+  "update.available": "有新版本可用",
+  "update.install": "立即更新",
+  "update.downloading": "正在下载更新...",
+  "update.restarting": "正在重启..."
 }
