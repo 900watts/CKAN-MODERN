@@ -150,6 +150,13 @@
   "ai.ollamaModelPlaceholder": "例如 llama3.2, qwen3",
 
   "nav.cliNotFound": "未找到 CLI，请将 CKAN-CLI.exe 放在 CKAN-M.exe 旁边。",
+  "nav.cliTitle": "CKAN 命令行工具",
+  "nav.cliDesc": "CKAN CLI 是一款终端模组管理工具，可与 GUI 配合使用，提供：",
+  "nav.cliFeature1": "AI 驱动的模组搜索和推荐",
+  "nav.cliFeature2": "命令行批量安装/移除模组",
+  "nav.cliFeature3": "可编写脚本实现模组包自动化",
+  "nav.cliInstall": "下载并安装",
+  "nav.cliDownloading": "下载中...",
 
   "common.loading": "加载中...",
   "common.error": "错误",

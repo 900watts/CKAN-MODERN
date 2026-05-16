@@ -36,6 +36,7 @@ export type IpcChannel =
   | 'app:close'
   | 'app:browse-folder'
   | 'app:open-cli'
+  | 'app:download-cli'
   | 'repo:refresh'
   | 'ai:ollama-chat'
   | 'ai:ollama-status'

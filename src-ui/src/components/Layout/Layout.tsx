@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen, Terminal } from 'lucide-react';
+import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen, Terminal, Loader2, X } from 'lucide-react';
 import AIChatPanel from '../AIChat/AIChatPanel';
 import UpdateBanner from '../UpdateBanner/UpdateBanner';
 import { registryService } from '../../services/registry';
@@ -71,18 +71,42 @@ export default function Layout({ children, activePage = 'available', onNavigate 
   }, []);
 
   const [cliError, setCliError] = useState('');
+  const [showCliPanel, setShowCliPanel] = useState(false);
+  const [cliDownloading, setCliDownloading] = useState(false);
 
   const handleOpenCli = async () => {
     setCliError('');
     try {
       const result = await ckanIpc.call<any, any>('app:open-cli');
       if (result && !result.success) {
-        setCliError(result.error || t('nav.cliNotFound'));
-        setTimeout(() => setCliError(''), 5000);
+        if (result.notInstalled) {
+          setShowCliPanel(true);
+        } else {
+          setCliError(result.error || t('nav.cliNotFound'));
+          setTimeout(() => setCliError(''), 5000);
+        }
       }
     } catch {
-      setCliError(t('nav.cliNotFound'));
-      setTimeout(() => setCliError(''), 5000);
+      setShowCliPanel(true);
+    }
+  };
+
+  const handleDownloadCli = async () => {
+    setCliDownloading(true);
+    setCliError('');
+    try {
+      const result = await ckanIpc.call<any, any>('app:download-cli');
+      if (result?.success) {
+        setShowCliPanel(false);
+        // Auto-open CLI after download
+        handleOpenCli();
+      } else {
+        setCliError(result?.error || 'Download failed');
+      }
+    } catch (err) {
+      setCliError(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setCliDownloading(false);
     }
   };
 
@@ -133,9 +157,6 @@ export default function Layout({ children, activePage = 'available', onNavigate 
               <span className={styles.navIcon}><Terminal size={20} /></span>
               {navExpanded && <span className={styles.navLabel}>{t('nav.openCli')}</span>}
             </button>
-            {cliError && navExpanded && (
-              <div className={styles.cliError}>{cliError}</div>
-            )}
 
             <button
               className={`${styles.navItem} ${aiPanelOpen ? styles.navItemActive : ''}`}
@@ -164,6 +185,46 @@ export default function Layout({ children, activePage = 'available', onNavigate 
           <div className={styles.content}>
             {children}
           </div>
+
+          {/* CLI Install Panel */}
+          {showCliPanel && (
+            <div className={styles.cliOverlay}>
+              <div className={styles.cliPanel}>
+                <div className={styles.cliPanelHeader}>
+                  <Terminal size={18} />
+                  <span>{t('nav.cliTitle')}</span>
+                  <button className={styles.cliPanelClose} onClick={() => { setShowCliPanel(false); setCliError(''); }}>
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className={styles.cliPanelBody}>
+                  <p>{t('nav.cliDesc')}</p>
+                  <ul>
+                    <li>{t('nav.cliFeature1')}</li>
+                    <li>{t('nav.cliFeature2')}</li>
+                    <li>{t('nav.cliFeature3')}</li>
+                  </ul>
+                  {cliError && <div className={styles.cliError}>{cliError}</div>}
+                </div>
+                <div className={styles.cliPanelFooter}>
+                  <button
+                    className={styles.cliInstallBtn}
+                    onClick={handleDownloadCli}
+                    disabled={cliDownloading}
+                  >
+                    {cliDownloading ? (
+                      <><Loader2 size={14} className={styles.spin} /> {t('nav.cliDownloading')}</>
+                    ) : (
+                      <><Download size={14} /> {t('nav.cliInstall')}</>
+                    )}
+                  </button>
+                  <button className={styles.cliCancelBtn} onClick={() => { setShowCliPanel(false); setCliError(''); }}>
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* AI Panel */}
           <AnimatePresence>

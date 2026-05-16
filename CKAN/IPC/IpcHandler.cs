@@ -199,6 +199,7 @@ public sealed class IpcHandler : IDisposable
 
             // ─── CLI ───
             "app:open-cli"        => HandleOpenCli(),
+            "app:download-cli"    => await HandleDownloadCli(),
 
             // ─── Ollama Proxy ───
             "ai:ollama-chat"      => await HandleOllamaChat(request.Args),
@@ -344,14 +345,33 @@ public sealed class IpcHandler : IDisposable
 
                 PushEvent?.Invoke("install:start", new { identifier, name = mod.name });
 
-                installer.InstallList(
-                    new[] { mod },
-                    options,
-                    _registryManager,
-                    ref possibleConfigOnlyDirs,
-                    userAgent: "CKAN-Modern/2.0",
-                    ConfirmPrompt: false
-                );
+                // Check if already installed — use Upgrade() instead of InstallList()
+                var existingInstall = registry.InstalledModule(identifier);
+                if (existingInstall != null)
+                {
+                    // Module already installed → upgrade to the latest version
+                    var downloader = new NetAsyncModulesDownloader(_user, cache, "CKAN-Modern/2.0");
+                    installer.Upgrade(
+                        new[] { mod },
+                        downloader,
+                        ref possibleConfigOnlyDirs,
+                        _registryManager,
+                        enforceConsistency: true,
+                        ConfirmPrompt: false
+                    );
+                }
+                else
+                {
+                    // Fresh install
+                    installer.InstallList(
+                        new[] { mod },
+                        options,
+                        _registryManager,
+                        ref possibleConfigOnlyDirs,
+                        userAgent: "CKAN-Modern/2.0",
+                        ConfirmPrompt: false
+                    );
+                }
 
                 // Reload registry so subsequent update checks see the new versions
                 InitRegistryForInstance(instance);
@@ -1095,7 +1115,7 @@ public sealed class IpcHandler : IDisposable
             if (!File.Exists(cliPath))
             {
                 log.Warn($"[IPC] CLI not found at {cliPath}");
-                return new { success = false, error = "CKAN-CLI.exe not found. Download it from the GitHub release page and place it next to CKAN-M.exe." };
+                return new { success = false, notInstalled = true, error = "CKAN-CLI.exe not found." };
             }
 
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -1113,6 +1133,84 @@ public sealed class IpcHandler : IDisposable
         {
             log.Error("[IPC] Failed to launch CLI", ex);
             return new { success = false, error = $"Failed to launch CLI: {ex.Message}" };
+        }
+    }
+
+    private async Task<object?> HandleDownloadCli()
+    {
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var cliPath = Path.Combine(baseDir, "CKAN-CLI.exe");
+
+            if (File.Exists(cliPath))
+            {
+                return new { success = true, message = "CLI already installed" };
+            }
+
+            PushEvent?.Invoke("cli:download-start", new { });
+
+            // Get the latest release from GitHub to find CLI download URL
+            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("CKAN-Modern/2.0");
+            http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+
+            var apiUrl = "https://api.github.com/repos/900watts/CKAN-MODERN/releases/latest";
+            var releaseJson = await http.GetStringAsync(apiUrl);
+            var release = JObject.Parse(releaseJson);
+            var assets = release["assets"] as JArray ?? new JArray();
+
+            string? cliDownloadUrl = null;
+            foreach (var asset in assets)
+            {
+                var name = asset["name"]?.ToString() ?? "";
+                if (name.Equals("CKAN-CLI.exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    cliDownloadUrl = asset["browser_download_url"]?.ToString();
+                    break;
+                }
+            }
+
+            if (string.IsNullOrEmpty(cliDownloadUrl))
+            {
+                return new { success = false, error = "CKAN-CLI.exe not found in the latest release. It may not be available yet." };
+            }
+
+            // Download the CLI exe
+            PushEvent?.Invoke("progress", new { message = "Downloading CKAN-CLI.exe...", percent = 10 });
+
+            using var response = await http.GetAsync(cliDownloadUrl, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            var totalBytes = response.Content.Headers.ContentLength ?? -1;
+            using var contentStream = await response.Content.ReadAsStreamAsync();
+            using var fileStream = new FileStream(cliPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+            var buffer = new byte[81920];
+            long totalRead = 0;
+            int bytesRead;
+
+            while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
+            {
+                await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
+                totalRead += bytesRead;
+                if (totalBytes > 0)
+                {
+                    var pct = (int)(10 + totalRead * 90 / totalBytes);
+                    PushEvent?.Invoke("progress", new { message = $"Downloading CLI... {totalRead / 1048576}MB / {totalBytes / 1048576}MB", percent = pct });
+                }
+            }
+
+            PushEvent?.Invoke("progress", new { message = "CLI installed!", percent = 100 });
+            PushEvent?.Invoke("cli:download-complete", new { });
+            log.Info($"[IPC] CLI downloaded to {cliPath}");
+
+            return new { success = true, message = "CLI installed successfully" };
+        }
+        catch (Exception ex)
+        {
+            log.Error("[IPC] Failed to download CLI", ex);
+            return new { success = false, error = $"Download failed: {ex.Message}" };
         }
     }
 
