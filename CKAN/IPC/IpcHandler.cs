@@ -1118,12 +1118,15 @@ public sealed class IpcHandler : IDisposable
                 return new { success = false, notInstalled = true, error = "CKAN-CLI.exe not found." };
             }
 
+            // Launch CLI in a persistent console window.
+            // Use "cmd /k" so the window stays open even if the CLI exits,
+            // allowing the user to see output or errors.
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "cmd",
-                Arguments = $"/c start \"CKAN CLI\" \"{cliPath}\"",
-                CreateNoWindow = true,
-                UseShellExecute = false,
+                Arguments = $"/k \"\"{cliPath}\"\"",
+                UseShellExecute = true,
+                WorkingDirectory = baseDir,
             });
 
             log.Info("[IPC] Launched CLI terminal");
