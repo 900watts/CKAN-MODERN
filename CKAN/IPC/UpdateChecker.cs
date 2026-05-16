@@ -18,7 +18,7 @@ public sealed class UpdateChecker : IDisposable
 
     private const string GITHUB_OWNER = "900watts";
     private const string GITHUB_REPO  = "CKAN-MODERN";
-    private const string CURRENT_BUILD = "build-21";  // tag of the current release
+    private const string CURRENT_BUILD = "build-23";  // tag of the current release
     private const string API_URL = $"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest";
 
     public UpdateChecker()
@@ -48,10 +48,10 @@ public sealed class UpdateChecker : IDisposable
             var htmlUrl   = release["html_url"]?.ToString() ?? "";
             var published = release["published_at"]?.ToString() ?? "";
 
-            // Compare tag names — if different from current, there's an update
-            if (string.Equals(tagName, CURRENT_BUILD, StringComparison.OrdinalIgnoreCase))
+            // Compare build numbers — only offer update if remote is NEWER
+            if (!IsNewerBuild(tagName, CURRENT_BUILD))
             {
-                log.Info("[UpdateChecker] Already up to date");
+                log.Info($"[UpdateChecker] Already up to date (current: {CURRENT_BUILD}, remote: {tagName})");
                 return null;
             }
 
@@ -182,6 +182,33 @@ public sealed class UpdateChecker : IDisposable
             log.Error("[UpdateChecker] Failed to download/apply update", ex);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Compare build tags like "build-21" and "build-23".
+    /// Returns true only if remoteTag has a higher build number than currentTag.
+    /// </summary>
+    private static bool IsNewerBuild(string remoteTag, string currentTag)
+    {
+        if (string.Equals(remoteTag, currentTag, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        static int ExtractBuildNumber(string tag)
+        {
+            var idx = tag.LastIndexOf('-');
+            if (idx >= 0 && int.TryParse(tag.AsSpan(idx + 1), out var num))
+                return num;
+            return -1;
+        }
+
+        var remoteNum = ExtractBuildNumber(remoteTag);
+        var currentNum = ExtractBuildNumber(currentTag);
+
+        if (remoteNum >= 0 && currentNum >= 0)
+            return remoteNum > currentNum;
+
+        // Fallback: different tags where we can't parse numbers — treat as update
+        return true;
     }
 
     public void Dispose() => _http.Dispose();

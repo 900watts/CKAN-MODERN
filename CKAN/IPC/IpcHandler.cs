@@ -51,11 +51,25 @@ public sealed class IpcHandler : IDisposable
 
             // Try to get the preferred (auto-start) instance
             var preferred = _instanceManager.GetPreferredInstance();
-            if (preferred == null)
+            if (preferred == null && _instanceManager.Instances.Count == 0)
             {
-                // Try auto-detecting game instances
+                // No instances at all — try auto-detecting
                 _instanceManager.FindAndRegisterDefaultInstances();
                 preferred = _instanceManager.GetPreferredInstance();
+            }
+            else if (preferred == null && _instanceManager.Instances.Count > 0)
+            {
+                // Multiple instances exist but none is set as AutoStart.
+                // Pick the first valid one so the app doesn't start empty.
+                foreach (var kvp in _instanceManager.Instances)
+                {
+                    if (kvp.Value.Valid)
+                    {
+                        _instanceManager.SetCurrentInstance(kvp.Key);
+                        preferred = kvp.Value;
+                        break;
+                    }
+                }
             }
 
             if (preferred != null)
