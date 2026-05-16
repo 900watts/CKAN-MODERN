@@ -68,12 +68,22 @@ public sealed class IpcHandler : IDisposable
         {
             _instanceManager = new GameInstanceManager(_user, _config);
 
+            // GetPreferredInstance() internally calls FindAndRegisterDefaultInstances()
+            // when instances.Count == 0, so it handles the fresh-install case.
+            // It returns null when there are 2+ instances with no AutoStart configured.
             var preferred = _instanceManager.GetPreferredInstance();
-            if (preferred == null)
+
+            if (preferred == null && _instanceManager.Instances.Count == 0)
             {
-                // No instances registered yet — scan Steam/library paths
-                _instanceManager.FindAndRegisterDefaultInstances();
-                preferred = _instanceManager.GetPreferredInstance();
+                // GetPreferredInstance already tried scanning — if still empty,
+                // nothing more we can do. Log it and move on.
+                log.Info("[IPC] No game instances found during auto-detection");
+            }
+            else if (preferred == null && _instanceManager.Instances.Count > 0)
+            {
+                // Multiple instances exist but none is preferred —
+                // pick the first valid one so the app is usable.
+                preferred = TrySelectFirstValidInstance();
             }
 
             if (preferred != null)
@@ -81,7 +91,8 @@ public sealed class IpcHandler : IDisposable
                 InitRegistryForInstance(preferred);
             }
 
-            log.Info($"[IPC] Initialized with {_instanceManager.Instances.Count} game instance(s)");
+            log.Info($"[IPC] Initialized with {_instanceManager.Instances.Count} game instance(s)" +
+                     (preferred != null ? $", active: {preferred.Name}" : ", no active instance"));
         }
         catch (Exception ex)
         {
@@ -1216,15 +1227,39 @@ public sealed class IpcHandler : IDisposable
             int newCount = 0;
             lock (_lock)
             {
+                // Collect existing names to avoid key collisions
+                var existingNames = new HashSet<string>(
+                    _instanceManager.Instances.Keys,
+                    StringComparer.OrdinalIgnoreCase
+                );
+
                 foreach (var inst in foundInstances)
                 {
                     var normPath = NormalizePath(inst.GameDir);
                     if (!existingPaths.Contains(normPath))
                     {
-                        _instanceManager.AddInstance(inst);
-                        existingPaths.Add(normPath);
-                        newCount++;
-                        log.Info($"[IPC] Auto-detected new instance: {inst.Name} at {inst.GameDir}");
+                        // Avoid name collision: if a name already exists, append a suffix
+                        var name = inst.Name;
+                        if (existingNames.Contains(name))
+                        {
+                            int suffix = 2;
+                            while (existingNames.Contains($"{name} ({suffix})"))
+                                suffix++;
+                            inst.Name = $"{name} ({suffix})";
+                        }
+
+                        try
+                        {
+                            _instanceManager.AddInstance(inst);
+                            existingPaths.Add(normPath);
+                            existingNames.Add(inst.Name);
+                            newCount++;
+                            log.Info($"[IPC] Auto-detected new instance: {inst.Name} at {inst.GameDir}");
+                        }
+                        catch (Exception ex)
+                        {
+                            log.Warn($"[IPC] Failed to add discovered instance at {inst.GameDir}: {ex.Message}");
+                        }
                     }
                 }
 
