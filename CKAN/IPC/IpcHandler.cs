@@ -1,3 +1,4 @@
+using System.IO;
 using System.Security.Cryptography;
 using log4net;
 using Newtonsoft.Json.Linq;
@@ -23,7 +24,6 @@ public sealed class IpcHandler : IDisposable
     private readonly UpdateChecker _updateChecker;
     private GameInstanceManager? _instanceManager;
     private RegistryManager? _registryManager;
-    private string? _customMirrorUrl;
 
     /// <summary>
     /// Event fired when we want to push a message to the frontend.
@@ -192,8 +192,9 @@ public sealed class IpcHandler : IDisposable
 
             // ─── Repository ───
             "repo:refresh"        => await HandleRepoRefresh(request.Args),
-            "repo:set-mirror"     => HandleSetMirror(request.Args),
-            "repo:get-mirror"     => HandleGetMirror(),
+
+            // ─── CLI ───
+            "app:open-cli"        => HandleOpenCli(),
 
             _ => throw new InvalidOperationException($"Unknown IPC channel: {request.Channel}")
         };
@@ -344,6 +345,9 @@ public sealed class IpcHandler : IDisposable
                     ConfirmPrompt: false
                 );
 
+                // Reload registry so subsequent update checks see the new versions
+                InitRegistryForInstance(instance);
+
                 PushEvent?.Invoke("install:complete", new { identifier, name = mod.name, status = "success" });
 
                 return new { identifier, status = "installed", name = mod.name };
@@ -438,6 +442,9 @@ public sealed class IpcHandler : IDisposable
                     _registryManager,
                     ConfirmPrompt: false
                 );
+
+                // Reload registry so subsequent update checks reflect the removal
+                InitRegistryForInstance(instance);
 
                 PushEvent?.Invoke("uninstall:complete", new { identifier, status = "success" });
 
@@ -1017,9 +1024,7 @@ public sealed class IpcHandler : IDisposable
                 if (repos.Length == 0)
                 {
                     // Use custom mirror URL if set, otherwise default to GitHub
-                    var repoUrl = !string.IsNullOrWhiteSpace(_customMirrorUrl)
-                        ? _customMirrorUrl
-                        : "https://github.com/KSP-CKAN/CKAN-meta/archive/master.tar.gz";
+                    var repoUrl = "https://github.com/KSP-CKAN/CKAN-meta/archive/master.tar.gz";
                     var defaultRepo = new Repository("default", new Uri(repoUrl));
                     registry.RepositoriesAdd(defaultRepo);
                     repos = new[] { defaultRepo };
@@ -1067,26 +1072,40 @@ public sealed class IpcHandler : IDisposable
         if (completed == timeoutTask)
         {
             PushEvent?.Invoke("repo:refresh-error", new { error = "Timed out after 3 minutes" });
-            return new { success = false, error = "Repository refresh timed out after 3 minutes. Try using a Gitee mirror in Settings if you are in China." };
+            return new { success = false, error = "Repository refresh timed out after 3 minutes." };
         }
         return await refreshTask;
     }
 
-    private object? HandleSetMirror(JToken? args)
+    private object? HandleOpenCli()
     {
-        var url = args?["url"]?.Value<string>();
-        if (string.IsNullOrWhiteSpace(url))
+        try
         {
-            return new { success = false, error = "Missing url parameter" };
-        }
-        _customMirrorUrl = url;
-        log.InfoFormat("[IPC] Mirror URL set to: {0}", url);
-        return new { success = true, url };
-    }
+            var baseDir = AppContext.BaseDirectory;
+            var cliPath = Path.Combine(baseDir, "CKAN-CLI.exe");
 
-    private object? HandleGetMirror()
-    {
-        return new { success = true, url = _customMirrorUrl ?? "" };
+            if (!File.Exists(cliPath))
+            {
+                log.Warn($"[IPC] CLI not found at {cliPath}");
+                return new { success = false, error = "CKAN-CLI.exe not found. Download it from the GitHub release page and place it next to CKAN-M.exe." };
+            }
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "cmd",
+                Arguments = $"/c start \"CKAN CLI\" \"{cliPath}\"",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+            });
+
+            log.Info("[IPC] Launched CLI terminal");
+            return new { success = true };
+        }
+        catch (Exception ex)
+        {
+            log.Error("[IPC] Failed to launch CLI", ex);
+            return new { success = false, error = $"Failed to launch CLI: {ex.Message}" };
+        }
     }
 
     public void Dispose()

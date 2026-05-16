@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen, Terminal } from 'lucide-react';
 import AIChatPanel from '../AIChat/AIChatPanel';
 import UpdateBanner from '../UpdateBanner/UpdateBanner';
 import { registryService } from '../../services/registry';
@@ -109,6 +109,17 @@ export default function Layout({ children, activePage = 'available', onNavigate 
           </div>
 
           <div className={styles.navBottom}>
+            <button
+              className={styles.navItem}
+              onClick={() => {
+                ckanIpc.call('app:open-cli').catch(() => {});
+              }}
+              title={t('nav.openCli')}
+            >
+              <span className={styles.navIcon}><Terminal size={20} /></span>
+              {navExpanded && <span className={styles.navLabel}>{t('nav.openCli')}</span>}
+            </button>
+
             <button
               className={`${styles.navItem} ${aiPanelOpen ? styles.navItemActive : ''}`}
               onClick={() => setAiPanelOpen(!aiPanelOpen)}

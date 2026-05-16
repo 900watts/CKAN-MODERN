@@ -363,7 +363,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
                 />
               </div>
             )}
-            {!getCustomApiKey(curProvider) && (
+            {!getCustomApiKey(curProvider) && curProvider !== 'ollama' && (
               <div className={styles.noKeyWarning}>
                 {t('ai.noKey')}
               </div>

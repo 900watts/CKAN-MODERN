@@ -1,72 +1,56 @@
-# The Comprehensive Kerbal Archive Network (CKAN)
+# CKAN Modern
 
-[<img src="https://img.shields.io/github/downloads/KSP-CKAN/CKAN/total.svg?label=%E2%A4%93Download&style=plastic" height="48px" style="height:48px;" />](https://github.com/KSP-CKAN/CKAN/releases/latest)
+A modernized mod manager for Kerbal Space Program, built with WPF + WebView2 + React.
 
-[![Coverage Status](https://coveralls.io/repos/github/KSP-CKAN/CKAN/badge.svg?branch=master)](https://coveralls.io/github/KSP-CKAN/CKAN?branch=master)
+[Download Latest Release](https://github.com/900watts/CKAN-MODERN/releases/latest)
 
-[Click here to open a new CKAN issue][6]
+## About
 
-[Click here to go to the CKAN wiki][5]
+CKAN Modern is a fork of the [Comprehensive Kerbal Archive Network (CKAN)](https://github.com/KSP-CKAN/CKAN) with a completely redesigned UI. It provides the same powerful mod management backed by the CKAN metadata repository, wrapped in a modern React-based interface.
 
-[Click here to view the CKAN metadata specification](Spec.md)
+### Features
 
-## What's the CKAN?
+- Modern dark-themed UI built with React + TypeScript
+- Browse, search, and install from 3,000+ KSP mods
+- Automatic dependency resolution
+- Built-in AI assistant for mod recommendations
+- Multi-provider AI support (CKAN Cloud, OpenRouter, OpenAI, Google AI, Silicon Flow, Ollama)
+- Multiple game instance management
+- Auto-update from GitHub Releases
+- AI-powered CLI tool for terminal-based mod management
 
-The CKAN is a metadata repository and associated tools to allow you to find, install, and manage mods for Kerbal Space Program.
-It provides strong assurances that mods are installed in the way prescribed by their metadata files,
-for the correct version of Kerbal Space Program, alongside their dependencies, and without any conflicting mods.
+## Downloads
 
-CKAN is great for players _and_ for authors:
+| File | Size | Description |
+|------|------|-------------|
+| `CKAN-M.exe` | ~9 MB | Requires [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) |
+| `CKAN-M-bundled.exe` | ~71 MB | Self-contained, no runtime needed |
 
-- players can find new content and install it with just a few clicks;
-- modders don't have to worry about misinstall problems or outdated versions;
+## Building from Source
 
-The CKAN has been inspired by the solid and proven metadata formats from both the Debian project and the CPAN, each of which manages tens of thousands of packages.
+### Prerequisites
 
-## What's the status of the CKAN?
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [Node.js 18+](https://nodejs.org/)
 
-The CKAN is currently under [active development][1].
-We very much welcome contributions, discussions, and especially pull-requests.
+### Build
 
-## The CKAN spec
+```bash
+# Build the React frontend
+cd src-ui
+npm ci
+npm run build
 
-At the core of the CKAN is the **[metadata specification](Spec.md)**,
-which comes with a corresponding [JSON Schema](CKAN.schema) that you can also find in the [Schema Store][8]
+# Build the .NET app
+cd ..
+dotnet publish CKAN/CKAN-Modern.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+```
 
-This repository includes a validator that you can use to [validate your files][3].
+## Credits
 
-## CKAN for players
+- [CKAN](https://github.com/KSP-CKAN/CKAN) — the original Comprehensive Kerbal Archive Network
+- [KSP-CKAN/CKAN-meta](https://github.com/KSP-CKAN/CKAN-meta) — the mod metadata repository
 
-CKAN can download, install and update mods in just a few clicks. See the [User guide][2] to get started with CKAN.
+## License
 
-## CKAN for modders
-
-While anyone can contribute metadata for your mod, we believe that you know your mod best.
-So while contributors will endeavor to be as accurate as possible, we would appreciate any efforts made by mod authors to ensure our metadata's accuracy.
-If the metadata we have is incorrect please [open an issue][7] and let us know.
-
-## Contributing to CKAN
-
-**No technical expertise is required to contribute to CKAN**
-
-If you want to contribute, please read our [CONTRIBUTING][4] file.
-
-## Thanks
-
-Our sincere thanks to [SignPath.io][10] for allowing us to use their free code signing service, and to [the SignPath Foundation][11] for giving us a free code signing certificate!
-
----
-
-Note: Are you looking for the Open Data portal software called CKAN? If so, their GitHub repository is found [here][9].
-
- [1]: https://github.com/KSP-CKAN/CKAN/commits/master
- [2]: https://github.com/KSP-CKAN/CKAN/wiki/User-guide
- [3]: https://github.com/KSP-CKAN/CKAN/wiki/Adding-a-mod-to-the-CKAN#verifying-metadata-files
- [4]: https://github.com/KSP-CKAN/.github/blob/master/CONTRIBUTING.md
- [5]: https://github.com/KSP-CKAN/CKAN/wiki
- [6]: https://github.com/KSP-CKAN/CKAN/issues/new
- [7]: https://github.com/KSP-CKAN/NetKAN/issues/new
- [8]: https://schemastore.org/
- [9]: https://github.com/ckan/ckan
- [10]: https://signpath.io/
- [11]: https://signpath.org/
+This project is based on CKAN, licensed under the MIT License.

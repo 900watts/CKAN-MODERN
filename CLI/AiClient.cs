@@ -25,6 +25,7 @@ public sealed class AiClient : IDisposable
         ["openai"]          = ("https://api.openai.com/v1",      "gpt-4o-mini",                              "OpenAI"),
         ["openrouter"]      = ("https://openrouter.ai/api/v1",   "meta-llama/llama-3.3-70b-instruct:free",   "OpenRouter"),
         ["deepseek"]        = ("https://api.deepseek.com/v1",    "deepseek-chat",                            "DeepSeek"),
+        ["ollama"]          = ("http://localhost:11434/v1",     "llama3.2",                                  "Ollama (Local)"),
         ["custom"]          = ("",                                "",                                          "Custom Endpoint"),
     };
 
@@ -40,7 +41,10 @@ public sealed class AiClient : IDisposable
         _baseUrl = baseUrl.TrimEnd('/');
         _model = model;
         _http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        if (!string.IsNullOrEmpty(_apiKey))
+        {
+            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        }
     }
 
     /// <summary>

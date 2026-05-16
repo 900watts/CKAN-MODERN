@@ -35,9 +35,8 @@ export type IpcChannel =
   | 'app:maximize'
   | 'app:close'
   | 'app:browse-folder'
+  | 'app:open-cli'
   | 'repo:refresh'
-  | 'repo:set-mirror'
-  | 'repo:get-mirror'
 ;
 
 export interface IpcRequest<T = unknown> {

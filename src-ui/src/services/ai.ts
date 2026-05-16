@@ -299,7 +299,7 @@ export default aiService;
 // Custom AI Provider Support
 // ────────────────────────────────────────────────────────────────
 
-export type CustomProvider = 'openrouter' | 'google' | 'openai' | 'siliconflow-cn' | 'siliconflow-int';
+export type CustomProvider = 'openrouter' | 'google' | 'openai' | 'siliconflow-cn' | 'siliconflow-int' | 'ollama';
 
 export interface ProviderConfig {
   label: string;
@@ -367,6 +367,18 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
       { id: 'zai-org/GLM-4.6', label: 'GLM 4.6' },
     ],
   },
+  'ollama': {
+    label: 'Ollama (Local)',
+    baseUrl: 'http://localhost:11434/v1',
+    openaiCompat: true,
+    allowCustomModel: true,
+    models: [
+      { id: 'llama3.2', label: 'Llama 3.2' },
+      { id: 'qwen3', label: 'Qwen 3' },
+      { id: 'gemma3', label: 'Gemma 3' },
+      { id: 'mistral', label: 'Mistral' },
+    ],
+  },
 };
 
 // ── localStorage key management ──
@@ -424,7 +436,8 @@ export async function chatWithCustomProvider(
   signal?: AbortSignal
 ): Promise<AiChatResult> {
   const apiKey = getCustomApiKey(provider);
-  if (!apiKey) throw new Error(`No API key set for ${AI_PROVIDERS[provider].label}. Add it in Settings.`);
+  const isOllama = provider === 'ollama';
+  if (!apiKey && !isOllama) throw new Error(`No API key set for ${AI_PROVIDERS[provider].label}. Add it in Settings.`);
 
   const config = AI_PROVIDERS[provider];
   const fullMessages: ChatMessage[] = [
@@ -438,7 +451,7 @@ export async function chatWithCustomProvider(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
       body: JSON.stringify({
         model,

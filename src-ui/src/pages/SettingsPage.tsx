@@ -9,7 +9,6 @@ import { themeService } from '../services/theme';
 import type { Theme } from '../services/theme';
 import { useT } from '../i18n';
 import type { Locale } from '../i18n';
-import ckanIpc from '../services/ipc';
 import styles from './SettingsPage.module.css';
 
 export default function SettingsPage() {
@@ -34,62 +33,6 @@ export default function SettingsPage() {
     providers.forEach((p) => { init[p] = !!getCustomApiKey(p); });
     return init;
   });
-
-  // Mirror state
-  const MIRROR_PRESETS: Record<string, string> = {
-    github: 'https://github.com/KSP-CKAN/CKAN-meta/archive/master.tar.gz',
-    gitee: 'https://gitee.com/KSP-CKAN-mirror/CKAN-meta/repository/archive/master.tar.gz',
-  };
-  const [mirrorMode, setMirrorMode] = useState<'github' | 'gitee' | 'custom'>(() => {
-    const saved = localStorage.getItem('ckan_mirror_mode');
-    return (saved as 'github' | 'gitee' | 'custom') || 'github';
-  });
-  const [customMirrorUrl, setCustomMirrorUrl] = useState(() => {
-    return localStorage.getItem('ckan_mirror_custom') || '';
-  });
-  const [mirrorSaved, setMirrorSaved] = useState(false);
-
-  const handleMirrorChange = (mode: 'github' | 'gitee' | 'custom') => {
-    setMirrorMode(mode);
-    localStorage.setItem('ckan_mirror_mode', mode);
-    const url = mode === 'custom' ? customMirrorUrl : (MIRROR_PRESETS[mode] || '');
-    if (url && ckanIpc.isConnected()) {
-      ckanIpc.call('repo:set-mirror', { url }).catch(() => {});
-    }
-    setMirrorSaved(true);
-    setTimeout(() => setMirrorSaved(false), 2000);
-  };
-
-  const handleCustomMirrorSave = () => {
-    const url = customMirrorUrl.trim();
-    if (!url) return;
-    localStorage.setItem('ckan_mirror_custom', url);
-    if (ckanIpc.isConnected()) {
-      ckanIpc.call('repo:set-mirror', { url }).catch(() => {});
-    }
-    setMirrorSaved(true);
-    setTimeout(() => setMirrorSaved(false), 2000);
-  };
-
-  // Load mirror from backend on mount + acceleration status
-  useEffect(() => {
-    if (ckanIpc.isConnected()) {
-      ckanIpc.call<any, any>('repo:get-mirror', {}).then((result) => {
-        if (result?.url) {
-          // Only override if not in 'auto' mode
-          const saved = localStorage.getItem('ckan_mirror_mode');
-          if (saved && saved !== 'auto') {
-            if (result.url === MIRROR_PRESETS.github) setMirrorMode('github');
-            else if (result.url === MIRROR_PRESETS.gitee) setMirrorMode('gitee');
-            else {
-              setMirrorMode('custom');
-              setCustomMirrorUrl(result.url);
-            }
-          }
-        }
-      }).catch(() => {});
-    }
-  }, []);
 
   const handleSaveApiKey = (provider: CustomProvider) => {
     const key = apiKeys[provider]?.trim();
@@ -317,7 +260,7 @@ export default function SettingsPage() {
             <div className={styles.settingDesc} style={{ marginBottom: 12 }}>
               {t('settings.apiKeysDesc')}
             </div>
-            {providers.map((provider, i) => (
+            {providers.filter((p) => p !== 'ollama').map((provider, i) => (
               <div key={provider}>
                 {i > 0 && <div className={styles.divider} />}
                 <div className={styles.apiKeyRow}>
@@ -355,7 +298,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Registry + Mirror */}
+        {/* Registry */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>
             <Database size={16} />
@@ -367,66 +310,6 @@ export default function SettingsPage() {
                 <div className={styles.settingLabel}>{t('settings.repository')}</div>
                 <div className={styles.settingDesc}>master https://github.com/KSP-CKAN/CKAN-meta</div>
               </div>
-              <button className={styles.btnSecondary}>{t('settings.manage')}</button>
-            </div>
-            <div className={styles.divider} />
-            <div className={styles.settingRow} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div className={styles.settingLabel}>{t('settings.mirror')}</div>
-                  <div className={styles.settingDesc}>
-                    {t('settings.mirror.hint')}
-                  </div>
-                </div>
-                {mirrorSaved && (
-                  <span className={styles.tierBadge} style={{ background: 'rgba(108, 203, 95, 0.15)', color: '#7ed673' }}>
-                    <Check size={12} /> {t('settings.mirror.saved')}
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button
-                  className={mirrorMode === 'github' ? styles.btnPrimary : styles.btnSecondary}
-                  onClick={() => handleMirrorChange('github')}
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                >
-                  {t('settings.mirror.github')}
-                </button>
-                <button
-                  className={mirrorMode === 'gitee' ? styles.btnPrimary : styles.btnSecondary}
-                  onClick={() => handleMirrorChange('gitee')}
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                >
-                  {t('settings.mirror.gitee')}
-                </button>
-                <button
-                  className={mirrorMode === 'custom' ? styles.btnPrimary : styles.btnSecondary}
-                  onClick={() => handleMirrorChange('custom')}
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                >
-                  {t('settings.mirror.custom')}
-                </button>
-              </div>
-              {mirrorMode === 'custom' && (
-                <div className={styles.apiKeyInputRow}>
-                  <input
-                    className={styles.apiKeyInput}
-                    type="url"
-                    placeholder={t('settings.mirror.customPlaceholder')}
-                    value={customMirrorUrl}
-                    onChange={(e) => setCustomMirrorUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleCustomMirrorSave()}
-                  />
-                  <button
-                    className={styles.btnPrimary}
-                    onClick={handleCustomMirrorSave}
-                    disabled={!customMirrorUrl.trim()}
-                    style={{ padding: '6px 12px', fontSize: '12px' }}
-                  >
-                    {t('settings.mirror.saveCurrent')}
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </div>
