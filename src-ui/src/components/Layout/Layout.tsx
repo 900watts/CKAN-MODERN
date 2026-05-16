@@ -70,6 +70,22 @@ export default function Layout({ children, activePage = 'available', onNavigate 
     return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
   }, []);
 
+  const [cliError, setCliError] = useState('');
+
+  const handleOpenCli = async () => {
+    setCliError('');
+    try {
+      const result = await ckanIpc.call<any, any>('app:open-cli');
+      if (result && !result.success) {
+        setCliError(result.error || t('nav.cliNotFound'));
+        setTimeout(() => setCliError(''), 5000);
+      }
+    } catch {
+      setCliError(t('nav.cliNotFound'));
+      setTimeout(() => setCliError(''), 5000);
+    }
+  };
+
   const navItems: NavItemDef[] = [
     { id: 'available', label: t('nav.available'), icon: <Package size={20} />, badge: modCount || undefined },
     { id: 'installed', label: t('nav.installed'), icon: <FolderOpen size={20} />, badge: installedCount || undefined },
@@ -111,14 +127,15 @@ export default function Layout({ children, activePage = 'available', onNavigate 
           <div className={styles.navBottom}>
             <button
               className={styles.navItem}
-              onClick={() => {
-                ckanIpc.call('app:open-cli').catch(() => {});
-              }}
+              onClick={handleOpenCli}
               title={t('nav.openCli')}
             >
               <span className={styles.navIcon}><Terminal size={20} /></span>
               {navExpanded && <span className={styles.navLabel}>{t('nav.openCli')}</span>}
             </button>
+            {cliError && navExpanded && (
+              <div className={styles.cliError}>{cliError}</div>
+            )}
 
             <button
               className={`${styles.navItem} ${aiPanelOpen ? styles.navItemActive : ''}`}

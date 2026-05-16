@@ -1,5 +1,7 @@
 using System.IO;
+using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text;
 using log4net;
 using Newtonsoft.Json.Linq;
 
@@ -22,6 +24,7 @@ public sealed class IpcHandler : IDisposable
     private readonly ModernUser _user;
     private readonly RepositoryDataManager _repoData;
     private readonly UpdateChecker _updateChecker;
+    private readonly HttpClient _ollamaHttp;
     private GameInstanceManager? _instanceManager;
     private RegistryManager? _registryManager;
 
@@ -43,6 +46,7 @@ public sealed class IpcHandler : IDisposable
 
         _repoData = new RepositoryDataManager();
         _updateChecker = new UpdateChecker();
+        _ollamaHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
 
         // Initialize the game instance manager
         try
@@ -195,6 +199,10 @@ public sealed class IpcHandler : IDisposable
 
             // ─── CLI ───
             "app:open-cli"        => HandleOpenCli(),
+
+            // ─── Ollama Proxy ───
+            "ai:ollama-chat"      => await HandleOllamaChat(request.Args),
+            "ai:ollama-status"    => await HandleOllamaStatus(request.Args),
 
             _ => throw new InvalidOperationException($"Unknown IPC channel: {request.Channel}")
         };
@@ -1108,10 +1116,108 @@ public sealed class IpcHandler : IDisposable
         }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  OLLAMA PROXY — Bypass WebView2 CORS restrictions
+    // ═══════════════════════════════════════════════════════════
+
+    private async Task<object?> HandleOllamaChat(JToken? args)
+    {
+        try
+        {
+            var baseUrl = args?["baseUrl"]?.ToString() ?? "http://localhost:11434/v1";
+            var model   = args?["model"]?.ToString()   ?? "llama3.2";
+            var messages = args?["messages"]?.ToString() ?? "[]";
+
+            var body = new JObject
+            {
+                ["model"] = model,
+                ["messages"] = JArray.Parse(messages),
+                ["max_tokens"] = 1024,
+                ["temperature"] = 0.7,
+                ["stream"] = false,
+            };
+
+            var content = new StringContent(body.ToString(), Encoding.UTF8, "application/json");
+            var response = await _ollamaHttp.PostAsync($"{baseUrl.TrimEnd('/')}/chat/completions", content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errText = await response.Content.ReadAsStringAsync();
+                return new { success = false, error = $"Ollama error ({(int)response.StatusCode}): {errText[..Math.Min(errText.Length, 300)]}" };
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(json);
+            var reply = result["choices"]?[0]?["message"]?["content"]?.ToString() ?? "";
+            var usage = result["usage"];
+
+            return new
+            {
+                success = true,
+                reply,
+                model,
+                usage = usage != null ? new
+                {
+                    prompt_tokens = usage["prompt_tokens"]?.Value<int>() ?? 0,
+                    completion_tokens = usage["completion_tokens"]?.Value<int>() ?? 0,
+                    total_tokens = usage["total_tokens"]?.Value<int>() ?? 0,
+                } : null
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            return new { success = false, error = $"Cannot connect to Ollama: {ex.Message}" };
+        }
+        catch (TaskCanceledException)
+        {
+            return new { success = false, error = "Ollama request timed out. Is the server running?" };
+        }
+        catch (Exception ex)
+        {
+            return new { success = false, error = $"Ollama proxy error: {ex.Message}" };
+        }
+    }
+
+    private async Task<object?> HandleOllamaStatus(JToken? args)
+    {
+        try
+        {
+            var baseUrl = args?["baseUrl"]?.ToString() ?? "http://localhost:11434";
+            // Ollama native API to list models
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var response = await _ollamaHttp.GetAsync($"{baseUrl.TrimEnd('/')}/api/tags", cts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new { connected = false, error = $"Ollama returned {(int)response.StatusCode}" };
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(json);
+            var models = result["models"] as JArray ?? new JArray();
+            var modelNames = models.Select(m => m["name"]?.ToString() ?? "").Where(n => n.Length > 0).ToArray();
+
+            return new { connected = true, models = modelNames };
+        }
+        catch (HttpRequestException)
+        {
+            return new { connected = false, error = "Cannot connect to Ollama. Is it running?" };
+        }
+        catch (TaskCanceledException)
+        {
+            return new { connected = false, error = "Connection timed out" };
+        }
+        catch (Exception ex)
+        {
+            return new { connected = false, error = ex.Message };
+        }
+    }
+
     public void Dispose()
     {
         _registryManager?.Dispose();
         _updateChecker.Dispose();
+        _ollamaHttp.Dispose();
         RegistryManager.DisposeAll();
     }
 }

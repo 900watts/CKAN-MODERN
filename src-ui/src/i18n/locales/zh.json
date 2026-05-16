@@ -144,6 +144,12 @@
   "ai.placeholder": "有什么可以帮你的...",
   "ai.poweredBy": "由 CKAN 云提供支持",
   "ai.using": "使用 {provider}",
+  "ai.ollamaChecking": "连接中...",
+  "ai.ollamaConnected": "已连接 ({count} 个模型)",
+  "ai.ollamaDisconnected": "未连接",
+  "ai.ollamaModelPlaceholder": "例如 llama3.2, qwen3",
+
+  "nav.cliNotFound": "未找到 CLI，请将 CKAN-CLI.exe 放在 CKAN-M.exe 旁边。",
 
   "common.loading": "加载中...",
   "common.error": "错误",

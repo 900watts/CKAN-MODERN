@@ -37,6 +37,8 @@ export type IpcChannel =
   | 'app:browse-folder'
   | 'app:open-cli'
   | 'repo:refresh'
+  | 'ai:ollama-chat'
+  | 'ai:ollama-status'
 ;
 
 export interface IpcRequest<T = unknown> {

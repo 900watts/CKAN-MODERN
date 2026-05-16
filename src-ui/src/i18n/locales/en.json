@@ -145,6 +145,12 @@
   "ai.placeholder": "Ask me anything...",
   "ai.poweredBy": "Powered by CKAN Cloud",
   "ai.using": "Using {provider}",
+  "ai.ollamaChecking": "Connecting...",
+  "ai.ollamaConnected": "Connected ({count} models)",
+  "ai.ollamaDisconnected": "Not connected",
+  "ai.ollamaModelPlaceholder": "e.g. llama3.2, qwen3",
+
+  "nav.cliNotFound": "CLI not found. Place CKAN-CLI.exe next to CKAN-M.exe.",
 
   "common.loading": "Loading...",
   "common.error": "Error",

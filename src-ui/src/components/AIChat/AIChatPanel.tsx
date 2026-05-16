@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { motion } from 'framer-motion';
-import { X, Send, Bot, User, Loader2, Sparkles, Download, Trash2, Search, RefreshCw } from 'lucide-react';
-import { aiService, AI_PROVIDERS, getCustomApiKey, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatWithCustomProvider } from '../../services/ai';
+import { X, Send, Bot, User, Loader2, Sparkles, Download, Trash2, Search, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { aiService, AI_PROVIDERS, getCustomApiKey, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatWithCustomProvider, getOllamaUrl, setOllamaUrl, checkOllamaStatus } from '../../services/ai';
 import type { ChatMessage, CustomProvider } from '../../services/ai';
 import { chatStore } from '../../services/chatStore';
 import type { ChatMsg } from '../../services/chatStore';
@@ -36,6 +36,55 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   });
   const [customModelInput, setCustomModelInput] = useState('');
   const allProviders = Object.keys(AI_PROVIDERS) as CustomProvider[];
+
+  // Ollama connection state
+  const [ollamaUrl, setOllamaUrlState] = useState(getOllamaUrl());
+  const [ollamaConnected, setOllamaConnected] = useState(false);
+  const [ollamaChecking, setOllamaChecking] = useState(false);
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [ollamaError, setOllamaError] = useState('');
+
+  const handleOllamaConnect = async (url?: string) => {
+    const targetUrl = url ?? ollamaUrl;
+    setOllamaChecking(true);
+    setOllamaError('');
+    try {
+      const result = await checkOllamaStatus(targetUrl);
+      if (result.connected) {
+        setOllamaConnected(true);
+        setOllamaModels(result.models || []);
+        setOllamaUrl(targetUrl);
+        // Auto-select first model if none selected
+        if (result.models?.length && !curModel) {
+          const m = result.models[0];
+          setCurModel(m);
+          setSelectedModel('ollama', m);
+        }
+      } else {
+        setOllamaConnected(false);
+        setOllamaModels([]);
+        setOllamaError(result.error || 'Cannot connect');
+      }
+    } catch {
+      setOllamaConnected(false);
+      setOllamaError('Connection failed');
+    } finally {
+      setOllamaChecking(false);
+    }
+  };
+
+  const handleOllamaDisconnect = () => {
+    setOllamaConnected(false);
+    setOllamaModels([]);
+    setOllamaError('');
+  };
+
+  // Auto-check Ollama status when provider switches to ollama
+  useEffect(() => {
+    if (curProvider === 'ollama') {
+      handleOllamaConnect();
+    }
+  }, [curProvider]);
 
   // Fetch tier + daily usage from Supabase on mount
   useEffect(() => {
@@ -338,35 +387,103 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         </div>
         {curProvider !== 'ckan-cloud' && (
           <>
-            <div className={styles.modelSelect}>
-              <label className={styles.modelLabel}>{t('ai.model')}</label>
-              <select
-                value={curModel}
-                onChange={(e) => handleModelChange(e.target.value)}
-              >
-                {AI_PROVIDERS[curProvider].models.map((m) => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))}
-              </select>
-            </div>
-            {AI_PROVIDERS[curProvider].allowCustomModel && (
-              <div className={styles.modelSelect}>
-                <label className={styles.modelLabel}>{t('ai.customModel')}</label>
-                <input
-                  className={styles.customModelInput}
-                  value={customModelInput}
-                  onChange={(e) => setCustomModelInput(e.target.value)}
-                  onBlur={handleCustomModelCommit}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleCustomModelCommit(); }}
-                  placeholder={t('ai.customModelPlaceholder')}
-                  spellCheck={false}
-                />
+            {curProvider === 'ollama' ? (
+              /* ─── Ollama Connection UI ─── */
+              <div className={styles.ollamaSection}>
+                <div className={styles.ollamaUrlRow}>
+                  <input
+                    className={styles.customModelInput}
+                    value={ollamaUrl}
+                    onChange={(e) => setOllamaUrlState(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleOllamaConnect(); }}
+                    placeholder="http://localhost:11434"
+                    spellCheck={false}
+                  />
+                  {ollamaConnected ? (
+                    <button className={styles.ollamaDisconnectBtn} onClick={handleOllamaDisconnect}>
+                      <WifiOff size={12} />
+                    </button>
+                  ) : (
+                    <button
+                      className={styles.ollamaConnectBtn}
+                      onClick={() => handleOllamaConnect()}
+                      disabled={ollamaChecking}
+                    >
+                      {ollamaChecking ? <Loader2 size={12} className={styles.spin} /> : <Wifi size={12} />}
+                    </button>
+                  )}
+                </div>
+                <div className={styles.ollamaStatus}>
+                  {ollamaChecking ? (
+                    <span className={styles.ollamaStatusChecking}>{t('ai.ollamaChecking')}</span>
+                  ) : ollamaConnected ? (
+                    <span className={styles.ollamaStatusOk}>{t('ai.ollamaConnected', { count: ollamaModels.length })}</span>
+                  ) : ollamaError ? (
+                    <span className={styles.ollamaStatusErr}>{ollamaError}</span>
+                  ) : (
+                    <span className={styles.ollamaStatusOff}>{t('ai.ollamaDisconnected')}</span>
+                  )}
+                </div>
+                {ollamaConnected && ollamaModels.length > 0 && (
+                  <div className={styles.modelSelect}>
+                    <label className={styles.modelLabel}>{t('ai.model')}</label>
+                    <select
+                      value={curModel}
+                      onChange={(e) => handleModelChange(e.target.value)}
+                    >
+                      {ollamaModels.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className={styles.modelSelect}>
+                  <label className={styles.modelLabel}>{t('ai.customModel')}</label>
+                  <input
+                    className={styles.customModelInput}
+                    value={customModelInput}
+                    onChange={(e) => setCustomModelInput(e.target.value)}
+                    onBlur={handleCustomModelCommit}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleCustomModelCommit(); }}
+                    placeholder={t('ai.ollamaModelPlaceholder')}
+                    spellCheck={false}
+                  />
+                </div>
               </div>
-            )}
-            {!getCustomApiKey(curProvider) && curProvider !== 'ollama' && (
-              <div className={styles.noKeyWarning}>
-                {t('ai.noKey')}
-              </div>
+            ) : (
+              /* ─── Standard provider UI ─── */
+              <>
+                <div className={styles.modelSelect}>
+                  <label className={styles.modelLabel}>{t('ai.model')}</label>
+                  <select
+                    value={curModel}
+                    onChange={(e) => handleModelChange(e.target.value)}
+                  >
+                    {AI_PROVIDERS[curProvider].models.map((m) => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+                {AI_PROVIDERS[curProvider].allowCustomModel && (
+                  <div className={styles.modelSelect}>
+                    <label className={styles.modelLabel}>{t('ai.customModel')}</label>
+                    <input
+                      className={styles.customModelInput}
+                      value={customModelInput}
+                      onChange={(e) => setCustomModelInput(e.target.value)}
+                      onBlur={handleCustomModelCommit}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleCustomModelCommit(); }}
+                      placeholder={t('ai.customModelPlaceholder')}
+                      spellCheck={false}
+                    />
+                  </div>
+                )}
+                {!getCustomApiKey(curProvider) && (
+                  <div className={styles.noKeyWarning}>
+                    {t('ai.noKey')}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

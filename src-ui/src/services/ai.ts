@@ -385,6 +385,14 @@ export const AI_PROVIDERS: Record<CustomProvider, ProviderConfig> = {
 
 const STORAGE_PREFIX = 'ckan_ai_';
 
+export function getOllamaUrl(): string {
+  return localStorage.getItem(`${STORAGE_PREFIX}ollama_url`) || 'http://localhost:11434';
+}
+
+export function setOllamaUrl(url: string): void {
+  localStorage.setItem(`${STORAGE_PREFIX}ollama_url`, url.replace(/\/+$/, ''));
+}
+
 export function getCustomApiKey(provider: CustomProvider): string | null {
   return localStorage.getItem(`${STORAGE_PREFIX}key_${provider}`);
 }
@@ -429,6 +437,30 @@ export function setSelectedModel(provider: CustomProvider, model: string): void 
 
 // ── Custom provider chat ──
 
+export async function checkOllamaStatus(baseUrl?: string): Promise<{ connected: boolean; models?: string[]; error?: string }> {
+  const url = baseUrl || getOllamaUrl();
+  // Use IPC proxy to bypass CORS
+  const { ckanIpc } = await import('./ipc');
+  if (ckanIpc.isConnected()) {
+    try {
+      const result = await ckanIpc.call<any, any>('ai:ollama-status', { baseUrl: url });
+      return result;
+    } catch {
+      return { connected: false, error: 'IPC call failed' };
+    }
+  }
+  // Fallback: direct fetch (won't work in WebView2 due to CORS, but works in dev)
+  try {
+    const res = await fetch(`${url.replace(/\/+$/, '')}/api/tags`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return { connected: false, error: `HTTP ${res.status}` };
+    const data = await res.json();
+    const models = (data.models || []).map((m: any) => m.name).filter(Boolean);
+    return { connected: true, models };
+  } catch {
+    return { connected: false, error: 'Cannot connect to Ollama' };
+  }
+}
+
 export async function chatWithCustomProvider(
   provider: CustomProvider,
   model: string,
@@ -444,6 +476,52 @@ export async function chatWithCustomProvider(
     { role: 'system', content: SYSTEM_PROMPT },
     ...messages,
   ];
+
+  // Ollama: route through .NET backend IPC proxy to bypass WebView2 CORS
+  if (isOllama) {
+    const { ckanIpc } = await import('./ipc');
+    const ollamaUrl = getOllamaUrl() + '/v1';
+    if (ckanIpc.isConnected()) {
+      const result = await ckanIpc.call<any, any>('ai:ollama-chat', {
+        baseUrl: ollamaUrl,
+        model,
+        messages: JSON.stringify(fullMessages),
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Ollama request failed');
+      }
+      return {
+        reply: result.reply || 'No response from model.',
+        model,
+        usage: result.usage,
+        tier: 'custom',
+      };
+    }
+    // Fallback: direct fetch (dev mode only)
+    const res = await fetch(`${ollamaUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages: fullMessages,
+        max_tokens: 1024,
+        temperature: 0.7,
+        stream: false,
+      }),
+      signal,
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Ollama error (${res.status}): ${errText.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    return {
+      reply: data.choices?.[0]?.message?.content || 'No response from model.',
+      model,
+      usage: data.usage,
+      tier: 'custom',
+    };
+  }
 
   if (config.openaiCompat) {
     // OpenAI-compatible format (OpenRouter, OpenAI, Silicon Flow)
