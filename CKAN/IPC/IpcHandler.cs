@@ -1110,12 +1110,12 @@ public sealed class IpcHandler : IDisposable
         try
         {
             var baseDir = AppContext.BaseDirectory;
-            var cliPath = Path.Combine(baseDir, "CKAN-CLI.exe");
+            var cliPath = Path.Combine(baseDir, "KerbClaw-CLI.exe");
 
             if (!File.Exists(cliPath))
             {
                 log.Warn($"[IPC] CLI not found at {cliPath}");
-                return new { success = false, notInstalled = true, error = "CKAN-CLI.exe not found." };
+                return new { success = false, notInstalled = true, error = "KerbClaw-CLI.exe not found." };
             }
 
             // Launch CLI in a persistent console window.
@@ -1144,7 +1144,7 @@ public sealed class IpcHandler : IDisposable
         try
         {
             var baseDir = AppContext.BaseDirectory;
-            var cliPath = Path.Combine(baseDir, "CKAN-CLI.exe");
+            var cliPath = Path.Combine(baseDir, "KerbClaw-CLI.exe");
 
             if (File.Exists(cliPath))
             {
@@ -1167,7 +1167,7 @@ public sealed class IpcHandler : IDisposable
             foreach (var asset in assets)
             {
                 var name = asset["name"]?.ToString() ?? "";
-                if (name.Equals("CKAN-CLI.exe", StringComparison.OrdinalIgnoreCase))
+                if (name.Equals("KerbClaw-CLI.exe", StringComparison.OrdinalIgnoreCase))
                 {
                     cliDownloadUrl = asset["browser_download_url"]?.ToString();
                     break;
@@ -1176,11 +1176,11 @@ public sealed class IpcHandler : IDisposable
 
             if (string.IsNullOrEmpty(cliDownloadUrl))
             {
-                return new { success = false, error = "CKAN-CLI.exe not found in the latest release. It may not be available yet." };
+                return new { success = false, error = "KerbClaw-CLI.exe not found in the latest release. It may not be available yet." };
             }
 
             // Download the CLI exe
-            PushEvent?.Invoke("progress", new { message = "Downloading CKAN-CLI.exe...", percent = 10 });
+            PushEvent?.Invoke("progress", new { message = "Downloading KerbClaw-CLI.exe...", percent = 10 });
 
             using var response = await http.GetAsync(cliDownloadUrl, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
