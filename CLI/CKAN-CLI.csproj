@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <AssemblyName>CKAN-CLI</AssemblyName>
+    <AssemblyName>KerbClaw-CLI</AssemblyName>
     <OutputPath>..\_build\out\$(AssemblyName)\$(Configuration)\bin\</OutputPath>
     <BaseIntermediateOutputPath>..\_build\out\$(AssemblyName)\$(Configuration)\obj\</BaseIntermediateOutputPath>
   </PropertyGroup>
