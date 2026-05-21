@@ -52,8 +52,8 @@ export default function UpdateBanner() {
     setUpdating(true);
     try {
       await ckanIpc.call('app:apply-update', { downloadUrl });
-    } catch {
-      // If the IPC call fails (e.g. dev mode), open the release page
+    } catch (err) {
+      console.warn('[UpdateBanner] IPC apply-update failed, opening release page:', err);
       window.open(update.url, '_blank');
       setUpdating(false);
     }

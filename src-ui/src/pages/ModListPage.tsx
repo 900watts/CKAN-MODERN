@@ -114,8 +114,8 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
               registryService.clearInstalled();
               mods = [];
             }
-          } catch {
-            // IPC call failed — no mods installed, clear stale state
+          } catch (err) {
+            console.warn('[ModList] IPC list-installed failed:', err);
             registryService.clearInstalled();
             mods = [];
           }
@@ -247,8 +247,8 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
         setUnmanagedMods(result.unmanaged);
       }
       setHasScanned(true);
-    } catch {
-      // Silent fail — scan is best-effort
+    } catch (err) {
+      console.warn('[ModList] Scan GameData failed:', err);
       setHasScanned(true);
     } finally {
       setIsScanning(false);
@@ -275,8 +275,8 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           (u: UpdatableMod) => !updatedThisSession.has(u.identifier)
         ));
       }
-    } catch {
-      // Silent fail — update check is best-effort
+    } catch (err) {
+      console.warn('[ModList] Update check failed:', err);
     } finally {
       setIsCheckingUpdates(false);
     }

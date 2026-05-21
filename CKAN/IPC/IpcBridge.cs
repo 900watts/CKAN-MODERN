@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.Web.WebView2.Core;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using log4net;
 
 namespace CKAN.Modern.IPC;
 
@@ -15,6 +16,7 @@ namespace CKAN.Modern.IPC;
 /// </summary>
 public sealed class IpcBridge : IDisposable
 {
+    private static readonly ILog log = LogManager.GetLogger(typeof(IpcBridge));
     private readonly CoreWebView2 _webView;
     private readonly IpcHandler _handler;
 
@@ -78,8 +80,13 @@ public sealed class IpcBridge : IDisposable
                     var obj = JObject.Parse(json);
                     requestId = obj["id"]?.ToString();
                 }
-                catch { }
+                catch (Exception parseEx)
+                {
+                    log.Warn("[IpcBridge] Failed to parse request ID from JSON for error correlation", parseEx);
+                }
             }
+
+            log.Error($"[IpcBridge] IPC request failed (id={requestId ?? "unknown"})", ex);
 
             if (requestId != null)
             {

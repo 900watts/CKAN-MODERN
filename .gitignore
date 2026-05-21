@@ -1,6 +1,8 @@
 /_build/
 /.vs/
 /build/tools
+.env
+.env.local
 test-results
 *.userprefs
 *.csproj.user

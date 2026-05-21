@@ -565,10 +565,13 @@ export async function chatWithCustomProvider(
     const systemInstruction = fullMessages.find((m) => m.role === 'system');
 
     const res = await fetch(
-      `${config.baseUrl}/models/${model}:generateContent?key=${apiKey}`,
+      `${config.baseUrl}/models/${model}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey!,
+        },
         body: JSON.stringify({
           contents,
           ...(systemInstruction

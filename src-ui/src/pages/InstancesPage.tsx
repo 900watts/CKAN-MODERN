@@ -37,8 +37,8 @@ export default function InstancesPage() {
       if (result?.instances && Array.isArray(result.instances)) {
         setInstances(result.instances);
       }
-    } catch {
-      // Silent fail
+    } catch (err) {
+      console.warn('[Instances] Failed to list instances:', err);
     } finally {
       setIsLoading(false);
     }
@@ -104,8 +104,8 @@ export default function InstancesPage() {
       if (result?.success) {
         await loadInstances();
       }
-    } catch {
-      // Silent fail
+    } catch (err) {
+      console.warn('[Instances] Failed to remove instance:', err);
     }
   };
 
@@ -121,8 +121,8 @@ export default function InstancesPage() {
           active: inst.name === instanceName,
         })));
       }
-    } catch {
-      // Silent fail
+    } catch (err) {
+      console.warn('[Instances] Failed to set active instance:', err);
     } finally {
       setSwitchingName(null);
     }
@@ -211,8 +211,8 @@ export default function InstancesPage() {
                           if (result.selected && result.path) {
                             setPath(result.path);
                           }
-                        } catch {
-                          // Fallback: just let them type
+                        } catch (err) {
+                          console.warn('[Instances] Browse folder failed:', err);
                         }
                       }}
                     >

@@ -9,13 +9,15 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = 'https://vfvelaaskkhhoeudcopr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmdmVsYWFza2toaG9ldWRjb3ByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3NDgwMzEsImV4cCI6MjA5MDMyNDAzMX0.XCpbbKzOOg8vtrkhs8RTpQ-G-R4psaAFQ9PCum9IhpY';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null!; // will be checked via isSupabaseConfigured() before use
 
 export function isSupabaseConfigured(): boolean {
-  return SUPABASE_ANON_KEY.length > 20;
+  return !!SUPABASE_URL && SUPABASE_ANON_KEY.length > 20;
 }
 
 export default supabase;

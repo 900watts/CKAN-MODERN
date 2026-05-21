@@ -37,7 +37,7 @@ export default function Layout({ children, activePage = 'available', onNavigate 
       if (result?.mods && Array.isArray(result.mods)) {
         setInstalledCount(result.mods.length);
       }
-    }).catch(() => {});
+    }).catch((err) => console.warn('[Layout] Failed to refresh installed count:', err));
   };
 
   useEffect(() => {

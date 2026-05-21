@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { motion } from 'framer-motion';
-import { X, Send, Bot, User, Loader2, Sparkles, Download, Trash2, Search, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { X, Send, Bot, User, Loader2, Sparkles, Download, Trash2, Search, RefreshCw, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
 import { aiService, AI_PROVIDERS, getCustomApiKey, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatWithCustomProvider, getOllamaUrl, setOllamaUrl, checkOllamaStatus } from '../../services/ai';
 import type { ChatMessage, CustomProvider } from '../../services/ai';
 import { chatStore } from '../../services/chatStore';
@@ -43,6 +43,9 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const [ollamaChecking, setOllamaChecking] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [ollamaError, setOllamaError] = useState('');
+
+  // Pending AI action confirmation
+  const [pendingActions, setPendingActions] = useState<{ type: string; identifier: string }[]>([]);
 
   const handleOllamaConnect = async (url?: string) => {
     const targetUrl = url ?? ollamaUrl;
@@ -105,8 +108,8 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         });
         const used = usageCount ?? 0;
         setRemainingToday(DAILY_LIMIT - used);
-      } catch {
-        // Silently fail
+      } catch (err) {
+        console.warn('[AIChat] Failed to fetch usage/tier info:', err);
       }
     })();
   }, []);
@@ -212,23 +215,43 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     }
   };
 
-  /** Execute action commands embedded in AI responses */
+  /** Parse action commands from AI response and queue for user confirmation */
   const executeAiActions = (text: string) => {
-    // [INSTALL:ModId]
-    const installMatches = text.matchAll(/\[INSTALL:([^\]]+)\]/g);
-    for (const m of installMatches) {
-      ckanIpc.call('mod:install', { identifier: m[1] }).catch(() => {});
+    const actions: { type: string; identifier: string }[] = [];
+
+    for (const m of text.matchAll(/\[INSTALL:([^\]]+)\]/g)) {
+      actions.push({ type: 'install', identifier: m[1] });
     }
-    // [UNINSTALL:ModId]
-    const uninstallMatches = text.matchAll(/\[UNINSTALL:([^\]]+)\]/g);
-    for (const m of uninstallMatches) {
-      ckanIpc.call('mod:uninstall', { identifier: m[1] }).catch(() => {});
+    for (const m of text.matchAll(/\[UNINSTALL:([^\]]+)\]/g)) {
+      actions.push({ type: 'uninstall', identifier: m[1] });
     }
-    // [REFRESH_REPO]
     if (text.includes('[REFRESH_REPO]')) {
-      ckanIpc.call('repo:refresh', {}).catch(() => {});
+      actions.push({ type: 'refresh', identifier: '' });
+    }
+
+    if (actions.length > 0) {
+      setPendingActions(actions);
     }
   };
+
+  const confirmPendingActions = async () => {
+    for (const action of pendingActions) {
+      try {
+        if (action.type === 'install') {
+          await ckanIpc.call('mod:install', { identifier: action.identifier });
+        } else if (action.type === 'uninstall') {
+          await ckanIpc.call('mod:uninstall', { identifier: action.identifier });
+        } else if (action.type === 'refresh') {
+          await ckanIpc.call('repo:refresh', {});
+        }
+      } catch (err) {
+        console.warn(`[AI Action] Failed to ${action.type} ${action.identifier}:`, err);
+      }
+    }
+    setPendingActions([]);
+  };
+
+  const dismissPendingActions = () => setPendingActions([]);
 
   function renderMarkdown(text: string): React.ReactNode {
     const lines = text.split('\n');
@@ -555,6 +578,34 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             : t('ai.using', { provider: AI_PROVIDERS[curProvider].label })}
         </div>
       </div>
+
+      {/* AI Action Confirmation Dialog */}
+      {pendingActions.length > 0 && (
+        <div className={styles.confirmOverlay}>
+          <div className={styles.confirmDialog}>
+            <div className={styles.confirmHeader}>
+              <AlertTriangle size={16} />
+              <span>Confirm AI Actions</span>
+            </div>
+            <div className={styles.confirmBody}>
+              <p>The AI wants to perform the following actions:</p>
+              <ul className={styles.confirmList}>
+                {pendingActions.map((a, i) => (
+                  <li key={i}>
+                    {a.type === 'install' && <>Install <strong>{a.identifier}</strong></>}
+                    {a.type === 'uninstall' && <>Uninstall <strong>{a.identifier}</strong></>}
+                    {a.type === 'refresh' && <>Refresh mod repository</>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className={styles.confirmActions}>
+              <button className={styles.confirmDeny} onClick={dismissPendingActions}>Cancel</button>
+              <button className={styles.confirmAllow} onClick={confirmPendingActions}>Allow</button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.aside>
   );
 }

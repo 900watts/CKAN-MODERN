@@ -80,7 +80,7 @@ class RegistryService {
         try {
           const saved = localStorage.getItem('ckan-installed');
           if (saved) this.installedIds = new Set(JSON.parse(saved));
-        } catch {}
+        } catch (err) { console.warn('[Registry] Failed to parse installed mods from localStorage:', err); }
         return data;
       });
 
@@ -191,7 +191,7 @@ class RegistryService {
   private saveInstalled(): void {
     try {
       localStorage.setItem('ckan-installed', JSON.stringify([...this.installedIds]));
-    } catch {}
+    } catch (err) { console.warn('[Registry] Failed to save installed mods to localStorage:', err); }
   }
 }
 

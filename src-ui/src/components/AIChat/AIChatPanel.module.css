@@ -495,3 +495,95 @@
   color: var(--color-text-secondary);
   opacity: 0.7;
 }
+
+/* ── AI Action Confirmation Dialog ── */
+
+.confirmOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(2px);
+}
+
+.confirmDialog {
+  background: var(--color-bg-surface, #1e1e2e);
+  border: 1px solid var(--color-border, #333);
+  border-radius: 10px;
+  width: 260px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.confirmHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f5a623;
+  border-bottom: 1px solid var(--color-border, #333);
+}
+
+.confirmBody {
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--color-text-secondary, #8888a0);
+}
+
+.confirmBody p {
+  margin: 0 0 8px;
+}
+
+.confirmList {
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: 12px;
+  color: var(--color-text-primary, #e4e4ef);
+  line-height: 1.6;
+}
+
+.confirmActions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-border, #333);
+  justify-content: flex-end;
+}
+
+.confirmDeny {
+  background: transparent;
+  border: 1px solid var(--color-border, #444);
+  color: var(--color-text-secondary, #8888a0);
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.confirmDeny:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.confirmAllow {
+  background: var(--color-accent-primary, #863bff);
+  border: none;
+  color: #fff;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.15s;
+}
+
+.confirmAllow:hover {
+  filter: brightness(1.15);
+}

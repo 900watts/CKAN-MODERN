@@ -151,3 +151,81 @@ CREATE INDEX IF NOT EXISTS idx_chat_history_user ON chat_history(user_id, create
 
 -- Enable Realtime for dispatch (so the desktop node gets live command updates)
 ALTER PUBLICATION supabase_realtime ADD TABLE dispatch_commands;
+
+-- ═══════════════════════════════════════════════════════════
+--  RPC Functions — Atomic Point Operations
+--  (Avoids read-then-write race conditions on concurrent AI calls)
+-- ═══════════════════════════════════════════════════════════
+
+-- Atomically deduct points. Returns new balance, or -1 if insufficient.
+CREATE OR REPLACE FUNCTION public.deduct_points(p_user_id UUID, p_amount INTEGER)
+RETURNS INTEGER AS $$
+DECLARE
+  new_balance INTEGER;
+BEGIN
+  UPDATE profiles
+    SET points = points - p_amount,
+        updated_at = now()
+    WHERE id = p_user_id
+      AND points >= p_amount
+    RETURNING points INTO new_balance;
+
+  IF NOT FOUND THEN
+    RETURN -1;  -- insufficient points
+  END IF;
+
+  INSERT INTO points_log (user_id, amount, action, description)
+  VALUES (p_user_id, -p_amount, 'ai_chat', 'AI chat point deduction');
+
+  RETURN new_balance;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Atomically add points. Returns new balance.
+CREATE OR REPLACE FUNCTION public.add_points(p_user_id UUID, p_amount INTEGER)
+RETURNS INTEGER AS $$
+DECLARE
+  new_balance INTEGER;
+BEGIN
+  UPDATE profiles
+    SET points = points + p_amount,
+        updated_at = now()
+    WHERE id = p_user_id
+    RETURNING points INTO new_balance;
+
+  IF NOT FOUND THEN
+    RETURN -1;
+  END IF;
+
+  INSERT INTO points_log (user_id, amount, action, description)
+  VALUES (p_user_id, p_amount, 'points_add', 'Points added');
+
+  RETURN new_balance;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Get daily AI usage count for rate limiting
+CREATE OR REPLACE FUNCTION public.get_daily_ai_usage(p_user_id UUID)
+RETURNS INTEGER AS $$
+BEGIN
+  RETURN (
+    SELECT COUNT(*)::INTEGER
+    FROM chat_history
+    WHERE user_id = p_user_id
+      AND role = 'user'
+      AND created_at >= (CURRENT_DATE AT TIME ZONE 'UTC')
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ═══════════════════════════════════════════════════════════
+--  RLS Hardening — Revoke anon role access
+--  (Prevents information leakage via 204 responses on
+--   UPDATE/DELETE from anonymous requests)
+-- ═══════════════════════════════════════════════════════════
+
+REVOKE ALL ON profiles FROM anon;
+REVOKE ALL ON points_log FROM anon;
+REVOKE ALL ON chat_history FROM anon;
+REVOKE ALL ON dispatch_pairs FROM anon;
+REVOKE ALL ON dispatch_commands FROM anon;

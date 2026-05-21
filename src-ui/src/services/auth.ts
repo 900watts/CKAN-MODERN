@@ -157,6 +157,34 @@ class AuthService {
 
   async deductPoints(amount: number): Promise<boolean> {
     if (!this.state.user) return false;
+
+    // Atomic decrement via RPC — avoids read-then-write race condition.
+    // Falls back to client-side if RPC is not available.
+    try {
+      const { data, error } = await supabase.rpc('deduct_points', {
+        p_user_id: this.state.user.id,
+        p_amount: amount,
+      });
+      if (error) {
+        console.warn('[Auth] deduct_points RPC failed, falling back:', error.message);
+        return this.deductPointsFallback(amount);
+      }
+      const newPoints = typeof data === 'number' ? data : null;
+      if (newPoints === null || newPoints < 0) return false;
+      if (this.state.user) {
+        this.state.user.points = newPoints;
+        this.notify();
+      }
+      return true;
+    } catch (err) {
+      console.warn('[Auth] deduct_points RPC exception, falling back:', err);
+      return this.deductPointsFallback(amount);
+    }
+  }
+
+  /** Non-atomic fallback — used only if the deduct_points RPC doesn't exist yet */
+  private async deductPointsFallback(amount: number): Promise<boolean> {
+    if (!this.state.user) return false;
     const current = await this.getPoints();
     if (current < amount) return false;
 
@@ -174,6 +202,23 @@ class AuthService {
 
   async addPoints(amount: number): Promise<void> {
     if (!this.state.user) return;
+
+    // Atomic increment via RPC
+    try {
+      const { data, error } = await supabase.rpc('add_points', {
+        p_user_id: this.state.user.id,
+        p_amount: amount,
+      });
+      if (!error && this.state.user) {
+        this.state.user.points = typeof data === 'number' ? data : (await this.getPoints());
+        this.notify();
+        return;
+      }
+    } catch {
+      // Fall through to legacy path
+    }
+
+    // Fallback: read-then-write
     const current = await this.getPoints();
     await supabase
       .from('profiles')
