@@ -1158,7 +1158,7 @@ public sealed class IpcHandler : IDisposable
             http.DefaultRequestHeaders.UserAgent.ParseAdd("CKAN-Modern/2.0");
             http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
 
-            var apiUrl = "https://api.github.com/repos/900watts/CKAN-MODERN/releases/latest";
+            var apiUrl = "https://api.github.com/repos/900watts/CKAN-MODERN-CLI/releases/latest";
             var releaseJson = await http.GetStringAsync(apiUrl);
             var release = JObject.Parse(releaseJson);
             var assets = release["assets"] as JArray ?? new JArray();

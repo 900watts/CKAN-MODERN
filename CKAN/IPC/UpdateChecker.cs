@@ -18,7 +18,7 @@ public sealed class UpdateChecker : IDisposable
 
     private const string GITHUB_OWNER = "900watts";
     private const string GITHUB_REPO  = "CKAN-MODERN";
-    private const string CURRENT_BUILD = "build-29";  // tag of the current release
+    private const string CURRENT_BUILD = "build-30";  // tag of the current release
     private const string API_URL = $"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest";
 
     public UpdateChecker()
