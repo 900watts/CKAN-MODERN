@@ -7,7 +7,7 @@ import { registryService } from '../../services/registry';
 import ckanIpc from '../../services/ipc';
 import { useT } from '../../i18n';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
-import { easeOut, dur, spring, stagger } from '../../styles/motion';
+import { easeOut, dur, spring } from '../../styles/motion';
 import styles from './Layout.module.css';
 
 export type NavItem = 'available' | 'installed' | 'downloads' | 'instances' | 'repos' | 'settings';

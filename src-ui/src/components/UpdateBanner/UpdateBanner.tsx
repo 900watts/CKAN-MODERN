@@ -4,7 +4,7 @@ import { Download, X, ExternalLink, Loader2 } from 'lucide-react';
 import ckanIpc from '../../services/ipc';
 import { useT } from '../../i18n';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
-import { easeOut, dur, spring } from '../../styles/motion';
+import { easeOut, dur } from '../../styles/motion';
 import styles from './UpdateBanner.module.css';
 
 interface UpdateData {
