@@ -10,6 +10,8 @@ import type { CkanModule, SearchFilters } from '../services/registry';
 import ckanIpc from '../services/ipc';
 import styles from './ModListPage.module.css';
 import { useT } from '../i18n';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { easeOut, dur, spring, stagger } from '../styles/motion';
 
 interface UnmanagedMod {
   folder: string;
@@ -41,6 +43,7 @@ const updatedThisSession = new Set<string>();
 
 export default function ModListPage({ view, onInstallChange, installTick }: ModListPageProps) {
   const { t } = useT();
+  const reducedMotion = useReducedMotion();
   const [search, setSearch] = useState('');
   const [gridView, setGridView] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -565,10 +568,11 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           {showFilters && (
             <motion.div
               className={styles.tagBar}
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.15 }}
+              initial={reducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+              animate={reducedMotion ? { opacity: 1 } : { height: 'auto', opacity: 1 }}
+              exit={reducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+              transition={reducedMotion ? { duration: 0 } : { duration: dur.dropdown, ease: easeOut }}
+              style={{ overflow: 'hidden' }}
             >
               <div className={styles.tagList}>
                 {activeTag && (
@@ -654,20 +658,38 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
           ) : allMods.length === 0 ? (
             <motion.div
               className={styles.empty}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.98 }}
+              animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: dur.modal, ease: easeOut }}
             >
               <Package size={48} className={styles.emptyIcon} />
               <h2>{view === 'installed' ? t('modlist.empty.noInstalled') : t('modlist.empty.noResults')}</h2>
               <p>{view === 'installed' ? t('modlist.empty.noInstalled.hint') : t('modlist.empty.noResults.hint')}</p>
             </motion.div>
           ) : gridView ? (
-            <div className={styles.grid}>
+            <motion.div
+              className={styles.grid}
+              variants={stagger(0, reducedMotion ? 0 : 0.02)}
+              initial="initial"
+              animate="animate"
+              /* Re-run the stagger on key change so switching
+                 available↔installed always replays the cascade. */
+              key={`grid-${view}-${search}-${sortBy}-${activeTag ?? ''}`}
+            >
               {visibleMods.map((mod) => (
-                <div
+                <motion.div
                   key={mod.identifier}
                   className={`${styles.modCard} ${selectedMod?.identifier === mod.identifier ? styles.modCardSelected : ''}`}
                   onClick={() => setSelectedMod(mod)}
+                  variants={{
+                    initial: reducedMotion ? { opacity: 0 } : { opacity: 0, y: 10 },
+                    animate: reducedMotion
+                      ? { opacity: 1 }
+                      : { opacity: 1, y: 0, transition: { duration: dur.pop, ease: easeOut } },
+                  }}
+                  whileTap={reducedMotion ? undefined : { scale: 0.98 }}
+                  whileHover={reducedMotion ? undefined : { y: -2 }}
+                  transition={{ duration: dur.press, ease: easeOut }}
                 >
                   <div className={styles.modCardHeader}>
                     <div className={styles.modIcon}>
@@ -695,11 +717,17 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                     <User size={11} />
                     {mod.author.slice(0, 2).join(', ')}
                   </div>
-                </div>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           ) : (
-            <div className={styles.list}>
+            <motion.div
+              className={styles.list}
+              variants={stagger(0, reducedMotion ? 0 : 0.018)}
+              initial="initial"
+              animate="animate"
+              key={`list-${view}-${search}-${sortBy}-${activeTag ?? ''}`}
+            >
               <div className={styles.listHeader}>
                 <span className={styles.listColIcon}></span>
                 <span className={styles.listColName}>{t('modlist.col.name')}</span>
@@ -710,10 +738,16 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                 <span className={styles.listColAction}></span>
               </div>
               {visibleMods.map((mod) => (
-                <div
+                <motion.div
                   key={mod.identifier}
                   className={`${styles.modRow} ${selectedMod?.identifier === mod.identifier ? styles.modRowSelected : ''}`}
                   onClick={() => setSelectedMod(mod)}
+                  variants={{
+                    initial: reducedMotion ? { opacity: 0 } : { opacity: 0, x: -8 },
+                    animate: reducedMotion
+                      ? { opacity: 1 }
+                      : { opacity: 1, x: 0, transition: { duration: dur.pop, ease: easeOut } },
+                  }}
                 >
                   <span className={styles.listColIcon}>
                     <div className={styles.modRowIcon}><Package size={16} /></div>
@@ -727,19 +761,21 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
                   <span className={styles.listColDl}>{registryService.formatDownloads(mod.download_count)}</span>
                   <span className={styles.listColSize}>{registryService.formatSize(mod.download_size)}</span>
                   <span className={styles.listColAction}>
-                    <button
+                    <motion.button
                       className={`${styles.installBtn} ${registryService.isInstalled(mod.identifier) ? styles.removeBtn : ''}`}
                       onClick={(e) => { e.stopPropagation(); handleInstall(mod); }}
                       disabled={installingIds.has(mod.identifier)}
+                      whileTap={reducedMotion || installingIds.has(mod.identifier) ? undefined : { scale: 0.94 }}
+                      transition={{ duration: dur.press, ease: easeOut }}
                     >
                       {installingIds.has(mod.identifier) ? (
                         <><Loader2 size={12} className={styles.spin} /> {t('modlist.working')}</>
                       ) : registryService.isInstalled(mod.identifier) ? t('modlist.remove') : t('modlist.install')}
-                    </button>
+                    </motion.button>
                   </span>
-                </div>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           )}
 
           {displayCount < allMods.length && !isLoading && (
@@ -862,19 +898,22 @@ export default function ModListPage({ view, onInstallChange, installTick }: ModL
         )}
       </AnimatePresence>
 
-      {/* Install Status Toast */}
+      {/* Install Status Toast — slides up from bottom, snappier with custom curve */}
       <AnimatePresence>
         {installStatus && (
           <motion.div
             className={`${styles.toast} ${installStatus.type === 'error' ? styles.toastError : styles.toastSuccess}`}
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 40 }}
-            transition={{ duration: 0.2 }}
+            initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.96 }}
+            animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.98 }}
+            transition={reducedMotion ? { duration: 0 } : { duration: dur.modal, ease: easeOut }}
+            style={{ transformOrigin: 'bottom center' }}
+            role="status"
+            aria-live="polite"
           >
             {installStatus.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
             <span>{installStatus.msg}</span>
-            <button className={styles.toastClose} onClick={() => setInstallStatus(null)}><X size={14} /></button>
+            <button className={styles.toastClose} onClick={() => setInstallStatus(null)} aria-label="Dismiss"><X size={14} /></button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -889,14 +928,15 @@ function ModDetailPanel({
   mod: CkanModule; onClose: () => void; onInstall: () => void; installing?: boolean;
 }) {
   const { t } = useT();
+  const reducedMotion = useReducedMotion();
   const installed = registryService.isInstalled(mod.identifier);
   return (
     <motion.aside
       className={styles.detailPanel}
-      initial={{ width: 0, opacity: 0 }}
-      animate={{ width: 380, opacity: 1 }}
-      exit={{ width: 0, opacity: 0 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
+      initial={reducedMotion ? { opacity: 0 } : { x: 24, opacity: 0 }}
+      animate={reducedMotion ? { opacity: 1 } : { x: 0, opacity: 1 }}
+      exit={reducedMotion ? { opacity: 0 } : { x: 24, opacity: 0 }}
+      transition={reducedMotion ? { duration: 0 } : spring.snappy}
     >
       <div className={styles.detailHeader}>
         <h2 className={styles.detailTitle}>{mod.name}</h2>
@@ -986,15 +1026,17 @@ function ModDetailPanel({
         )}
       </div>
       <div className={styles.detailFooter}>
-        <button
+        <motion.button
           className={`${styles.detailInstallBtn} ${installed ? styles.detailRemoveBtn : ''}`}
           onClick={onInstall}
           disabled={installing}
+          whileTap={reducedMotion || installing ? undefined : { scale: 0.97 }}
+          transition={{ duration: dur.press, ease: easeOut }}
         >
           {installing ? (
             <><Loader2 size={14} className={styles.spin} /> {t('modlist.working')}</>
           ) : installed ? t('modlist.uninstall') : t('modlist.installMod')}
-        </button>
+        </motion.button>
       </div>
     </motion.aside>
   );

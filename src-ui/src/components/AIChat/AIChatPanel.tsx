@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Bot, User, Loader2, Sparkles, Download, Trash2, Search, RefreshCw, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
 import { aiService, AI_PROVIDERS, getCustomApiKey, getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel, chatWithCustomProvider, getOllamaUrl, setOllamaUrl, checkOllamaStatus } from '../../services/ai';
 import type { ChatMessage, CustomProvider } from '../../services/ai';
@@ -8,6 +8,8 @@ import type { ChatMsg } from '../../services/chatStore';
 import { supabase } from '../../services/supabase';
 import ckanIpc from '../../services/ipc';
 import { useT } from '../../i18n';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { easeOut, dur, spring, stagger } from '../../styles/motion';
 import styles from './AIChatPanel.module.css';
 
 const DAILY_LIMIT = 20;
@@ -18,6 +20,7 @@ interface AIChatPanelProps {
 
 export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   const { t } = useT();
+  const reducedMotion = useReducedMotion();
   // Use persistent chat store
   const messages = useSyncExternalStore(chatStore.subscribe, chatStore.get);
 
@@ -372,10 +375,10 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
   return (
     <motion.aside
       className={styles.panel}
-      initial={{ width: 0, opacity: 0 }}
-      animate={{ width: 320, opacity: 1 }}
-      exit={{ width: 0, opacity: 0 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
+      initial={reducedMotion ? { opacity: 0 } : { x: 24, opacity: 0 }}
+      animate={reducedMotion ? { opacity: 1 } : { x: 0, opacity: 1 }}
+      exit={reducedMotion ? { opacity: 0 } : { x: 24, opacity: 0 }}
+      transition={reducedMotion ? { duration: 0 } : spring.snappy}
     >
       {/* Header */}
       <div className={styles.header}>
@@ -387,9 +390,15 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             <span className={styles.pointsBadge}>{remainingToday ?? DAILY_LIMIT}/{DAILY_LIMIT}</span>
           )}
         </div>
-        <button className={styles.closeBtn} onClick={onClose} title="Close">
+        <motion.button
+          className={styles.closeBtn}
+          onClick={onClose}
+          title="Close"
+          whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+          transition={{ duration: dur.press, ease: easeOut }}
+        >
           <X size={16} />
-        </button>
+        </motion.button>
       </div>
 
       {/* Model Selector — always visible */}
@@ -513,43 +522,72 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
       </div>
 
       {/* Messages */}
-      <div className={styles.messages}>
-        {messages.map((msg) => (
-          <motion.div
-            key={msg.id}
-            className={`${styles.message} ${styles[msg.role]}`}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <div className={styles.messageAvatar}>
-              {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
-            </div>
-            <div className={styles.messageContent}>
-              <div className={styles.messageText}>{renderMarkdown(msg.content)}</div>
-            </div>
-          </motion.div>
-        ))}
-
-        {isLoading && (
-          <motion.div
-            className={`${styles.message} ${styles.assistant}`}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className={styles.messageAvatar}>
-              <Bot size={14} />
-            </div>
-            <div className={styles.messageContent}>
-              <div className={styles.typingIndicator}>
-                <span /><span /><span />
+      <motion.div
+        className={styles.messages}
+        variants={stagger(0, 0.04)}
+        initial="initial"
+        animate="animate"
+      >
+        <AnimatePresence initial={false}>
+          {messages.map((msg) => (
+            <motion.div
+              key={msg.id}
+              className={`${styles.message} ${styles[msg.role]}`}
+              variants={{
+                initial: reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 },
+                animate: reducedMotion
+                  ? { opacity: 1 }
+                  : { opacity: 1, y: 0, transition: { duration: dur.pop, ease: easeOut } },
+                exit: reducedMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, y: -4, transition: { duration: dur.press, ease: easeOut } },
+              }}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              layout="position"
+            >
+              <div className={styles.messageAvatar}>
+                {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
               </div>
-            </div>
-          </motion.div>
-        )}
+              <div className={styles.messageContent}>
+                <div className={styles.messageText}>{renderMarkdown(msg.content)}</div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {isLoading && (
+            <motion.div
+              className={`${styles.message} ${styles.assistant}`}
+              variants={{
+                initial: reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 },
+                animate: reducedMotion
+                  ? { opacity: 1 }
+                  : { opacity: 1, y: 0, transition: { duration: dur.pop, ease: easeOut } },
+                exit: reducedMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, transition: { duration: dur.press, ease: easeOut } },
+              }}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+            >
+              <div className={styles.messageAvatar}>
+                <Bot size={14} />
+              </div>
+              <div className={styles.messageContent}>
+                <div className={styles.typingIndicator}>
+                  <span /><span /><span />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div ref={messagesEndRef} />
-      </div>
+      </motion.div>
 
       {/* Input */}
       <div className={styles.inputArea}>
@@ -564,13 +602,34 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
             rows={1}
             disabled={isLoading}
           />
-          <button
+          <motion.button
             className={styles.sendBtn}
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
+            whileTap={reducedMotion || !input.trim() || isLoading ? undefined : { scale: 0.9 }}
+            whileHover={reducedMotion || !input.trim() || isLoading ? undefined : { scale: 1.05 }}
+            animate={
+              // Subtle breath when idle and ready; flat when disabled.
+              !input.trim() || isLoading
+                ? { scale: 1 }
+                : { scale: 1 }
+            }
+            transition={{ duration: dur.press, ease: easeOut }}
+            aria-label="Send message"
           >
-            {isLoading ? <Loader2 size={16} className={styles.spin} /> : <Send size={16} />}
-          </button>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={isLoading ? 'loading' : 'send'}
+                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.5, rotate: -45 }}
+                animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, rotate: 0 }}
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.5, rotate: 45 }}
+                transition={{ duration: dur.pop, ease: easeOut }}
+                style={{ display: 'inline-flex' }}
+              >
+                {isLoading ? <Loader2 size={16} className={styles.spin} /> : <Send size={16} />}
+              </motion.span>
+            </AnimatePresence>
+          </motion.button>
         </div>
         <div className={styles.inputHint}>
           {curProvider === 'ckan-cloud'
@@ -579,16 +638,30 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
         </div>
       </div>
 
-      {/* AI Action Confirmation Dialog */}
-      {pendingActions.length > 0 && (
-        <div className={styles.confirmOverlay}>
-          <div className={styles.confirmDialog}>
-            <div className={styles.confirmHeader}>
-              <AlertTriangle size={16} />
-              <span>Confirm AI Actions</span>
-            </div>
-            <div className={styles.confirmBody}>
-              <p>The AI wants to perform the following actions:</p>
+      {/* AI Action Confirmation Dialog — modal with backdrop + spring */}
+      <AnimatePresence>
+        {pendingActions.length > 0 && (
+          <motion.div
+            className={styles.confirmOverlay}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: dur.press, ease: 'linear' }}
+          >
+            <motion.div
+              className={styles.confirmDialog}
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 8 }}
+              animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97 }}
+              transition={reducedMotion ? { duration: 0 } : { duration: dur.modal, ease: easeOut }}
+              style={{ transformOrigin: 'center' }}
+            >
+              <div className={styles.confirmHeader}>
+                <AlertTriangle size={16} />
+                <span>Confirm AI Actions</span>
+              </div>
+              <div className={styles.confirmBody}>
+                <p>The AI wants to perform the following actions:</p>
               <ul className={styles.confirmList}>
                 {pendingActions.map((a, i) => (
                   <li key={i}>
@@ -600,12 +673,27 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
               </ul>
             </div>
             <div className={styles.confirmActions}>
-              <button className={styles.confirmDeny} onClick={dismissPendingActions}>Cancel</button>
-              <button className={styles.confirmAllow} onClick={confirmPendingActions}>Allow</button>
+              <motion.button
+                className={styles.confirmDeny}
+                onClick={dismissPendingActions}
+                whileTap={reducedMotion ? undefined : { scale: 0.97 }}
+                transition={{ duration: dur.press, ease: easeOut }}
+              >
+                Cancel
+              </motion.button>
+              <motion.button
+                className={styles.confirmAllow}
+                onClick={confirmPendingActions}
+                whileTap={reducedMotion ? undefined : { scale: 0.97 }}
+                transition={{ duration: dur.press, ease: easeOut }}
+              >
+                Allow
+              </motion.button>
             </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.aside>
   );
 }

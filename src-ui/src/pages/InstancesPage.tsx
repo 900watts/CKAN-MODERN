@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Gamepad2, Folder, X, Trash2, AlertCircle, RefreshCw, Loader2, Check } from 'lucide-react';
 import ckanIpc from '../services/ipc';
 import { useT } from '../i18n';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { easeOut, dur, stagger } from '../styles/motion';
 import styles from './InstancesPage.module.css';
 
 interface BackendInstance {
@@ -16,6 +18,7 @@ interface BackendInstance {
 
 export default function InstancesPage() {
   const { t } = useT();
+  const reducedMotion = useReducedMotion();
   const [instances, setInstances] = useState<BackendInstance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -154,9 +157,10 @@ export default function InstancesPage() {
             <motion.div
               className={styles.statusBanner}
               data-error={refreshStatus.toLowerCase().includes('fail') || refreshStatus.toLowerCase().includes('error') ? '' : undefined}
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -10 }}
+              animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -10 }}
+              transition={{ duration: dur.dropdown, ease: easeOut }}
             >
               {isRefreshing && <Loader2 size={12} className={styles.spin} />}
               {refreshStatus}
@@ -169,9 +173,11 @@ export default function InstancesPage() {
           {showAddForm && (
             <motion.div
               className={styles.formCard}
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
+              animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+              transition={{ duration: dur.dropdown, ease: easeOut }}
+              style={{ transformOrigin: 'top center' }}
             >
               <div className={styles.formHeader}>
                 <h3>{t('instances.add')}</h3>
@@ -244,13 +250,26 @@ export default function InstancesPage() {
             <Loader2 size={32} className={styles.spin} style={{ color: 'var(--color-text-secondary)' }} />
           </div>
         ) : instances.length > 0 ? (
-          <div className={styles.instanceList}>
+          <motion.div
+            className={styles.instanceList}
+            variants={stagger(0, reducedMotion ? 0 : 0.04)}
+            initial="initial"
+            animate="animate"
+            /* Re-run stagger on instances list change */
+            key={instances.map(i => i.name).join('|')}
+          >
             {instances.map((inst) => (
               <motion.div
                 key={inst.name}
                 className={`${styles.instanceCard} ${inst.active ? styles.instanceCardActive : ''}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+                variants={{
+                  initial: reducedMotion ? { opacity: 0 } : { opacity: 0, y: 10 },
+                  animate: reducedMotion
+                    ? { opacity: 1 }
+                    : { opacity: 1, y: 0, transition: { duration: dur.pop, ease: easeOut } },
+                }}
+                whileTap={reducedMotion || inst.active ? undefined : { scale: 0.98 }}
+                transition={{ duration: dur.press, ease: easeOut }}
                 onClick={() => !inst.active && handleSetActive(inst.name)}
                 style={{ cursor: inst.active ? 'default' : 'pointer' }}
               >
@@ -281,12 +300,13 @@ export default function InstancesPage() {
                 </button>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         ) : !showAddForm ? (
           <motion.div
             className={styles.empty}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.98 }}
+            animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: dur.modal, ease: easeOut }}
           >
             <Gamepad2 size={48} className={styles.emptyIcon} />
             <h2>{t('instances.noInstances')}</h2>
