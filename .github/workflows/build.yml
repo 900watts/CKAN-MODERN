@@ -30,6 +30,31 @@ jobs:
             _build/lib/nuget
             ~/.nuget/packages
           key: nuget-oldref-modules-${{ hashFiles('**/packages.config') }}-${{ hashFiles('**/*.csproj') }}
+
+      # ─── Frontend (React + TypeScript + Vite) ───
+      # The .NET build bundles the React output from src-ui into CKAN/wwwroot,
+      # so we must build the frontend first. The dedicated frontend-ci.yml
+      # workflow also runs lint + typecheck on every PR; here we just build.
+      - name: Setup Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src-ui/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: src-ui
+        run: npm ci
+      - name: Build frontend (Vite → CKAN/wwwroot)
+        working-directory: src-ui
+        run: npm run build
+      - name: Verify wwwroot was produced
+        shell: bash
+        run: |
+          if [ ! -f CKAN/wwwroot/index.html ]; then
+            echo "::error::CKAN/wwwroot/index.html missing after Vite build"
+            exit 1
+          fi
+
       - name: Build ckan.exe and netkan.exe
         run: ./build.sh --configuration=${{ inputs.configuration }}
       - name: Upload repack artifact

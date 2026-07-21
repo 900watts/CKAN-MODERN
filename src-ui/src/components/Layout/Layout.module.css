@@ -16,6 +16,8 @@
 }
 
 /* ─── Navigation Rail ─── */
+/* width/min-width are now animated by Framer Motion in the component.
+   No CSS transition needed — would cause double-animation jank. */
 .navRail {
   display: flex;
   flex-direction: column;
@@ -26,9 +28,10 @@
   background: var(--color-bg-surface);
   border-right: 1px solid var(--color-border);
   padding: 12px 8px;
-  transition: width 0.2s ease, min-width 0.2s ease;
   z-index: 10;
   position: relative;
+  /* Will-change helps GPU composite the width change */
+  will-change: width;
 }
 
 .navRailCollapsed {
@@ -88,7 +91,6 @@
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
   white-space: nowrap;
   overflow: hidden;
   text-align: left;
@@ -96,6 +98,11 @@
   font-family: inherit;
   font-size: 13px;
   position: relative;
+  /* Framer Motion handles press; this is for color/background only.
+     Specify exact properties — never `all`. */
+  transition: background-color var(--dur-pop) ease,
+              color var(--dur-pop) ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .navItem:hover {
@@ -104,8 +111,18 @@
 }
 
 .navItemActive {
-  background: var(--color-bg-elevated);
   color: var(--color-accent-primary);
+}
+
+/* Animated active indicator — slides between items via Framer layoutId.
+   Sits behind the icon/label. */
+.navIndicator {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  z-index: -1;
+  pointer-events: none;
 }
 
 .navIcon {
@@ -149,6 +166,22 @@
   overflow: auto;
   height: 100%;
   min-width: 0;
+}
+
+/* Page transition wrapper — wraps every page in an AnimatePresence.
+   Takes full available height so children can fill. */
+.pageWrapper {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Hover effects should only fire on devices that actually support hover. */
+@media (hover: hover) and (pointer: fine) {
+  .navItem:hover {
+    background: var(--color-bg-elevated);
+    color: var(--color-text-primary);
+  }
 }
 
 /* ─── Status Bar ─── */
@@ -283,12 +316,12 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  /* Press scale handled globally by motion.css. Here we add hover dim only. */
   font-family: inherit;
 }
 
 .cliInstallBtn:hover:not(:disabled) {
-  opacity: 0.85;
+  filter: brightness(0.88);
 }
 
 .cliInstallBtn:disabled {

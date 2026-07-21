@@ -7,12 +7,9 @@
   border-bottom: 1px solid rgba(134, 59, 255, 0.25);
   font-size: 13px;
   gap: 12px;
-  animation: slideDown 0.3s ease;
-}
-
-@keyframes slideDown {
-  from { transform: translateY(-100%); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+  /* Enter/exit now handled by Framer Motion in the component. */
+  transform-origin: top center;
+  will-change: transform, opacity;
 }
 
 .content {
@@ -20,6 +17,15 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+/* Wrapper for the download icon — animated wobble while updating. */
+.iconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transform-origin: center;
 }
 
 .icon {
@@ -120,5 +126,5 @@
   height: 100%;
   background: var(--color-accent-primary, #863bff);
   border-radius: 2px;
-  transition: width 0.3s ease;
+  /* width is now animated by Framer Motion in the component. */
 }

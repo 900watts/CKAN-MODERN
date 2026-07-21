@@ -1,0 +1,72 @@
+# Frontend CI for src-ui (React + TypeScript + Vite)
+#
+# Runs on every push and PR that touches the frontend.
+# Performs: install (cached), typecheck, lint, production build.
+# Produces a build artifact that the main build.yml can also re-use.
+
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src-ui/**'
+      - '.github/workflows/frontend-ci.yml'
+      - 'src-ui/package.json'
+      - 'src-ui/package-lock.json'
+  pull_request:
+    branches: [main, master, develop]
+    paths:
+      - 'src-ui/**'
+      - '.github/workflows/frontend-ci.yml'
+      - 'src-ui/package.json'
+      - 'src-ui/package-lock.json'
+  workflow_call:  # reusable for the main build workflow
+  workflow_dispatch:
+
+# Cancel in-flight runs on the same branch to save CI minutes.
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Install · Lint · Typecheck · Build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      # Vite is mostly deterministic, but killing telemetry keeps logs clean.
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src-ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src-ui
+        run: npm ci
+
+      - name: Lint
+        working-directory: src-ui
+        run: npm run lint
+
+      - name: Typecheck + Production build
+        working-directory: src-ui
+        run: npm run build
+
+      # The Vite build emits to ../CKAN/wwwroot (see src-ui/vite.config.ts).
+      # Upload that as an artifact so the main build.yml can consume it
+      # without re-running npm install.
+      - name: Upload wwwroot bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-wwwroot
+          path: CKAN/wwwroot
+          retention-days: 3
+          if-no-files-found: error
