@@ -1,40 +1,33 @@
 <Project>
   <!--
-    ============================================================================
     Temporary: silence NuGet audit warnings (NU1902, NU1903, NU1904) that are
-    currently being treated as errors due to <TreatWarningsAsErrors>true</
-    TreatWarningsAsErrors> in build/Build.csproj.
+    currently being treated as errors due to TreatWarningsAsErrors=true in
+    build/Build.csproj.
 
-    WHY THIS EXISTS
-    ---------------
+    Why this exists
     The project pins log4net 2.0.15, which has GHSA-4f7c-pmjv-c25w
     (moderate severity). All GitHub releases have been failing since
     2026-05-16 (build-27) for this reason. The animation-pass release
     pipeline inherits the same failure.
 
     This file unblocks the release pipeline WITHOUT hiding the warnings
-    from the build log -- <WarningsNotAsErrors> only stops the "warning as
+    from the build log. WarningsNotAsErrors only stops the "warning as
     error" promotion. The audit still runs and still emits the warning,
-    so it remains visible for the actual remediation (bumping log4net to
-    a non-vulnerable version).
+    so it remains visible for the actual remediation (bumping log4net
+    to a non-vulnerable version).
 
-    REMEDIATION (TODO before this file can be deleted)
-    -------------------------------------------------
+    Remediation (TODO before this file can be deleted)
     1. Bump log4net 2.0.15 to a non-vulnerable version. The 2.0.x line
        appears abandoned; the latest is 3.3.2 as of 2026-07. log4net 3.x
        is a major-version jump with API changes (assembly loading,
-       XmlConfigurator semantics) -- needs a focused PR with QA.
+       XmlConfigurator semantics) that needs a focused PR with QA.
     2. Audit other pinned packages for similar vulnerabilities.
-    3. Delete this file once `dotnet restore` produces no NU1902/1903/1904.
+    3. Delete this file once dotnet restore produces no NU1902/1903/1904.
 
     Until then, do not remove this file or the release pipeline will
     start failing again.
-    ============================================================================
   -->
   <PropertyGroup>
-    <!-- Demote NuGet audit warnings from errors back to warnings.
-         The audit still runs, the messages still print in CI logs,
-         the build no longer fails. See the file header above. -->
     <WarningsNotAsErrors>NU1902;NU1903;NU1904</WarningsNotAsErrors>
   </PropertyGroup>
 </Project>
