@@ -31,6 +31,17 @@ jobs:
             ~/.nuget/packages
           key: nuget-oldref-modules-${{ hashFiles('**/packages.config') }}-${{ hashFiles('**/*.csproj') }}
 
+      # Pin the .NET SDK to 8.0. The project targets net8.0 (cake build)
+      # and net481 (legacy WPF/WinForms). The default ubuntu-22.04
+      # runner image now ships .NET 10, which is incompatible with
+      # microsoft.netframework.referenceassemblies.net481 1.0.3 and
+      # produces MSB3644 (reference assemblies not found). Pinning
+      # to 8.0.x gives the Cake build the toolchain it expects.
+      - name: Setup .NET SDK 8.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
       # ─── Frontend (React + TypeScript + Vite) ───
       # The .NET build bundles the React output from src-ui into CKAN/wwwroot,
       # so we must build the frontend first. The dedicated frontend-ci.yml
@@ -107,6 +118,10 @@ jobs:
         with:
           name: ${{ inputs.configuration }}-out-unsigned
           path: _build/out/
+      - name: Setup .NET SDK 8.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
       - name: Build CKAN.app
         run: |
           chmod a+x _build/out/Build/*/bin/net8.0/Build _build/out/Build/*/obj/*/net8.0/apphost
