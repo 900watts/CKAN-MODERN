@@ -295,6 +295,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        # gh CLI needs a git context to create the release when
+        # the matching tag doesn't already exist. Without checkout,
+        # "gh release create" fails with "fatal: not a git
+        # repository" (verified in run 29905624453, fixed here).
+
       - name: Download CKAN-M.exe (lite)
         uses: actions/download-artifact@v5
         with:
