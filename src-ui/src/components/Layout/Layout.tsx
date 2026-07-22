@@ -1,21 +1,25 @@
-import { useState, useEffect } from 'react';
-import { AnimatePresence } from 'framer-motion';
-import { Bot, Download, FolderOpen, Package, Settings, Database, PanelLeftClose, PanelLeftOpen, Terminal, Loader2, X } from 'lucide-react';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Bot, Download, FolderOpen, Package, Settings, Database, ChevronRight } from 'lucide-react';
 import AIChatPanel from '../AIChat/AIChatPanel';
-import UpdateBanner from '../UpdateBanner/UpdateBanner';
-import { registryService } from '../../services/registry';
-import ckanIpc from '../../services/ipc';
-import { useT } from '../../i18n';
 import styles from './Layout.module.css';
 
-export type NavItem = 'available' | 'installed' | 'downloads' | 'instances' | 'repos' | 'settings';
+type NavItem = 'available' | 'installed' | 'downloads' | 'instances' | 'repos' | 'settings';
 
 interface NavItemDef {
   id: NavItem;
   label: string;
   icon: React.ReactNode;
-  badge?: string | number;
 }
+
+const navItems: NavItemDef[] = [
+  { id: 'available', label: 'Available', icon: <Package size={20} /> },
+  { id: 'installed', label: 'Installed', icon: <FolderOpen size={20} /> },
+  { id: 'downloads', label: 'Downloads', icon: <Download size={20} /> },
+  { id: 'instances', label: 'Instances', icon: <Database size={20} /> },
+  { id: 'repos', label: 'Repos', icon: <ChevronRight size={20} /> },
+  { id: 'settings', label: 'Settings', icon: <Settings size={20} /> },
+];
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,226 +28,89 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, activePage = 'available', onNavigate }: LayoutProps) {
-  const { t } = useT();
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [navExpanded, setNavExpanded] = useState(true);
-  const [modCount, setModCount] = useState(0);
-  const [installedCount, setInstalledCount] = useState(0);
-
-  // Fetch the real installed count from the backend
-  const refreshInstalledCount = () => {
-    if (!ckanIpc.isConnected()) return;
-    ckanIpc.call<any, any>('mod:list-installed', {}).then((result) => {
-      if (result?.mods && Array.isArray(result.mods)) {
-        setInstalledCount(result.mods.length);
-      }
-    }).catch((err) => console.warn('[Layout] Failed to refresh installed count:', err));
-  };
-
-  useEffect(() => {
-    registryService.load().then(() => {
-      setModCount(registryService.getModuleCount());
-    });
-    refreshInstalledCount();
-  }, []);
-
-  // Listen for any event that changes counts and re-fetch from backend
-  useEffect(() => {
-    const unsub1 = ckanIpc.on('instance:switched', (data: any) => {
-      registryService.clearInstalled();
-      if (data?.modCount != null) setModCount(data.modCount);
-      if (data?.installedCount != null) setInstalledCount(data.installedCount);
-    });
-    const unsub2 = ckanIpc.on('repo:refresh-complete', (data: any) => {
-      if (data?.modCount != null) setModCount(data.modCount);
-      // Installed count may also change after refresh
-      refreshInstalledCount();
-    });
-    // After install/uninstall completes, re-fetch the real count from backend
-    // (don't do naive +1/-1 — installs bring dependencies, count can jump)
-    const unsub3 = ckanIpc.on('install:complete', () => {
-      refreshInstalledCount();
-    });
-    const unsub4 = ckanIpc.on('uninstall:complete', () => {
-      refreshInstalledCount();
-    });
-    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
-  }, []);
-
-  const [cliError, setCliError] = useState('');
-  const [showCliPanel, setShowCliPanel] = useState(false);
-  const [cliDownloading, setCliDownloading] = useState(false);
-
-  const handleOpenCli = async () => {
-    setCliError('');
-    try {
-      const result = await ckanIpc.call<any, any>('app:open-cli');
-      if (result && !result.success) {
-        if (result.notInstalled) {
-          setShowCliPanel(true);
-        } else {
-          setCliError(result.error || t('nav.cliNotFound'));
-          setTimeout(() => setCliError(''), 5000);
-        }
-      }
-    } catch {
-      setShowCliPanel(true);
-    }
-  };
-
-  const handleDownloadCli = async () => {
-    setCliDownloading(true);
-    setCliError('');
-    try {
-      const result = await ckanIpc.call<any, any>('app:download-cli');
-      if (result?.success) {
-        setShowCliPanel(false);
-        // Auto-open CLI after download
-        handleOpenCli();
-      } else {
-        setCliError(result?.error || 'Download failed');
-      }
-    } catch (err) {
-      setCliError(err instanceof Error ? err.message : 'Download failed');
-    } finally {
-      setCliDownloading(false);
-    }
-  };
-
-  const navItems: NavItemDef[] = [
-    { id: 'available', label: t('nav.available'), icon: <Package size={20} />, badge: modCount || undefined },
-    { id: 'installed', label: t('nav.installed'), icon: <FolderOpen size={20} />, badge: installedCount || undefined },
-    { id: 'downloads', label: t('nav.downloads'), icon: <Download size={20} /> },
-    { id: 'instances', label: t('nav.instances'), icon: <Database size={20} /> },
-    { id: 'settings', label: t('nav.settings'), icon: <Settings size={20} /> },
-  ];
 
   return (
     <div className={styles.layout}>
-      <UpdateBanner />
-      <div className={styles.body}>
-        {/* Navigation Rail */}
-        <nav className={`${styles.navRail} ${navExpanded ? '' : styles.navRailCollapsed}`}>
-          <div className={styles.navTop}>
-            <div className={styles.logo}>
-              <span className={styles.logoText}>CKAN</span>
-              {navExpanded && <span className={styles.logoBadge}>MOD</span>}
-            </div>
+      {/* Navigation Rail */}
+      <nav className={styles.navRail}>
+        <div className={styles.navTop}>
+          <div className={styles.logo}>
+            <span className={styles.logoText}>CKAN</span>
+            {navExpanded && <span className={styles.logoBadge}>MOD</span>}
+          </div>
 
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                className={`${styles.navItem} ${activePage === item.id ? styles.navItemActive : ''}`}
-                onClick={() => onNavigate?.(item.id)}
-                title={item.label}
-              >
-                <span className={styles.navIcon}>{item.icon}</span>
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              className={`${styles.navItem} ${activePage === item.id ? styles.navItemActive : ''}`}
+              onClick={() => onNavigate?.(item.id)}
+              title={item.label}
+            >
+              <span className={styles.navIcon}>{item.icon}</span>
+              <AnimatePresence>
                 {navExpanded && (
-                  <span className={styles.navLabel}>{item.label}</span>
-                )}
-                {navExpanded && item.badge !== undefined && (
-                  <span className={styles.navBadge}>{item.badge}</span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div className={styles.navBottom}>
-            <button
-              className={styles.navItem}
-              onClick={handleOpenCli}
-              title={t('nav.openCli')}
-            >
-              <span className={styles.navIcon}><Terminal size={20} /></span>
-              {navExpanded && <span className={styles.navLabel}>{t('nav.openCli')}</span>}
-            </button>
-
-            <button
-              className={`${styles.navItem} ${aiPanelOpen ? styles.navItemActive : ''}`}
-              onClick={() => setAiPanelOpen(!aiPanelOpen)}
-              title={t('nav.aiAssistant')}
-            >
-              <span className={styles.navIcon}><Bot size={20} /></span>
-              {navExpanded && <span className={styles.navLabel}>{t('nav.aiAssistant')}</span>}
-            </button>
-
-            <button
-              className={styles.navItem}
-              onClick={() => setNavExpanded(!navExpanded)}
-              title={navExpanded ? t('nav.collapse') : t('nav.expand')}
-            >
-              <span className={styles.navIcon}>
-                {navExpanded ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
-              </span>
-              {navExpanded && <span className={styles.navLabel}>{t('nav.collapse')}</span>}
-            </button>
-          </div>
-        </nav>
-
-        {/* Main Content */}
-        <main className={styles.main}>
-          <div className={styles.content}>
-            {children}
-          </div>
-
-          {/* CLI Install Panel */}
-          {showCliPanel && (
-            <div className={styles.cliOverlay}>
-              <div className={styles.cliPanel}>
-                <div className={styles.cliPanelHeader}>
-                  <Terminal size={18} />
-                  <span>{t('nav.cliTitle')}</span>
-                  <button className={styles.cliPanelClose} onClick={() => { setShowCliPanel(false); setCliError(''); }}>
-                    <X size={14} />
-                  </button>
-                </div>
-                <div className={styles.cliPanelBody}>
-                  <p>{t('nav.cliDesc')}</p>
-                  <ul>
-                    <li>{t('nav.cliFeature1')}</li>
-                    <li>{t('nav.cliFeature2')}</li>
-                    <li>{t('nav.cliFeature3')}</li>
-                  </ul>
-                  {cliError && <div className={styles.cliError}>{cliError}</div>}
-                </div>
-                <div className={styles.cliPanelFooter}>
-                  <button
-                    className={styles.cliInstallBtn}
-                    onClick={handleDownloadCli}
-                    disabled={cliDownloading}
+                  <motion.span
+                    className={styles.navLabel}
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: 'auto' }}
+                    exit={{ opacity: 0, width: 0 }}
+                    transition={{ duration: 0.15 }}
                   >
-                    {cliDownloading ? (
-                      <><Loader2 size={14} className={styles.spin} /> {t('nav.cliDownloading')}</>
-                    ) : (
-                      <><Download size={14} /> {t('nav.cliInstall')}</>
-                    )}
-                  </button>
-                  <button className={styles.cliCancelBtn} onClick={() => { setShowCliPanel(false); setCliError(''); }}>
-                    {t('common.cancel')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+                    {item.label}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          ))}
+        </div>
 
-          {/* AI Panel */}
-          <AnimatePresence>
-            {aiPanelOpen && (
-              <AIChatPanel onClose={() => setAiPanelOpen(false)} />
-            )}
-          </AnimatePresence>
-        </main>
-      </div>
+        <div className={styles.navBottom}>
+          <button
+            className={`${styles.navItem} ${aiPanelOpen ? styles.navItemActive : ''}`}
+            onClick={() => setAiPanelOpen(!aiPanelOpen)}
+            title="AI Assistant"
+          >
+            <span className={styles.navIcon}><Bot size={20} /></span>
+            <AnimatePresence>
+              {navExpanded && (
+                <motion.span
+                  className={styles.navLabel}
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  AI
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </button>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className={`${styles.main} ${aiPanelOpen ? styles.mainWithAi : ''}`}>
+        <div className={styles.content}>
+          {children}
+        </div>
+
+        {/* AI Panel */}
+        <AnimatePresence>
+          {aiPanelOpen && (
+            <AIChatPanel onClose={() => setAiPanelOpen(false)} />
+          )}
+        </AnimatePresence>
+      </main>
 
       {/* Status Bar */}
       <footer className={styles.statusBar}>
         <div className={styles.statusLeft}>
           <span className={styles.statusDot} />
-          <span>{modCount > 0 ? t('nav.modsLoaded', { count: modCount.toLocaleString() }) : t('nav.loadingRegistry')}</span>
+          <span>Ready</span>
         </div>
         <div className={styles.statusRight}>
-          <span>{t('nav.installed.count', { count: installedCount })}</span>
-          <span className={styles.statusSep}>|</span>
           <span>v2.0.0-dev</span>
         </div>
       </footer>

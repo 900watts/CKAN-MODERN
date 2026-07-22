@@ -43,16 +43,6 @@
   border-radius: 10px;
 }
 
-.tierBadge {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--color-text-secondary);
-  background: var(--color-bg-hover);
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-}
-
 .closeBtn {
   display: flex;
   align-items: center;
@@ -123,9 +113,6 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
 }
 
 .messageText {
@@ -133,24 +120,7 @@
   line-height: 1.5;
   color: var(--color-text-primary);
   white-space: pre-wrap;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
   word-break: break-word;
-}
-
-.user .messageText {
-  background: var(--color-accent-primary);
-  color: var(--color-bg-primary);
-  padding: 8px 12px;
-  border-radius: 12px;
-  border-top-right-radius: 4px;
-}
-
-.assistant .messageText {
-  background: var(--color-bg-elevated);
-  padding: 8px 12px;
-  border-radius: 12px;
-  border-top-left-radius: 4px;
 }
 
 /* ─── Typing Indicator ─── */
@@ -193,12 +163,12 @@
 
 .inputWrapper {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  padding: 6px 8px 6px 14px;
+  padding: 8px 8px 8px 14px;
   transition: border-color 0.15s ease;
 }
 
@@ -212,12 +182,10 @@
   border: none;
   outline: none;
   font-size: 13px;
-  line-height: 20px;
+  line-height: 1.5;
   color: var(--color-text-primary);
   resize: none;
   max-height: 100px;
-  min-height: 20px;
-  padding: 4px 0;
   font-family: inherit;
 }
 
@@ -269,321 +237,4 @@
   margin-top: 6px;
   text-align: center;
   opacity: 0.7;
-}
-
-/* ─── Markdown Styles ─── */
-.mdCode {
-  background: rgba(255, 255, 255, 0.08);
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-family: 'Cascadia Code', 'JetBrains Mono', monospace;
-  font-size: 12px;
-}
-
-.mdList {
-  margin: 4px 0;
-  padding-left: 18px;
-}
-
-.mdList li {
-  margin-bottom: 2px;
-}
-
-.installCmd {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  margin: 4px 2px;
-  border: 1px solid rgba(96, 205, 255, 0.25);
-  border-radius: 8px;
-  background: rgba(96, 205, 255, 0.1);
-  color: var(--color-accent-primary);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
-  font-family: inherit;
-}
-
-.installCmd:hover {
-  background: rgba(96, 205, 255, 0.18);
-  border-color: rgba(96, 205, 255, 0.4);
-}
-
-.uninstallCmd {
-  composes: installCmd;
-  border-color: rgba(255, 100, 100, 0.25);
-  background: rgba(255, 100, 100, 0.1);
-  color: #ff8a8a;
-}
-
-.uninstallCmd:hover {
-  background: rgba(255, 100, 100, 0.18);
-  border-color: rgba(255, 100, 100, 0.4);
-}
-
-.searchCmd {
-  composes: installCmd;
-  border-color: rgba(180, 160, 255, 0.25);
-  background: rgba(180, 160, 255, 0.1);
-  color: #b4a0ff;
-}
-
-.searchCmd:hover {
-  background: rgba(180, 160, 255, 0.18);
-  border-color: rgba(180, 160, 255, 0.4);
-}
-
-.refreshCmd {
-  composes: installCmd;
-  border-color: rgba(108, 203, 95, 0.25);
-  background: rgba(108, 203, 95, 0.1);
-  color: #7ed673;
-}
-
-.refreshCmd:hover {
-  background: rgba(108, 203, 95, 0.18);
-  border-color: rgba(108, 203, 95, 0.4);
-}
-
-/* ─── Model Selector Bar ─── */
-
-.modelBar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
-}
-
-.modelSelect {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.modelSelect select {
-  width: 100%;
-  padding: 4px 6px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-bg-surface);
-  color: var(--color-text-primary);
-  font-size: 11px;
-  outline: none;
-  cursor: pointer;
-}
-
-.modelSelect select:focus {
-  border-color: var(--color-accent-primary);
-}
-
-.modelLabel {
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--color-text-secondary);
-}
-
-.customModelInput {
-  width: 100%;
-  padding: 4px 6px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-bg-surface);
-  color: var(--color-text-primary);
-  font-size: 11px;
-  font-family: 'Cascadia Code', 'JetBrains Mono', monospace;
-  outline: none;
-}
-
-.customModelInput:focus {
-  border-color: var(--color-accent-primary);
-}
-
-.noKeyWarning {
-  width: 100%;
-  font-size: 10px;
-  color: #ff9050;
-  padding: 2px 0;
-}
-
-/* ─── Ollama Connection UI ─── */
-
-.ollamaSection {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ollamaUrlRow {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.ollamaUrlRow input {
-  flex: 1;
-  min-width: 0;
-}
-
-.ollamaConnectBtn,
-.ollamaDisconnectBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.ollamaConnectBtn {
-  background: rgba(108, 203, 95, 0.1);
-  color: #7ed673;
-  border-color: rgba(108, 203, 95, 0.3);
-}
-
-.ollamaConnectBtn:hover:not(:disabled) {
-  background: rgba(108, 203, 95, 0.2);
-  border-color: rgba(108, 203, 95, 0.5);
-}
-
-.ollamaConnectBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.ollamaDisconnectBtn {
-  background: rgba(255, 100, 100, 0.1);
-  color: #ff8a8a;
-  border-color: rgba(255, 100, 100, 0.3);
-}
-
-.ollamaDisconnectBtn:hover {
-  background: rgba(255, 100, 100, 0.2);
-  border-color: rgba(255, 100, 100, 0.5);
-}
-
-.ollamaStatus {
-  font-size: 10px;
-  padding: 0 2px;
-}
-
-.ollamaStatusOk {
-  color: #7ed673;
-}
-
-.ollamaStatusErr {
-  color: #ff8a8a;
-}
-
-.ollamaStatusChecking {
-  color: var(--color-text-secondary);
-}
-
-.ollamaStatusOff {
-  color: var(--color-text-secondary);
-  opacity: 0.7;
-}
-
-/* ── AI Action Confirmation Dialog ── */
-
-.confirmOverlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  backdrop-filter: blur(2px);
-}
-
-.confirmDialog {
-  background: var(--color-bg-surface, #1e1e2e);
-  border: 1px solid var(--color-border, #333);
-  border-radius: 10px;
-  width: 260px;
-  overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.confirmHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #f5a623;
-  border-bottom: 1px solid var(--color-border, #333);
-}
-
-.confirmBody {
-  padding: 12px 14px;
-  font-size: 12px;
-  color: var(--color-text-secondary, #8888a0);
-}
-
-.confirmBody p {
-  margin: 0 0 8px;
-}
-
-.confirmList {
-  margin: 0;
-  padding: 0 0 0 16px;
-  font-size: 12px;
-  color: var(--color-text-primary, #e4e4ef);
-  line-height: 1.6;
-}
-
-.confirmActions {
-  display: flex;
-  gap: 8px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--color-border, #333);
-  justify-content: flex-end;
-}
-
-.confirmDeny {
-  background: transparent;
-  border: 1px solid var(--color-border, #444);
-  color: var(--color-text-secondary, #8888a0);
-  padding: 5px 14px;
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s;
-}
-
-.confirmDeny:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.confirmAllow {
-  background: var(--color-accent-primary, #863bff);
-  border: none;
-  color: #fff;
-  padding: 5px 14px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition: filter 0.15s;
-}
-
-.confirmAllow:hover {
-  filter: brightness(1.15);
 }

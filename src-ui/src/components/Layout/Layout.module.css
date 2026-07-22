@@ -7,46 +7,30 @@
   overflow: hidden;
 }
 
-/* Row container for nav + main */
-.body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
 /* ─── Navigation Rail ─── */
 .navRail {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  width: 220px;
-  min-width: 220px;
+  width: 64px;
+  min-width: 64px;
   height: 100%;
   background: var(--color-bg-surface);
   border-right: 1px solid var(--color-border);
   padding: 12px 8px;
-  transition: width 0.2s ease, min-width 0.2s ease;
+  transition: width 0.2s ease;
   z-index: 10;
-  position: relative;
-}
-
-.navRailCollapsed {
-  width: 56px;
-  min-width: 56px;
 }
 
 .navTop,
 .navBottom {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .navBottom {
   margin-top: auto;
-  border-top: 1px solid var(--color-border);
-  padding-top: 8px;
 }
 
 /* ─── Logo ─── */
@@ -54,7 +38,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 8px;
   margin-bottom: 16px;
   cursor: default;
 }
@@ -72,7 +56,7 @@
   font-weight: 600;
   color: var(--color-bg-primary);
   background: var(--color-accent-secondary);
-  padding: 2px 6px;
+  padding: 2px 4px;
   border-radius: 4px;
   letter-spacing: 0.5px;
 }
@@ -81,8 +65,8 @@
 .navItem {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
+  gap: 12px;
+  padding: 10px 12px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -93,9 +77,6 @@
   overflow: hidden;
   text-align: left;
   width: 100%;
-  font-family: inherit;
-  font-size: 13px;
-  position: relative;
 }
 
 .navItem:hover {
@@ -121,34 +102,21 @@
   font-size: 13px;
   font-weight: 500;
   overflow: hidden;
-  flex: 1;
-}
-
-.navBadge {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  background: var(--color-bg-primary);
-  padding: 1px 6px;
-  border-radius: 10px;
-  min-width: 20px;
-  text-align: center;
 }
 
 /* ─── Main Content ─── */
 .main {
   display: flex;
   flex: 1;
-  min-width: 0;
   height: 100%;
   overflow: hidden;
+  transition: all 0.25s ease;
 }
 
 .content {
   flex: 1;
   overflow: auto;
   height: 100%;
-  min-width: 0;
 }
 
 /* ─── Status Bar ─── */
@@ -156,13 +124,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 26px;
+  height: 24px;
   padding: 0 12px;
   background: var(--color-bg-surface);
   border-top: 1px solid var(--color-border);
   font-size: 11px;
   color: var(--color-text-secondary);
-  flex-shrink: 0;
 }
 
 .statusLeft,
@@ -177,147 +144,4 @@
   height: 6px;
   border-radius: 50%;
   background: var(--color-success);
-}
-
-.statusSep {
-  opacity: 0.3;
-}
-
-.cliError {
-  font-size: 11px;
-  color: #ff8a8a;
-  padding: 4px 0;
-  line-height: 1.3;
-}
-
-/* ─── CLI Install Panel ─── */
-
-.cliOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.cliPanel {
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  width: 420px;
-  max-width: 90vw;
-  overflow: hidden;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
-}
-
-.cliPanelHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--color-text-primary);
-}
-
-.cliPanelClose {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-
-.cliPanelClose:hover {
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-}
-
-.cliPanelBody {
-  padding: 16px 20px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--color-text-secondary);
-}
-
-.cliPanelBody p {
-  margin: 0 0 8px;
-}
-
-.cliPanelBody ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.cliPanelBody li {
-  margin-bottom: 4px;
-}
-
-.cliPanelFooter {
-  display: flex;
-  gap: 8px;
-  padding: 12px 20px;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
-}
-
-.cliInstallBtn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 8px;
-  background: var(--color-accent-primary);
-  color: var(--color-bg-primary);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-  font-family: inherit;
-}
-
-.cliInstallBtn:hover:not(:disabled) {
-  opacity: 0.85;
-}
-
-.cliInstallBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.cliCancelBtn {
-  display: flex;
-  align-items: center;
-  padding: 8px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.cliCancelBtn:hover {
-  background: var(--color-bg-hover);
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }

@@ -14,11 +14,7 @@ export type IpcChannel =
   | 'mod:uninstall'
   | 'mod:list-installed'
   | 'mod:get-details'
-  | 'mod:scan-gamedata'
-  | 'mod:check-updates'
   | 'game:list-instances'
-  | 'game:add-instance'
-  | 'game:remove-instance'
   | 'game:set-active'
   | 'ai:chat'
   | 'ai:points-balance'
@@ -29,18 +25,9 @@ export type IpcChannel =
   | 'dispatch:pair'
   | 'dispatch:status'
   | 'app:get-version'
-  | 'app:check-update'
-  | 'app:apply-update'
   | 'app:minimize'
   | 'app:maximize'
-  | 'app:close'
-  | 'app:browse-folder'
-  | 'app:open-cli'
-  | 'app:download-cli'
-  | 'repo:refresh'
-  | 'ai:ollama-chat'
-  | 'ai:ollama-status'
-;
+  | 'app:close';
 
 export interface IpcRequest<T = unknown> {
   channel: IpcChannel;
@@ -60,7 +47,6 @@ type IpcHandler = (response: IpcResponse) => void;
 
 class CkanIpc {
   private handlers = new Map<string, IpcHandler>();
-  private eventListeners = new Map<string, Set<(data: unknown) => void>>();
   private dotNetRef: unknown = null;
 
   /**
@@ -69,53 +55,7 @@ class CkanIpc {
    */
   init(dotNetRef: unknown): void {
     this.dotNetRef = dotNetRef;
-
-    // Listen for messages from .NET (WebView2)
-    if ((window as any).chrome?.webview) {
-      (window as any).chrome.webview.addEventListener('message', (e: MessageEvent) => {
-        this.handleIncoming(e.data);
-      });
-    }
-
     console.log('[CKAN IPC] Bridge initialized');
-  }
-
-  /**
-   * Auto-detect WebView2 environment and self-initialize.
-   * Called at module load time.
-   */
-  autoInit(): void {
-    if ((window as any).chrome?.webview) {
-      this.dotNetRef = true;
-      (window as any).chrome.webview.addEventListener('message', (e: MessageEvent) => {
-        this.handleIncoming(e.data);
-      });
-      console.log('[CKAN IPC] Auto-detected WebView2 environment');
-    }
-  }
-
-  /**
-   * Handle incoming messages from .NET — either responses or push events.
-   */
-  private handleIncoming(data: any): void {
-    if (!data) return;
-
-    // If it has an 'id', it's a response to a request
-    if (data.id && this.handlers.has(data.id)) {
-      const handler = this.handlers.get(data.id)!;
-      handler(data as IpcResponse);
-      return;
-    }
-
-    // If it has a 'channel' but no 'id', it's a push event from .NET
-    if (data.channel) {
-      const listeners = this.eventListeners.get(data.channel);
-      if (listeners) {
-        for (const cb of listeners) {
-          cb(data.data);
-        }
-      }
-    }
   }
 
   /**
@@ -171,23 +111,22 @@ class CkanIpc {
   }
 
   /**
-   * Listen for push events coming FROM .NET (e.g., progress, install status).
+   * Listen for events coming FROM .NET (callbacks, push notifications).
    */
   on(channel: string, callback: (data: unknown) => void): () => void {
-    if (!this.eventListeners.has(channel)) {
-      this.eventListeners.set(channel, new Set());
-    }
-    this.eventListeners.get(channel)!.add(callback);
+    const handler = (response: IpcResponse) => {
+      if (response.data) {
+        callback(response.data);
+      }
+    };
+
+    // Store the handler globally for .NET to call
+    const key = `listener:${channel}`;
+    (window as any)[key] = handler;
 
     // Return unsubscribe function
     return () => {
-      const listeners = this.eventListeners.get(channel);
-      if (listeners) {
-        listeners.delete(callback);
-        if (listeners.size === 0) {
-          this.eventListeners.delete(channel);
-        }
-      }
+      delete (window as any)[key];
     };
   }
 
@@ -198,30 +137,14 @@ class CkanIpc {
     switch (channel) {
       case 'app:get-version':
         return { version: '2.0.0-dev', build: 'modern' };
-      case 'app:check-update':
-        return { available: false };
-      case 'app:apply-update':
-        return { success: false, error: 'Dev mode' };
       case 'mod:list-installed':
         return { mods: [] };
-      case 'mod:search':
-        return { mods: [], query: '', total: 0 };
       case 'ai:points-balance':
         return { balance: 100, tier: 'free' };
       case 'auth:get-user':
         return null;
       case 'game:list-instances':
         return { instances: [] };
-      case 'game:add-instance':
-        return { success: true };
-      case 'game:remove-instance':
-        return { success: true };
-      case 'app:browse-folder':
-        return { selected: false, path: null };
-      case 'mod:scan-gamedata':
-        return { mods: [], scanned: true };
-      case 'mod:check-updates':
-        return { updates: [], count: 0 };
       default:
         return {};
     }
@@ -229,8 +152,5 @@ class CkanIpc {
 }
 
 export const ckanIpc = new CkanIpc();
-
-// Auto-detect WebView2 and initialize
-ckanIpc.autoInit();
 
 export default ckanIpc;
