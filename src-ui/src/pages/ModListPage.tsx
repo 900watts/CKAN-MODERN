@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Filter, Grid3X3, List, Package, Download, ExternalLink } from 'lucide-react';
+import { Search, Filter, Grid3X3, List, Package } from 'lucide-react';
 import { ckanIpc } from '../services/ipc';
 import styles from './ModListPage.module.css';
 

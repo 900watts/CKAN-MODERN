@@ -57,7 +57,7 @@ export default function AIChatPanel({ onClose }: AIChatPanelProps) {
     setIsLoading(true);
 
     try {
-      const response = await ckanIpc.call<{ message: string }, any>('ai:chat', {
+      const response = await ckanIpc.call<any, any>('ai:chat', {
         message: userMessage.content,
         history: messages.map((m) => ({ role: m.role, content: m.content })),
       });

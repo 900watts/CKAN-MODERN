@@ -1,4 +1,4 @@
-import { Settings, Globe, User, Zap, Database } from 'lucide-react';
+import { Globe, User, Zap, Database } from 'lucide-react';
 import styles from './SettingsPage.module.css';
 
 export default function SettingsPage() {
