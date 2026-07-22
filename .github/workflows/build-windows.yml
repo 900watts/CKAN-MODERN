@@ -1,0 +1,323 @@
+# Build CKAN for Windows (ckan.exe + AutoUpdater.exe)
+#
+# Runs on windows-latest where the .NET Framework 4.8.1 reference
+# assemblies and Windows desktop targeting packs are preinstalled.
+# This sidesteps the Linux/mono MSBuild routing problem that has
+# been breaking build.yml's net481 WPF projects since the GitHub
+# runner image migrated to .NET 10.
+#
+# Triggered by:
+#   - push to main with src-ui/, CKAN/, or build/ changes
+#   - manual workflow_dispatch
+#   - new tag matching v*
+#   - the existing release.yml via workflow_call (future work)
+#
+# Output:
+#   - Workflow artifact: ckan-windows-<run_id> containing
+#     ckan.exe and AutoUpdater.exe from _build/repack/Release/
+#   - On tag pushes: also publishes both lite and bundled binaries
+#     to the matching GitHub release (creates it if missing).
+
+name: Build CKAN Windows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src-ui/**'
+      - 'CKAN/**'
+      - 'Core/**'
+      - 'Cmdline/**'
+      - 'GUI/**'
+      - 'Netkan/**'
+      - 'Tests/**'
+      - 'build/**'
+      - 'build.ps1'
+      - 'build.sh'
+      - 'GlobalAssemblyInfo.cs'
+      - 'CKAN.sln'
+      - 'packages.config'
+      - 'CKAN.schema'
+      - 'NetKAN.schema'
+      - '.github/workflows/build-windows.yml'
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ckan.exe on Windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      Configuration: Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ─── Frontend (React + TypeScript + Vite) ───
+      # Same logic as the new frontend-ci.yml: build the Vite output
+      # so CKAN/wwwroot exists before the .NET build bundles it.
+      - name: Setup Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src-ui/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: src-ui
+        run: npm ci
+
+      - name: Build frontend (Vite → CKAN/wwwroot)
+        working-directory: src-ui
+        run: npm run build
+
+      - name: Verify wwwroot was produced
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'CKAN/wwwroot/index.html')) {
+            Write-Error 'CKAN/wwwroot/index.html missing after Vite build'
+            exit 1
+          }
+
+      # ─── .NET SDK ───
+      # Pin to 8.0. The Windows runner image usually ships a newer
+      # SDK by default, but Cake's net8.0 target was authored
+      # against 8.0 and may have differences on later SDKs.
+      - name: Setup .NET SDK 8.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # ─── .NET build via Cake (Windows entry point) ───
+      - name: Run Cake build
+        shell: pwsh
+        run: |
+          .\build.ps1 --target=Default --configuration=$env:Configuration --verbosity=Minimal
+
+      - name: Verify ckan.exe was produced
+        shell: pwsh
+        run: |
+          $exe = "_build\repack\$env:Configuration\ckan.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Error "Expected $exe but it was not produced"
+            Get-ChildItem -Recurse _build | Select-Object -First 50 | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
+          $size = (Get-Item $exe).Length
+          Write-Host "ckan.exe: $exe ($size bytes)"
+
+      # ─── Bundled (self-contained) build ───
+      # Cake's Repack task produces the lite build (~6 MB, framework-
+      # dependent on net8.0-windows). For users without the .NET 8
+      # runtime installed, we also publish a self-contained bundled
+      # build (~70 MB, single-file with everything embedded).
+      #
+      # The CKAN/CKAN-Modern.csproj sets:
+      #   <PublishSingleFile>true</PublishSingleFile>
+      #   <SelfContained>true</SelfContained>
+      #   <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+      # so `dotnet publish` produces CKAN-M-bundled.exe directly.
+      - name: Publish bundled (self-contained) ckan.exe
+        shell: pwsh
+        run: |
+          $publishDir = "CKAN\bin\$env:Configuration\net8.0-windows\win-x64\publish"
+          if (Test-Path $publishDir) {
+            Remove-Item -Recurse -Force $publishDir
+          }
+          dotnet publish CKAN/CKAN-Modern.csproj `
+            --configuration $env:Configuration `
+            --runtime win-x64 `
+            --self-contained true `
+            --output "$publishDir" `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            --verbosity Minimal
+
+      - name: Verify bundled ckan.exe was produced
+        shell: pwsh
+        run: |
+          $exe = "CKAN\bin\$env:Configuration\net8.0-windows\win-x64\publish\CKAN-M.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Error "Expected $exe but it was not produced"
+            Get-ChildItem -Recurse CKAN\bin\$env:Configuration | Select-Object -First 50 | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
+          $size = (Get-Item $exe).Length
+          Write-Host "Bundled CKAN-M.exe: $exe ($size bytes)"
+
+      # Rename bundled output to match the asset name that the
+      # in-app UpdateChecker looks for. UpdateChecker.cs line 75:
+      #   if (assetName.Equals("CKAN-M-bundled.exe", ...))
+      - name: Stage bundled as CKAN-M-bundled.exe
+        shell: pwsh
+        run: |
+          $src  = "CKAN\bin\$env:Configuration\net8.0-windows\win-x64\publish\CKAN-M.exe"
+          $dest = "CKAN\bin\$env:Configuration\net8.0-windows\win-x64\publish\CKAN-M-bundled.exe"
+          if (Test-Path $src) {
+            Copy-Item $src $dest -Force
+            $size = (Get-Item $dest).Length
+            Write-Host "Bundled: $dest ($size bytes)"
+          }
+
+      # ─── Artifacts ───
+      # ckan.exe is the main deliverable. AutoUpdater.exe ships with
+      # it and is used by the in-app update flow. The Lite build is
+      # ~6MB, the bundled one is ~70MB; both fit easily in a 7-day
+      # artifact retention.
+      - name: Upload ckan.exe (lite)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ckan-windows
+          path: _build/repack/${{ env.Configuration }}/ckan.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload CKAN-M-bundled.exe (self-contained)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ckan-windows-bundled
+          path: CKAN/bin/${{ env.Configuration }}/net8.0-windows/win-x64/publish/CKAN-M-bundled.exe
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload AutoUpdater.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: ckan-windows-autoupdater
+          path: _build/repack/${{ env.Configuration }}/AutoUpdater.exe
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload full repack directory
+        uses: actions/upload-artifact@v4
+        with:
+          name: ckan-windows-repack
+          path: _build/repack/${{ env.Configuration }}/
+          retention-days: 3
+
+      # ─── Summary ───
+      - name: Build summary
+        if: always()
+        shell: pwsh
+        run: |
+          $lite  = "_build\repack\$env:Configuration\ckan.exe"
+          $bundled = "CKAN\bin\$env:Configuration\net8.0-windows\win-x64\publish\CKAN-M-bundled.exe"
+          $summary = @"
+          ## ckan.exe build summary
+
+          ### Lite (framework-dependent)
+          "@
+          if (Test-Path $lite) {
+            $info = Get-Item $lite
+            $sha = (Get-FileHash $lite -Algorithm SHA256).Hash
+            $summary += @"
+
+          - Path: ``$lite``
+          - Size: $('{0:N0}' -f $info.Length) bytes
+          - SHA256: ``$sha``
+          "@
+          } else {
+            $summary += "`n- NOT PRODUCED`n"
+          }
+          $summary += @"
+
+          ### Bundled (self-contained)
+          "@
+          if (Test-Path $bundled) {
+            $info = Get-Item $bundled
+            $sha = (Get-FileHash $bundled -Algorithm SHA256).Hash
+            $summary += @"
+
+          - Path: ``$bundled``
+          - Size: $('{0:N0}' -f $info.Length) bytes
+          - SHA256: ``$sha``
+          "@
+          } else {
+            $summary += "`n- NOT PRODUCED`n"
+          }
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+  # ─── Publish to release ───
+  # On a tag push (refs/tags/v*), download both binaries and attach
+  # them to the matching GitHub release. Creates the release if it
+  # doesn't exist yet.
+  publish:
+    name: Attach binaries to release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download lite ckan.exe
+        uses: actions/download-artifact@v5
+        with:
+          name: ckan-windows
+          path: artifacts/lite/
+
+      - name: Download bundled ckan.exe
+        uses: actions/download-artifact@v5
+        with:
+          name: ckan-windows-bundled
+          path: artifacts/bundled/
+
+      - name: Download AutoUpdater.exe
+        uses: actions/download-artifact@v5
+        with:
+          name: ckan-windows-autoupdater
+          path: artifacts/autoupdater/
+
+      - name: Download repack
+        uses: actions/download-artifact@v5
+        with:
+          name: ckan-windows-repack
+          path: artifacts/repack/
+
+      - name: Ensure release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG does not exist; creating it"
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "${{ github.event.repository.name }} ${TAG}" \
+              --generate-notes
+          else
+            echo "Release $TAG already exists; will upload assets"
+          fi
+
+      - name: Upload binaries to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          # The in-app UpdateChecker looks for these exact asset names.
+          # See CKAN/IPC/UpdateChecker.cs around the asset name match.
+          gh release upload "$TAG" \
+            artifacts/lite/ckan.exe \
+            artifacts/bundled/CKAN-M-bundled.exe \
+            artifacts/autoupdater/AutoUpdater.exe \
+            --clobber
+
+      - name: Verify release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release view "$TAG" --json assets \
+            --jq '.assets[] | "  - " + .name + "  (" + (.size / 1024 / 1024 | tostring | .[0:5]) + " MB)"'
