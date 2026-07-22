@@ -133,13 +133,32 @@ jobs:
           }
           Get-ChildItem $dir | ForEach-Object { Write-Host ("  {0:N0} bytes  {1}" -f $_.Length, $_.Name) }
 
+      # Rename Cake's repack ckan.exe to CKAN-M.exe to match the
+      # build-30 release asset name. The In-app UpdateChecker
+      # (CKAN/IPC/UpdateChecker.cs) looks for CKAN-M.exe in the
+      # release for self-updates. The Cake repack ckan.exe IS
+      # the same modernized UI as the bundled, just compiled
+      # to .NET Framework 4.8.1 via ILRepack -- it works on
+      # Windows 10+ without installing any .NET runtime.
+      - name: Stage Cake repack ckan.exe as CKAN-M.exe (lite)
+        shell: pwsh
+        run: |
+          $src  = "_build\repack\$env:Configuration\ckan.exe"
+          $dest = "_build\repack\$env:Configuration\CKAN-M.exe"
+          if (Test-Path $src) {
+            Copy-Item $src $dest -Force
+            $size = (Get-Item $dest).Length
+            Write-Host "Lite: $dest ($size bytes)"
+          } else {
+            Write-Error "Cake repack did not produce $src"
+            exit 1
+          }
+
       # ─── Bundled (self-contained) build ───
-      # This is the primary artifact. `dotnet publish` with
-      # --self-contained produces a ~70 MB exe with the .NET runtime
-      # embedded. No .NET install required on the target machine.
-      # Output is CKAN-M-bundled.exe (renamed from the publish
-      # default of CKAN-M.exe so the in-app UpdateChecker can find
-      # it on the GitHub release).
+      # `dotnet publish` with --self-contained produces a ~70 MB
+      # exe with the .NET runtime embedded. No .NET install
+      # required on the target machine. This is the modernized
+      # CKAN-M UI built to net8.0-windows, single-file.
       - name: Publish bundled (self-contained) ckan.exe
         shell: pwsh
         run: |
@@ -184,16 +203,18 @@ jobs:
           }
 
       # ─── Artifacts ───
-      # Primary artifact: CKAN-M-bundled.exe (~70 MB, self-contained
-      # net8.0-windows, modern WPF + WebView2 UI). This is what most
-      # users should download.
-      #
-      # Secondary: the Cake repack directory. Cake's repack task
-      # produces an ILRepack-merged ckan.exe (~6 MB) and the
-      # supporting files. This is the legacy net481 build path that
-      # still works for users on older .NET runtimes but is not the
-      # modern UI. It is uploaded for debugging/reference but is
-      # NOT attached to the release.
+      # Asset names match the build-30 release:
+      #   CKAN-M.exe         (lite, framework-dependent, net481)
+      #   CKAN-M-bundled.exe (self-contained, net8.0-windows, ~70 MB)
+      #   AutoUpdater.exe    (in-app update helper, ~40 KB)
+      - name: Upload CKAN-M.exe (lite, Cake repack)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ckan-windows
+          path: _build/repack/${{ env.Configuration }}/CKAN-M.exe
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload CKAN-M-bundled.exe (self-contained)
         uses: actions/upload-artifact@v4
         with:
@@ -222,11 +243,30 @@ jobs:
         if: always()
         shell: pwsh
         run: |
+          $lite  = "_build\repack\$env:Configuration\CKAN-M.exe"
           $bundled = "CKAN\bin\$env:Configuration\net8.0-windows\win-x64\publish\CKAN-M-bundled.exe"
           $summary = @"
           ## CKAN-M build summary
 
-          ### Bundled (self-contained, win-x64)
+          ### Lite (framework-dependent, .NET Framework 4.8.1)
+          "@
+          if (Test-Path $lite) {
+            $info = Get-Item $lite
+            $sha = (Get-FileHash $lite -Algorithm SHA256).Hash
+            $summary += @"
+
+          - Path: ``$lite``
+          - Size: $('{0:N0}' -f $info.Length) bytes
+          - SHA256: ``$sha``
+          - Runtime: .NET Framework 4.8.1 (built into Windows 10+)
+          - Architecture: bundled via ILRepack
+          "@
+          } else {
+            $summary += "`n- NOT PRODUCED`n"
+          }
+          $summary += @"
+
+          ### Bundled (self-contained, net8.0-windows win-x64)
           "@
           if (Test-Path $bundled) {
             $info = Get-Item $bundled
@@ -236,7 +276,8 @@ jobs:
           - Path: ``$bundled``
           - Size: $('{0:N0}' -f $info.Length) bytes
           - SHA256: ``$sha``
-          - Target: .NET 8 desktop runtime (no install required)
+          - Runtime: .NET 8 desktop (no install required)
+          - Architecture: x86-64 single-file
           "@
           } else {
             $summary += "`n- NOT PRODUCED`n"
@@ -254,7 +295,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Download bundled ckan.exe
+      - name: Download CKAN-M.exe (lite)
+        uses: actions/download-artifact@v5
+        with:
+          name: ckan-windows
+          path: artifacts/lite/
+
+      - name: Download CKAN-M-bundled.exe
         uses: actions/download-artifact@v5
         with:
           name: ckan-windows-bundled
@@ -291,9 +338,11 @@ jobs:
           # Local filenames must be the short names (no directory
           # prefix), because gh release upload uses the basename of
           # each path as the asset name on the release.
+          cp artifacts/lite/CKAN-M.exe         CKAN-M.exe
           cp artifacts/bundled/CKAN-M-bundled.exe CKAN-M-bundled.exe
-          cp artifacts/autoupdater/AutoUpdater.exe  AutoUpdater.exe
+          cp artifacts/autoupdater/AutoUpdater.exe   AutoUpdater.exe
           gh release upload "$TAG" \
+            CKAN-M.exe \
             CKAN-M-bundled.exe \
             AutoUpdater.exe \
             --clobber
