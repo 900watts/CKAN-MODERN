@@ -133,46 +133,13 @@ jobs:
           }
           Get-ChildItem $dir | ForEach-Object { Write-Host ("  {0:N0} bytes  {1}" -f $_.Length, $_.Name) }
 
-      # ─── Lite (framework-dependent) build ───
-      # Cake's repack produces a "ckan.exe" via net481 mono on
-      # Windows, which is a 32-bit console assembly, ~6 MB, NOT
-      # the same binary that the user actually ships. The real
-      # desktop lite is the net8.0-windows WPF shell published
-      # as CKAN-M.exe, ~9 MB, framework-dependent. That's what
-      # build-30 had. We publish it here so the lite artifact
-      # matches the build-30 layout.
-      - name: Publish lite (framework-dependent) ckan.exe
-        shell: pwsh
-        run: |
-          $publishDir = "CKAN\bin\$env:Configuration-lite\net8.0-windows\win-x64\publish"
-          if (Test-Path $publishDir) {
-            Remove-Item -Recurse -Force $publishDir
-          }
-          dotnet publish CKAN/CKAN-Modern.csproj `
-            --configuration $env:Configuration `
-            --runtime win-x64 `
-            --self-contained false `
-            --output "$publishDir" `
-            -p:PublishSingleFile=false `
-            -p:PublishReadyToRun=false `
-            --verbosity Minimal
-
-      - name: Verify lite ckan.exe was produced
-        shell: pwsh
-        run: |
-          $exe = "CKAN\bin\$env:Configuration-lite\net8.0-windows\win-x64\publish\CKAN-M.exe"
-          if (-not (Test-Path $exe)) {
-            Write-Error "Expected $exe but it was not produced"
-            Get-ChildItem -Recurse CKAN\bin\$env:Configuration-lite | Select-Object -First 50 | ForEach-Object { Write-Host $_.FullName }
-            exit 1
-          }
-          $size = (Get-Item $exe).Length
-          Write-Host "Lite CKAN-M.exe: $exe ($size bytes)"
-
       # ─── Bundled (self-contained) build ───
-      # Same publish command, but --self-contained + single-file,
-      # produces a ~70 MB exe with the .NET runtime embedded.
-      # No .NET install required on the target machine.
+      # This is the primary artifact. `dotnet publish` with
+      # --self-contained produces a ~70 MB exe with the .NET runtime
+      # embedded. No .NET install required on the target machine.
+      # Output is CKAN-M-bundled.exe (renamed from the publish
+      # default of CKAN-M.exe so the in-app UpdateChecker can find
+      # it on the GitHub release).
       - name: Publish bundled (self-contained) ckan.exe
         shell: pwsh
         run: |
@@ -217,18 +184,16 @@ jobs:
           }
 
       # ─── Artifacts ───
-      # Asset names match the build-30 release: CKAN-M.exe (lite,
-      # ~9 MB, framework-dependent) and CKAN-M-bundled.exe (~70 MB,
-      # self-contained). AutoUpdater.exe ships with the desktop
-      # build and is the in-app update helper.
-      - name: Upload CKAN-M.exe (lite)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ckan-windows
-          path: CKAN/bin/${{ env.Configuration }}-lite/net8.0-windows/win-x64/publish/CKAN-M.exe
-          if-no-files-found: error
-          retention-days: 7
-
+      # Primary artifact: CKAN-M-bundled.exe (~70 MB, self-contained
+      # net8.0-windows, modern WPF + WebView2 UI). This is what most
+      # users should download.
+      #
+      # Secondary: the Cake repack directory. Cake's repack task
+      # produces an ILRepack-merged ckan.exe (~6 MB) and the
+      # supporting files. This is the legacy net481 build path that
+      # still works for users on older .NET runtimes but is not the
+      # modern UI. It is uploaded for debugging/reference but is
+      # NOT attached to the release.
       - name: Upload CKAN-M-bundled.exe (self-contained)
         uses: actions/upload-artifact@v4
         with:
@@ -257,26 +222,9 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          $lite  = "CKAN\bin\$env:Configuration-lite\net8.0-windows\win-x64\publish\CKAN-M.exe"
           $bundled = "CKAN\bin\$env:Configuration\net8.0-windows\win-x64\publish\CKAN-M-bundled.exe"
           $summary = @"
-          ## ckan.exe build summary
-
-          ### Lite (framework-dependent, net8.0-windows)
-          "@
-          if (Test-Path $lite) {
-            $info = Get-Item $lite
-            $sha = (Get-FileHash $lite -Algorithm SHA256).Hash
-            $summary += @"
-
-          - Path: ``$lite``
-          - Size: $('{0:N0}' -f $info.Length) bytes
-          - SHA256: ``$sha``
-          "@
-          } else {
-            $summary += "`n- NOT PRODUCED`n"
-          }
-          $summary += @"
+          ## CKAN-M build summary
 
           ### Bundled (self-contained, win-x64)
           "@
@@ -288,6 +236,7 @@ jobs:
           - Path: ``$bundled``
           - Size: $('{0:N0}' -f $info.Length) bytes
           - SHA256: ``$sha``
+          - Target: .NET 8 desktop runtime (no install required)
           "@
           } else {
             $summary += "`n- NOT PRODUCED`n"
@@ -305,12 +254,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Download lite ckan.exe
-        uses: actions/download-artifact@v5
-        with:
-          name: ckan-windows
-          path: artifacts/lite/
-
       - name: Download bundled ckan.exe
         uses: actions/download-artifact@v5
         with:
@@ -322,12 +265,6 @@ jobs:
         with:
           name: ckan-windows-autoupdater
           path: artifacts/autoupdater/
-
-      - name: Download repack
-        uses: actions/download-artifact@v5
-        with:
-          name: ckan-windows-repack
-          path: artifacts/repack/
 
       - name: Ensure release exists
         env:
@@ -354,11 +291,9 @@ jobs:
           # Local filenames must be the short names (no directory
           # prefix), because gh release upload uses the basename of
           # each path as the asset name on the release.
-          cp artifacts/lite/CKAN-M.exe      CKAN-M.exe
           cp artifacts/bundled/CKAN-M-bundled.exe CKAN-M-bundled.exe
-          cp artifacts/autoupdater/AutoUpdater.exe   AutoUpdater.exe
+          cp artifacts/autoupdater/AutoUpdater.exe  AutoUpdater.exe
           gh release upload "$TAG" \
-            CKAN-M.exe \
             CKAN-M-bundled.exe \
             AutoUpdater.exe \
             --clobber
