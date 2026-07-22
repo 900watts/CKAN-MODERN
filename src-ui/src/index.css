@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "./styles/motion.css";
 
 @theme {
   --color-bg-primary: #1A1A1A;

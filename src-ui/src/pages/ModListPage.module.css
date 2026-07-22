@@ -83,7 +83,7 @@
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: background-color var(--dur-pop) ease, color var(--dur-pop) ease;
+  transition: all 0.15s ease;
 }
 
 .viewBtnActive {
@@ -151,7 +151,7 @@
   cursor: pointer;
   font-size: 13px;
   font-family: inherit;
-  transition: background-color var(--dur-pop) ease, color var(--dur-pop) ease, border-color var(--dur-pop) ease;
+  transition: all 0.15s ease;
   white-space: nowrap;
 }
 
@@ -180,7 +180,7 @@
   font-size: 11px;
   font-family: inherit;
   cursor: pointer;
-  transition: background-color var(--dur-pop) ease, color var(--dur-pop) ease, border-color var(--dur-pop) ease;
+  transition: all 0.15s ease;
 }
 
 .tagChip:hover { border-color: var(--color-accent-primary); color: var(--color-text-primary); }
@@ -271,20 +271,11 @@
   border-radius: 10px;
   padding: 14px;
   cursor: pointer;
-  /* Framer Motion drives the y-lift on hover/press. CSS keeps border + shadow. */
-  transition: border-color var(--dur-pop) ease, box-shadow var(--dur-pop) ease;
-  /* Helps GPU composite the hover lift smoothly. */
-  will-change: transform;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .modCard:hover { border-color: var(--color-accent-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
 .modCardSelected { border-color: var(--color-accent-primary); background: var(--color-bg-elevated); }
-
-/* Hover effects should only fire on devices that actually support hover.
-   Prevents iOS/Android tap-then-stuck-hover states. */
-@media (hover: hover) and (pointer: fine) {
-  .modCard:hover { border-color: var(--color-accent-primary); box-shadow: 0 4px 16px rgba(96, 205, 255, 0.15); }
-}
 
 .modCardHeader {
   display: flex;
