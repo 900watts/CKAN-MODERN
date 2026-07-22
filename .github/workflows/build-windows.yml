@@ -202,6 +202,82 @@ jobs:
             Write-Host "Bundled: $dest ($size bytes)"
           }
 
+      # ─── Screenshot ───
+      # Launch the bundled exe, wait for the WPF/WebView2 window
+      # to render, capture the primary screen as a PNG, then stop
+      # the process. The PNG is uploaded as a workflow artifact and
+      # attached to the release so users can see what the app
+      # looks like before downloading.
+      #
+      # The Windows runner has a real interactive desktop session
+      # (session 0 is service-only, but the runner is configured
+      # for GUI apps). Start-Process launches the exe detached;
+      # we then wait ~8 seconds for the WebView2 control to load
+      # the React bundle from the embedded resources.
+      - name: Capture screenshot of running app
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms
+          Add-Type -AssemblyName System.Drawing
+
+          $exe = "CKAN\bin\$env:Configuration\net8.0-windows\win-x64\publish\CKAN-M-bundled.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Error "Bundled exe not found at $exe"
+            exit 1
+          }
+
+          $outDir = "screenshots"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          $png = Join-Path $outDir "ckan-modern.png"
+
+          $proc = Start-Process -FilePath $exe -PassThru
+          Write-Host "Launched CKAN-M-bundled.exe (pid $($proc.Id)); waiting for window..."
+
+          # Poll for the main window to appear, up to 30 seconds
+          $ready = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 1
+            $proc.Refresh()
+            if ($proc.MainWindowHandle -ne 0 -and $proc.MainWindowTitle) {
+              $ready = $true
+              Write-Host "Window appeared after ${i}s: '$($proc.MainWindowTitle)'"
+              break
+            }
+          }
+
+          if (-not $ready) {
+            Write-Host "Window did not appear within 30s; capturing screen anyway"
+          }
+
+          # Give the WebView2 React bundle a few more seconds to render
+          Start-Sleep -Seconds 5
+
+          # Capture the primary screen
+          $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $screen.Width, $screen.Height
+          $gfx = [System.Drawing.Graphics]::FromImage($bmp)
+          $gfx.CopyFromScreen($screen.X, $screen.Y, 0, 0, $bmp.Size)
+          $bmp.Save($png, [System.Drawing.Imaging.ImageFormat]::Png)
+          $gfx.Dispose()
+          $bmp.Dispose()
+          $size = (Get-Item $png).Length
+          Write-Host "Screenshot saved: $png ($size bytes, ${($screen.Width)}x$($screen.Height))"
+
+          # Stop the app (leave a few seconds in case anyone wants
+          # to look at the screen during the test)
+          if (-not $proc.HasExited) {
+            $proc | Stop-Process -Force
+            Write-Host "Stopped CKAN-M-bundled.exe"
+          }
+
+      - name: Upload screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: ckan-windows-screenshot
+          path: screenshots/ckan-modern.png
+          if-no-files-found: error
+          retention-days: 7
+
       # ─── Artifacts ───
       # Asset names match the build-30 release:
       #   CKAN-M.exe         (lite, framework-dependent, net481)
@@ -320,6 +396,12 @@ jobs:
           name: ckan-windows-autoupdater
           path: artifacts/autoupdater/
 
+      - name: Download screenshot
+        uses: actions/download-artifact@v5
+        with:
+          name: ckan-windows-screenshot
+          path: artifacts/screenshot/
+
       - name: Ensure release exists
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -348,10 +430,16 @@ jobs:
           cp artifacts/lite/CKAN-M.exe         CKAN-M.exe
           cp artifacts/bundled/CKAN-M-bundled.exe CKAN-M-bundled.exe
           cp artifacts/autoupdater/AutoUpdater.exe   AutoUpdater.exe
+          # Screenshot asset uses the same basename trick -- copy
+          # the .png to its short name so the asset name on the
+          # release is "screenshot.png" (or "ckan-modern.png") not
+          # "artifacts-screenshot-ckan-modern.png".
+          cp artifacts/screenshot/ckan-modern.png ckan-modern.png
           gh release upload "$TAG" \
             CKAN-M.exe \
             CKAN-M-bundled.exe \
             AutoUpdater.exe \
+            ckan-modern.png \
             --clobber
 
       - name: Verify release assets
